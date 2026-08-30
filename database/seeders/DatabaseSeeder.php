@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             ClientSeeder::class,
             UserSeeder::class,
             ClientNoteSeeder::class,
+            ProjectSeeder::class,
         ]);
     }
 }

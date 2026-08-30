@@ -8,3 +8,8 @@ Route::middleware(['auth', 'verified', 'role:admin,staff'])->group(function () {
     Route::livewire('clientes/{client}', 'pages::clients.show')->name('clients.show');
     Route::livewire('prospectos/{client}', 'pages::clients.show')->name('prospects.show');
 });
+
+Route::middleware(['auth', 'verified', 'role:admin,staff,collaborator'])->group(function () {
+    Route::livewire('proyectos', 'pages::projects.index')->name('projects.index');
+    Route::livewire('proyectos/{project}', 'pages::projects.show')->name('projects.show');
+});

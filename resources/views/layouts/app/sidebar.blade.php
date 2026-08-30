@@ -27,6 +27,14 @@
                         </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif
+
+                @if (auth()->user()->isAdmin() || auth()->user()->isStaff() || auth()->user()->isCollaborator())
+                    <flux:sidebar.group :heading="__('Proyectos')" class="grid">
+                        <flux:sidebar.item icon="briefcase" :href="route('projects.index')" :current="request()->routeIs('projects.*')" wire:navigate>
+                            {{ __('Proyectos') }}
+                        </flux:sidebar.item>
+                    </flux:sidebar.group>
+                @endif
             </flux:sidebar.nav>
 
             <flux:spacer />
@@ -41,6 +49,10 @@
                 </flux:sidebar.item>
             </flux:sidebar.nav>
 
+            @if (auth()->user()->isAdmin() || auth()->user()->isStaff())
+                <livewire:notifications-bell class="hidden lg:block" />
+            @endif
+
             <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->name" />
         </flux:sidebar>
 
@@ -49,6 +61,10 @@
             <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="left" />
 
             <flux:spacer />
+
+            @if (auth()->user()->isAdmin() || auth()->user()->isStaff())
+                <livewire:notifications-bell />
+            @endif
 
             <flux:dropdown position="top" align="end">
                 <flux:profile
