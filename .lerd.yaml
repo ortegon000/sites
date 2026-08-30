@@ -8,3 +8,5 @@ secured: true
 services:
   - mailpit
   - mysql
+workers:
+  - vite
