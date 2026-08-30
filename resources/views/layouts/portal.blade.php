@@ -7,6 +7,15 @@
         <flux:header container class="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
             <x-app-logo href="{{ route('portal.projects.index') }}" wire:navigate />
 
+            <flux:navbar class="-mb-px">
+                <flux:navbar.item icon="briefcase" :href="route('portal.projects.index')" :current="request()->routeIs('portal.projects.*')" wire:navigate>
+                    {{ __('Proyectos') }}
+                </flux:navbar.item>
+                <flux:navbar.item icon="at-symbol" :href="route('portal.email-accounts.index')" :current="request()->routeIs('portal.email-accounts.*')" wire:navigate>
+                    {{ __('Correo') }}
+                </flux:navbar.item>
+            </flux:navbar>
+
             <flux:spacer />
 
             <flux:dropdown position="top" align="end">

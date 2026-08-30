@@ -8,7 +8,7 @@
 - ✅ **Fase 1 — CRM de clientes y prospectos**: completa.
 - ✅ **Fase 2 — Proyectos → Servicios → Cobros + recordatorios**: completa.
 - ✅ **Fase 3 — Agencias colaboradoras**: completa.
-- 🔶 **Fase 4 — Portal de clientes**: 4a (proyectos y cobros de solo lectura) completa; 4b (correos propios) pendiente de que la Fase 5 tenga un driver real.
+- ✅ **Fase 4 — Portal de clientes**: completa (4a proyectos/cobros y 4b correos propios, ambas de solo lectura).
 - 🔶 **Fase 5 — Aprovisionamiento de correo**: andamiaje completo (interfaz de driver, tablas, CRUD de proveedores, altas/bajas/cambio de contraseña de cuentas) con un driver simulado; falta conectar un driver real (MXroute primero) cuando haya credenciales.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
@@ -20,6 +20,8 @@ Verificación al cierre de Fase 3: `php artisan test --compact` → 67 tests (65
 Verificación al cierre de Fase 4a: `php artisan test --compact` → 81 tests (79 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` corrido manualmente y flujo completo verificado en `https://sites.test` (login como `cliente@example.com` redirige a `/portal`, lista solo sus propios proyectos, detalle de proyecto muestra servicios/cobros propios sin agencias ni equipo asignado, acceso a `/portal/proyectos/{id}` de otro cliente devuelve 403, `/dashboard` redirige a `/portal`, logout funciona).
 
 Verificación al cierre del andamiaje de Fase 5: `php artisan test --compact` → 90 tests (88 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` corrido manualmente y flujo verificado en `https://sites.test` (admin ve/crea/elimina proveedores en `/proveedores-correo`, staff no puede entrar ahí, tarjeta "Cuentas de correo" en el detalle de cliente permite crear una cuenta nueva y cambiar su contraseña sin errores; la eliminación con confirmación nativa del navegador quedó verificada solo por el test automatizado, ya que el diálogo `confirm()` nativo no puede pilotarse desde la automatización de navegador usada en esta sesión).
+
+Verificación al cierre de Fase 4b: `php artisan test --compact` → 97 tests (95 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` corrido manualmente y flujo verificado en `https://sites.test` (login como `cliente@example.com` → `/portal/correo` muestra su propia cuenta de correo con la configuración IMAP/SMTP simulada, la barra "Proyectos / Correo" del portal navega entre ambas vistas).
 
 ## Contexto
 
@@ -204,7 +206,17 @@ Se confirmó con el dueño de la agencia construir primero todo el andamiaje (in
 ### Pendiente para cerrar la fase por completo
 
 - Conectar un driver real (MXroute primero, según lo confirmado) cuando el usuario tenga credenciales/documentación de su API.
-- **Fase 4b — Cuentas de correo propias en el portal**: ahora que `email_accounts` existe, falta la vista de solo lectura en `/portal` para que el propio cliente vea sus cuentas (sin poder crearlas ni eliminarlas).
+
+## Fase 4b — Cuentas de correo propias en el portal ✅
+
+Con `email_accounts` ya existente desde la Fase 5, se agregó la vista de solo lectura correspondiente en el portal.
+
+### Archivos clave creados
+
+- `routes/portal.php`: `portal.email-accounts.index` (`/portal/correo`), mismo grupo `role:client` que las rutas de proyectos.
+- `resources/views/pages/portal/email-accounts/⚡index.blade.php` — lista las cuentas de correo del cliente autenticado (`EmailAccount::where('client_id', auth()->user()->client_id)`, mismo patrón que `portal.projects.index`, sin política propia). Por cada cuenta muestra su estatus y la configuración de conexión (`$emailAccount->provider->driver()->getConnectionSettings(...)`) — con el driver simulado de Fase 5 esto son valores de ejemplo, pero en cuanto haya un driver real la misma vista mostrará datos reales sin cambios.
+- `resources/views/layouts/portal.blade.php` — se agregó un `flux:navbar` con dos ítems ("Proyectos" / "Correo") entre el logo y el menú de usuario, ya que con dos secciones el portal necesitaba alguna forma de navegar entre ellas (la decisión original de "sin nav interno" se refería a no reutilizar el sidebar completo del CRM interno, no a no tener ningún enlace).
+- Tests: `tests/Feature/Portal/PortalEmailAccountsTest.php` (5 tests: acceso por rol, scope a cuentas propias, configuración de conexión visible, `client` sin `client_id` vinculado).
 
 ## Verificación (repetir en cada fase nueva)
 
