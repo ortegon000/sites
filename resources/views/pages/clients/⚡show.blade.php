@@ -3,6 +3,7 @@
 use App\Actions\Clients\ChangeClientStatus;
 use App\Enums\ClientNoteType;
 use App\Enums\ClientStatus;
+use App\Enums\ClientType;
 use App\Models\Client;
 use Flux\Flux;
 use Illuminate\Support\Facades\Gate;
@@ -16,12 +17,49 @@ new class extends Component {
 
     public string $status = '';
 
+    /**
+     * The route this component was reached through on the initial page
+     * load. Captured once in mount() rather than re-read from request()
+     * later, because subsequent Livewire actions are POSTed to Livewire's
+     * own update endpoint — request()->route() at that point reflects that
+     * internal endpoint, not the page the browser is actually showing.
+     */
+    public ?string $routeName = null;
+
     public function mount(Client $client): void
     {
         Gate::authorize('view', $client);
 
         $this->client = $client;
         $this->status = $client->status->value;
+        $this->routeName = request()->route()?->getName();
+
+        $this->redirectToCanonicalRoute();
+    }
+
+    /**
+     * A prospect and a client share this same component, at two different
+     * URLs (/prospectos/{id} and /clientes/{id}). If the record's real type
+     * doesn't match the URL used to reach it — either because someone typed
+     * the "wrong" URL by hand, or because a status change just converted it
+     * — send the browser to the URL that matches its current type.
+     *
+     * Skipped when $routeName is null (e.g. an isolated Livewire::test()
+     * call with no real route), since there's nothing to compare against.
+     */
+    private function redirectToCanonicalRoute(): void
+    {
+        if ($this->routeName === null) {
+            return;
+        }
+
+        $correctRoute = $this->client->type === ClientType::Prospect ? 'prospects.show' : 'clients.show';
+
+        if ($this->routeName !== $correctRoute) {
+            $this->routeName = $correctRoute;
+
+            $this->redirect(route($correctRoute, $this->client), navigate: true);
+        }
     }
 
     #[Computed]
@@ -60,6 +98,8 @@ new class extends Component {
         $this->client = $action->handle($this->client, ClientStatus::from($validated['status']), auth()->user());
 
         Flux::toast(variant: 'success', text: __('Estatus actualizado.'));
+
+        $this->redirectToCanonicalRoute();
     }
 
     public function render()

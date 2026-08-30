@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Clients\ChangeClientStatus;
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
 use App\Models\Client;
@@ -99,7 +100,7 @@ new class extends Component {
         $this->modal('client-form')->show();
     }
 
-    public function save(): void
+    public function save(ChangeClientStatus $changeClientStatus): void
     {
         $client = $this->editingClientId ? Client::findOrFail($this->editingClientId) : null;
 
@@ -116,11 +117,18 @@ new class extends Component {
             'status' => ['required', Rule::enum(ClientStatus::class)],
         ]);
 
-        $validated['type'] = $this->type;
+        $status = ClientStatus::from($validated['status']);
+        unset($validated['status']);
 
         if ($client) {
             $client->update($validated);
+
+            if ($status !== $client->status) {
+                $changeClientStatus->handle($client, $status, auth()->user());
+            }
         } else {
+            $validated['type'] = $this->type;
+            $validated['status'] = $status;
             $validated['assigned_to_user_id'] = auth()->id();
             Client::create($validated);
         }
@@ -187,7 +195,7 @@ new class extends Component {
             @forelse ($this->clients as $client)
                 <flux:table.row wire:key="client-{{ $client->id }}">
                     <flux:table.cell>
-                        <flux:link :href="route('clients.show', $client)" wire:navigate>{{ $client->name }}</flux:link>
+                        <flux:link :href="route($this->type->value === 'prospect' ? 'prospects.show' : 'clients.show', $client)" wire:navigate>{{ $client->name }}</flux:link>
                     </flux:table.cell>
                     <flux:table.cell>{{ $client->company_name ?? '—' }}</flux:table.cell>
                     <flux:table.cell>

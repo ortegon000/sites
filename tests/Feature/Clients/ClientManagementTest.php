@@ -58,6 +58,43 @@ test('collaborator cannot access the client policy', function () {
     expect($collaborator->can('viewAny', Client::class))->toBeFalse();
 });
 
+test('changing a prospect status to ganado from the list edit modal converts it to a client', function () {
+    $admin = User::factory()->admin()->create();
+    $prospect = Client::factory()->prospect()->create();
+
+    $this->actingAs($admin);
+
+    Livewire::test('pages::clients.index')
+        ->call('openEditModal', $prospect->id)
+        ->set('status', ClientStatus::Ganado->value)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $prospect->refresh();
+
+    expect($prospect->status)->toBe(ClientStatus::Ganado)
+        ->and($prospect->type)->toBe(ClientType::Client)
+        ->and($prospect->notes)->toHaveCount(1);
+});
+
+test('visiting a prospect via the client url redirects to the prospect url', function () {
+    $admin = User::factory()->admin()->create();
+    $prospect = Client::factory()->prospect()->create();
+
+    $this->actingAs($admin)
+        ->get(route('clients.show', $prospect))
+        ->assertRedirect(route('prospects.show', $prospect));
+});
+
+test('visiting a client via the prospect url redirects to the client url', function () {
+    $admin = User::factory()->admin()->create();
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($admin)
+        ->get(route('prospects.show', $client))
+        ->assertRedirect(route('clients.show', $client));
+});
+
 test('admin can add a note and change a prospect status to ganado, converting it to a client', function () {
     $admin = User::factory()->admin()->create();
     $client = Client::factory()->prospect()->create();
