@@ -11,7 +11,7 @@ El desarrollo avanza por fases. El detalle completo, las decisiones de producto 
 - ✅ Fase 0 — Roles y fundamento de auth
 - ✅ Fase 1 — CRM de clientes y prospectos
 - ✅ Fase 2 — Proyectos, servicios y cobros con recordatorios
-- ⬜ Fase 3 — Agencias colaboradoras
+- ✅ Fase 3 — Agencias colaboradoras
 - ⬜ Fase 4 — Portal de clientes
 - ⬜ Fase 5 — Aprovisionamiento de cuentas de correo (cPanel/Hostinger/MXroute)
 
@@ -38,7 +38,7 @@ php artisan key:generate
 php artisan migrate:fresh --seed
 ```
 
-El seeder (`database/seeders/`) crea datos de ejemplo: clientes, prospectos, notas de actividad, un usuario por rol, y proyectos con servicios y cobros en distintos estados (pendiente, pagado, vencido).
+El seeder (`database/seeders/`) crea datos de ejemplo: clientes, prospectos, notas de actividad, un usuario por rol, proyectos con servicios y cobros en distintos estados (pendiente, pagado, vencido), y agencias colaboradoras asociadas a proyectos.
 
 ### Usuarios de prueba
 

@@ -7,13 +7,15 @@
 - ✅ **Fase 0 — Roles y fundamento de auth**: completa.
 - ✅ **Fase 1 — CRM de clientes y prospectos**: completa.
 - ✅ **Fase 2 — Proyectos → Servicios → Cobros + recordatorios**: completa.
-- ⬜ **Fase 3 — Agencias colaboradoras**: pendiente.
+- ✅ **Fase 3 — Agencias colaboradoras**: completa.
 - ⬜ **Fase 4 — Portal de clientes**: pendiente.
 - ⬜ **Fase 5 — Aprovisionamiento de correo**: pendiente.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
 
 Verificación al cierre de Fase 2: `php artisan test --compact` → 58 tests (56 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` y `php artisan charges:process` corridos manualmente contra `https://sites.test` sin errores.
+
+Verificación al cierre de Fase 3: `php artisan test --compact` → 67 tests (65 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` corrido manualmente y flujo completo verificado en `https://sites.test` (alta de agencia, asociación a proyecto con cada `billing_direction`, confirmación de que `collaborator` no ve la tarjeta).
 
 ## Contexto
 
@@ -111,11 +113,33 @@ El modelo `Charge` originalmente no incluía `paid_at`, `due_soon_notified_at` n
 
 Por separado, al actualizar esta documentación se detectó que la vista de detalle de proyecto mostraba montos de servicios y la tarjeta "Cobros" completa a cualquier usuario con acceso al proyecto, incluyendo `collaborator` — contradiciendo la decisión "sin acceso a datos financieros" ya confirmada para ese rol (ver README, sección "Roles y accesos"). Se corrigió ocultando ambos elementos en la vista para `collaborator`, y se agregó una prueba (`ProjectManagementTest`) que verifica que no aparecen en el HTML renderizado.
 
+## Fase 3 — Agencias colaboradoras ✅
+
+### Modelo de datos (implementado)
+
+**`agencies`**: `name`, `contact_name`, `email`, `phone`, `status` (enum `AgencyStatus`: activa/inactiva), timestamps, soft deletes.
+
+**`agency_project`** (pivot, clave primaria compuesta `(agency_id, project_id)`): `billing_direction` (enum `AgencyBillingDirection`: we_invoice_them/they_invoice_us), `notes` (nullable, contexto libre — no estaba en el roadmap original pero se agregó como mínimo razonable para que el registro sea útil).
+
+### Archivos clave ya creados
+
+- `app/Models/Agency.php`; `Agency::projects()` / `Project::agencies()` — `belongsToMany` con `withPivot(['billing_direction', 'notes'])->withTimestamps()`.
+- `app/Policies/AgencyPolicy.php` — copia exacta de `ClientPolicy` (solo admin/staff; delete solo admin). La relación `agency_project` no tiene policy propia: se gestiona autorizando contra `update`/`view` del `Project` padre, igual que `project_user`.
+- `routes/crm.php`: `agencies.index` (`/agencias`) agregada al mismo grupo `role:admin,staff` que ya usan `clients.*`/`prospects.*`. Sin ruta `show` — la asociación a proyectos se gestiona desde el detalle del proyecto.
+- `resources/views/pages/agencies/⚡index.blade.php` — CRUD simple (alta/edición/baja), calco de `clients/⚡index.blade.php` sin la distinción prospecto/cliente.
+- `resources/views/pages/projects/⚡show.blade.php` — nueva tarjeta "Agencias colaboradoras" (formulario de asociación con `billing_direction` + notas, lista de agencias asociadas con botón para quitar), visible **solo para admin/staff** (mismo guard que ya usa "Cobros"): los `collaborator` no ven agencias ni direcciones de facturación, consistente con "sin acceso a datos financieros".
+- Sidebar: "Agencias" agregado al grupo "CRM" existente, junto a Clientes/Prospectos.
+
+### Seeders y factories
+
+- `database/factories/AgencyFactory.php`.
+- `database/seeders/AgencySeeder.php`: 3 agencias demo, 2 asociadas a los primeros dos proyectos ya sembrados (una con cada `billing_direction`). Registrado en `DatabaseSeeder` después de `ProjectSeeder`.
+- Tests: `tests/Feature/Agencies/AgencyManagementTest.php` (7 tests: acceso por rol, CRUD, políticas) + 2 tests nuevos en `ProjectManagementTest.php` (asociar/quitar agencia con dirección de facturación desde el detalle del proyecto; `collaborator` no ve la tarjeta).
+
 ---
 
 ## Roadmap de fases futuras
 
-- **Fase 3 — Agencias colaboradoras**: tablas `agencies` + `agency_project` (pivot con `billing_direction`: `we_invoice_them`/`they_invoice_us`).
 - **Fase 4 — Portal de clientes**: layout propio `resources/views/layouts/portal.blade.php` (sin nav interno), rutas bajo `role:client`, vistas de solo lectura de proyectos y cobros propios (4a), luego cuentas de correo propias (4b, depende de Fase 5).
 - **Fase 5 — Aprovisionamiento de correo**: interfaz de driver (`app/Services/EmailProvisioning/Contracts/EmailProviderDriver.php`: `createMailbox`, `deleteMailbox`, `changePassword`, `listMailboxes`, `getConnectionSettings`), tablas `email_providers`/`email_accounts` (credenciales con cast `encrypted`, nunca password en texto plano), driver MXroute primero (proveedor principal), cPanel y Hostinger después (requieren credenciales/documentación real del usuario).
 
