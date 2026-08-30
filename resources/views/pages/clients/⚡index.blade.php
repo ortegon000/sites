@@ -1,8 +1,11 @@
 <?php
 
 use App\Actions\Clients\ChangeClientStatus;
+use App\Actions\Clients\SyncClientAgencyToProjects;
+use App\Enums\AgencyStatus;
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
+use App\Models\Agency;
 use App\Models\Client;
 use Flux\Flux;
 use Illuminate\Support\Facades\Gate;
@@ -34,6 +37,8 @@ new class extends Component {
 
     public ?string $source = null;
 
+    public ?int $agency_id = null;
+
     public string $currency = 'MXN';
 
     public string $status = '';
@@ -51,6 +56,41 @@ new class extends Component {
     public function statusOptions(): array
     {
         return ClientStatus::forType($this->type);
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, Agency>
+     */
+    #[Computed]
+    public function assignableAgencies()
+    {
+        return Agency::query()
+            ->where('status', AgencyStatus::Activa)
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * When an agency handles this client, we typically have no direct
+     * contact with the end client, so prefill the contact fields from the
+     * agency's own data. Only empty fields are prefilled, so it never
+     * overwrites a direct contact already captured on the client.
+     */
+    public function updatedAgencyId(): void
+    {
+        if (! $this->agency_id) {
+            return;
+        }
+
+        $agency = Agency::find($this->agency_id);
+
+        if (! $agency) {
+            return;
+        }
+
+        $this->contact_name ??= $agency->contact_name;
+        $this->email ??= $agency->email;
+        $this->phone ??= $agency->phone;
     }
 
     #[Computed]
@@ -72,7 +112,7 @@ new class extends Component {
     {
         Gate::authorize('create', Client::class);
 
-        $this->reset(['editingClientId', 'name', 'company_name', 'contact_name', 'email', 'phone', 'source']);
+        $this->reset(['editingClientId', 'name', 'company_name', 'contact_name', 'email', 'phone', 'source', 'agency_id']);
         $this->currency = 'MXN';
         $this->status = $this->statusOptions[0]->value;
         $this->resetValidation();
@@ -93,6 +133,7 @@ new class extends Component {
         $this->email = $client->email;
         $this->phone = $client->phone;
         $this->source = $client->source;
+        $this->agency_id = $client->agency_id;
         $this->currency = $client->currency;
         $this->status = $client->status->value;
         $this->resetValidation();
@@ -100,7 +141,7 @@ new class extends Component {
         $this->modal('client-form')->show();
     }
 
-    public function save(ChangeClientStatus $changeClientStatus): void
+    public function save(ChangeClientStatus $changeClientStatus, SyncClientAgencyToProjects $syncClientAgencyToProjects): void
     {
         $client = $this->editingClientId ? Client::findOrFail($this->editingClientId) : null;
 
@@ -113,6 +154,7 @@ new class extends Component {
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'source' => ['nullable', 'string', 'max:255'],
+            'agency_id' => ['nullable', 'exists:agencies,id'],
             'currency' => ['required', 'string', 'size:3'],
             'status' => ['required', Rule::enum(ClientStatus::class)],
         ]);
@@ -130,8 +172,10 @@ new class extends Component {
             $validated['type'] = $this->type;
             $validated['status'] = $status;
             $validated['assigned_to_user_id'] = auth()->id();
-            Client::create($validated);
+            $client = Client::create($validated);
         }
+
+        $syncClientAgencyToProjects->handle($client);
 
         $this->modal('client-form')->close();
 
@@ -232,6 +276,14 @@ new class extends Component {
 
             <flux:input wire:model="name" :label="__('Nombre')" required autofocus />
             <flux:input wire:model="company_name" :label="__('Empresa')" />
+
+            <flux:select wire:model.live="agency_id" :label="__('Agencia')" :description="__('Si el cliente llega a través de una agencia colaboradora, sus proyectos se asocian a ella automáticamente y sus datos de contacto se usan como prellenado.')">
+                <flux:select.option value="">{{ __('Sin agencia (contacto directo)') }}</flux:select.option>
+                @foreach ($this->assignableAgencies as $agency)
+                    <flux:select.option value="{{ $agency->id }}">{{ $agency->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+
             <flux:input wire:model="contact_name" :label="__('Persona de contacto')" />
             <flux:input wire:model="email" type="email" :label="__('Correo')" />
             <flux:input wire:model="phone" :label="__('Teléfono')" />

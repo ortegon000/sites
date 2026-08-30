@@ -68,6 +68,26 @@ test('staff can create a project', function () {
     expect(Project::where('name', 'Nuevo proyecto')->exists())->toBeTrue();
 });
 
+test('creating a project for a client with an agency links that agency automatically', function () {
+    $staff = User::factory()->staff()->create();
+    $agency = Agency::factory()->create();
+    $client = Client::factory()->client()->create(['agency_id' => $agency->id]);
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::projects.index')
+        ->set('name', 'Nuevo proyecto')
+        ->set('client_id', $client->id)
+        ->set('status', ProjectStatus::Activo->value)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $project = Project::where('name', 'Nuevo proyecto')->firstOrFail();
+
+    expect($project->agencies)->toHaveCount(1)
+        ->and($project->agencies->first()->id)->toBe($agency->id);
+});
+
 test('collaborator cannot access the project policy for creating or updating', function () {
     $collaborator = User::factory()->collaborator()->create();
     $client = Client::factory()->client()->create();

@@ -124,6 +124,10 @@ new class extends Component {
                 <flux:heading size="lg">{{ __('Datos generales') }}</flux:heading>
 
                 <div class="flex flex-col gap-1 text-sm">
+                    <span class="text-zinc-400">{{ __('Agencia') }}</span>
+                    <span>{{ $client->agency?->name ?? __('Sin agencia (contacto directo)') }}</span>
+                </div>
+                <div class="flex flex-col gap-1 text-sm">
                     <span class="text-zinc-400">{{ __('Contacto') }}</span>
                     <span>{{ $client->contact_name ?? '—' }}</span>
                 </div>

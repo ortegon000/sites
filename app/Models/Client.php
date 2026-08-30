@@ -24,13 +24,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $phone
  * @property string|null $source
  * @property int|null $assigned_to_user_id
+ * @property int|null $agency_id
  * @property string $currency
  * @property CarbonImmutable|null $won_at
  * @property string|null $lost_reason
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['type', 'status', 'name', 'company_name', 'contact_name', 'email', 'phone', 'source', 'assigned_to_user_id', 'currency'])]
+#[Fillable(['type', 'status', 'name', 'company_name', 'contact_name', 'email', 'phone', 'source', 'assigned_to_user_id', 'agency_id', 'currency'])]
 class Client extends Model
 {
     /** @use HasFactory<ClientFactory> */
@@ -51,6 +52,22 @@ class Client extends Model
     public function assignedTo(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to_user_id');
+    }
+
+    /**
+     * @return BelongsTo<Agency, $this>
+     */
+    public function agency(): BelongsTo
+    {
+        return $this->belongsTo(Agency::class);
+    }
+
+    /**
+     * @return HasMany<Project, $this>
+     */
+    public function projects(): HasMany
+    {
+        return $this->hasMany(Project::class);
     }
 
     /**

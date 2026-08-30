@@ -328,7 +328,11 @@ new class extends Component {
                                         <flux:button size="xs" variant="ghost" icon="x-mark" wire:click="unassignAgency({{ $agency->id }})" />
                                     @endcan
                                 </div>
-                                <flux:badge size="sm">{{ \App\Enums\AgencyBillingDirection::from($agency->pivot->billing_direction)->label() }}</flux:badge>
+                                @if ($agency->pivot->billing_direction)
+                                    <flux:badge size="sm">{{ \App\Enums\AgencyBillingDirection::from($agency->pivot->billing_direction)->label() }}</flux:badge>
+                                @else
+                                    <flux:badge size="sm" color="zinc">{{ __('Heredada del cliente · falta definir facturación') }}</flux:badge>
+                                @endif
                                 @if ($agency->pivot->notes)
                                     <span class="text-xs text-zinc-400">{{ $agency->pivot->notes }}</span>
                                 @endif

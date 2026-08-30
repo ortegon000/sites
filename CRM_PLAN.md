@@ -136,6 +136,16 @@ Por separado, al actualizar esta documentación se detectó que la vista de deta
 - `database/seeders/AgencySeeder.php`: 3 agencias demo, 2 asociadas a los primeros dos proyectos ya sembrados (una con cada `billing_direction`). Registrado en `DatabaseSeeder` después de `ProjectSeeder`.
 - Tests: `tests/Feature/Agencies/AgencyManagementTest.php` (7 tests: acceso por rol, CRUD, políticas) + 2 tests nuevos en `ProjectManagementTest.php` (asociar/quitar agencia con dirección de facturación desde el detalle del proyecto; `collaborator` no ve la tarjeta).
 
+### Ajuste post-Fase 3: agencia por cliente (heredada a sus proyectos)
+
+El dueño de la agencia pidió dos ajustes adicionales sobre el modelo de Fase 3:
+
+1. **`clients.agency_id`** (FK nullable → `agencies`, `nullOnDelete`): un cliente puede llegar a través de una agencia colaboradora. `Client::agency()` / `Agency::clients()` (`belongsTo`/`hasMany`) y `Client::projects()` (`hasMany`, antes solo existía la relación inversa en `Project`).
+2. **Herencia automática a proyectos**: `app/Actions/Clients/SyncClientAgencyToProjects.php` vincula (`agency_project`, sin tocar asociaciones ya existentes) la agencia del cliente a todos sus proyectos que aún no la tengan. Se invoca tanto al guardar un cliente (`clients/⚡index.blade.php`, cubre asignar/cambiar la agencia de un cliente con proyectos ya existentes) como al guardar un proyecto (`projects/⚡index.blade.php`, cubre proyectos nuevos). `agency_project.billing_direction` se volvió nullable (migración `make_billing_direction_nullable_on_agency_project_table`) porque la asociación heredada no adivina una dirección de facturación — queda pendiente de que staff la defina desde la tarjeta "Agencias colaboradoras" del proyecto (mismo formulario, `syncWithoutDetaching` sobre la misma agencia actualiza el pivot). La vista de proyecto muestra un badge "Heredada del cliente · falta definir facturación" mientras tanto.
+3. **Prellenado de contacto**: en el formulario de cliente, seleccionar una agencia (`wire:model.live="agency_id"`, hook `updatedAgencyId()`) prellena `contact_name`/`email`/`phone` con los datos de la agencia — solo los campos vacíos, nunca sobrescribe un contacto directo ya capturado. Refleja que, trabajando vía agencia, normalmente no hay contacto directo con el cliente final.
+
+Archivos: migraciones `2026_08_30_205742_add_agency_id_to_clients_table` y `2026_08_30_205743_make_billing_direction_nullable_on_agency_project_table`; `app/Actions/Clients/SyncClientAgencyToProjects.php`; `app/Models/{Client,Agency}.php`; `resources/views/pages/clients/⚡{index,show}.blade.php`, `resources/views/pages/projects/⚡{index,show}.blade.php`. Seeder: `AgencySeeder` ahora asigna la agencia "Northwind Digital" al cliente del tercer proyecto sembrado para demostrar la herencia retroactiva. Tests nuevos: 3 en `ClientManagementTest.php` (prellenado con y sin contacto previo, herencia a proyectos existentes) + 1 en `ProjectManagementTest.php` (herencia al crear un proyecto nuevo). Verificado con `php artisan test --compact` (71 tests, 69 pasan, 2 se saltan), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo de prellenado confirmado manualmente en `https://sites.test`.
+
 ---
 
 ## Roadmap de fases futuras

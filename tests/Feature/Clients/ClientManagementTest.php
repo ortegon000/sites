@@ -2,7 +2,9 @@
 
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
+use App\Models\Agency;
 use App\Models\Client;
+use App\Models\Project;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -93,6 +95,56 @@ test('visiting a client via the prospect url redirects to the client url', funct
     $this->actingAs($admin)
         ->get(route('prospects.show', $client))
         ->assertRedirect(route('clients.show', $client));
+});
+
+test('selecting an agency prefills empty contact fields with the agency contact', function () {
+    $staff = User::factory()->staff()->create();
+    $agency = Agency::factory()->create([
+        'contact_name' => 'Ana Gómez',
+        'email' => 'ana@agencia.test',
+        'phone' => '555-0001',
+    ]);
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::clients.index')
+        ->call('openCreateModal')
+        ->set('agency_id', $agency->id)
+        ->assertSet('contact_name', 'Ana Gómez')
+        ->assertSet('email', 'ana@agencia.test')
+        ->assertSet('phone', '555-0001');
+});
+
+test('selecting an agency does not overwrite a contact already captured', function () {
+    $staff = User::factory()->staff()->create();
+    $agency = Agency::factory()->create(['contact_name' => 'Ana Gómez']);
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::clients.index')
+        ->call('openCreateModal')
+        ->set('contact_name', 'Contacto Directo')
+        ->set('agency_id', $agency->id)
+        ->assertSet('contact_name', 'Contacto Directo');
+});
+
+test('assigning an agency to a client links all of its existing projects to that agency', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $project = Project::factory()->for($client)->create();
+    $agency = Agency::factory()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::clients.index')
+        ->call('openEditModal', $client->id)
+        ->set('agency_id', $agency->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($project->fresh()->agencies)->toHaveCount(1)
+        ->and($project->fresh()->agencies->first()->id)->toBe($agency->id)
+        ->and($project->fresh()->agencies->first()->pivot->billing_direction)->toBeNull();
 });
 
 test('admin can add a note and change a prospect status to ganado, converting it to a client', function () {

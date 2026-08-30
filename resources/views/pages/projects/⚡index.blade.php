@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Clients\SyncClientAgencyToProjects;
 use App\Enums\ClientType;
 use App\Enums\ProjectStatus;
 use App\Models\Client;
@@ -93,7 +94,7 @@ new class extends Component {
         $this->modal('project-form')->show();
     }
 
-    public function save(): void
+    public function save(SyncClientAgencyToProjects $syncClientAgencyToProjects): void
     {
         $project = $this->editingProjectId ? Project::findOrFail($this->editingProjectId) : null;
 
@@ -110,8 +111,10 @@ new class extends Component {
         if ($project) {
             $project->update($validated);
         } else {
-            Project::create($validated);
+            $project = Project::create($validated);
         }
+
+        $syncClientAgencyToProjects->handle($project->client);
 
         $this->modal('project-form')->close();
 
