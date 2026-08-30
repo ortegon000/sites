@@ -12,7 +12,7 @@ El desarrollo avanza por fases. El detalle completo, las decisiones de producto 
 - ✅ Fase 1 — CRM de clientes y prospectos
 - ✅ Fase 2 — Proyectos, servicios y cobros con recordatorios
 - ✅ Fase 3 — Agencias colaboradoras
-- ⬜ Fase 4 — Portal de clientes
+- 🔶 Fase 4 — Portal de clientes (proyectos y cobros de solo lectura listos; correos propios pendientes de Fase 5)
 - ⬜ Fase 5 — Aprovisionamiento de cuentas de correo (cPanel/Hostinger/MXroute)
 
 ## Desarrollo local

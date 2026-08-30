@@ -8,7 +8,7 @@
 - ✅ **Fase 1 — CRM de clientes y prospectos**: completa.
 - ✅ **Fase 2 — Proyectos → Servicios → Cobros + recordatorios**: completa.
 - ✅ **Fase 3 — Agencias colaboradoras**: completa.
-- ⬜ **Fase 4 — Portal de clientes**: pendiente.
+- 🔶 **Fase 4 — Portal de clientes**: 4a (proyectos y cobros de solo lectura) completa; 4b (correos propios) pendiente de la Fase 5.
 - ⬜ **Fase 5 — Aprovisionamiento de correo**: pendiente.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
@@ -16,6 +16,8 @@ Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (
 Verificación al cierre de Fase 2: `php artisan test --compact` → 58 tests (56 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` y `php artisan charges:process` corridos manualmente contra `https://sites.test` sin errores.
 
 Verificación al cierre de Fase 3: `php artisan test --compact` → 67 tests (65 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` corrido manualmente y flujo completo verificado en `https://sites.test` (alta de agencia, asociación a proyecto con cada `billing_direction`, confirmación de que `collaborator` no ve la tarjeta).
+
+Verificación al cierre de Fase 4a: `php artisan test --compact` → 81 tests (79 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` corrido manualmente y flujo completo verificado en `https://sites.test` (login como `cliente@example.com` redirige a `/portal`, lista solo sus propios proyectos, detalle de proyecto muestra servicios/cobros propios sin agencias ni equipo asignado, acceso a `/portal/proyectos/{id}` de otro cliente devuelve 403, `/dashboard` redirige a `/portal`, logout funciona).
 
 ## Contexto
 
@@ -146,11 +148,32 @@ El dueño de la agencia pidió dos ajustes adicionales sobre el modelo de Fase 3
 
 Archivos: migraciones `2026_08_30_205742_add_agency_id_to_clients_table` y `2026_08_30_205743_make_billing_direction_nullable_on_agency_project_table`; `app/Actions/Clients/SyncClientAgencyToProjects.php`; `app/Models/{Client,Agency}.php`; `resources/views/pages/clients/⚡{index,show}.blade.php`, `resources/views/pages/projects/⚡{index,show}.blade.php`. Seeder: `AgencySeeder` ahora asigna la agencia "Northwind Digital" al cliente del tercer proyecto sembrado para demostrar la herencia retroactiva. Tests nuevos: 3 en `ClientManagementTest.php` (prellenado con y sin contacto previo, herencia a proyectos existentes) + 1 en `ProjectManagementTest.php` (herencia al crear un proyecto nuevo). Verificado con `php artisan test --compact` (71 tests, 69 pasan, 2 se saltan), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo de prellenado confirmado manualmente en `https://sites.test`.
 
+## Fase 4a — Portal de clientes (proyectos y cobros de solo lectura) ✅
+
+### Alcance
+
+Portal de solo lectura para usuarios con rol `client`: ven únicamente los proyectos de su propio registro `Client` (vía `User::client_id`), y dentro de cada proyecto sus servicios y cobros — sin agencias colaboradoras, sin equipo asignado, sin ninguna acción de edición. No requirió modelo de datos nuevo (ya existían `User::client_id`/`client()` desde Fase 0).
+
+### Archivos clave creados
+
+- `resources/views/layouts/portal.blade.php` — layout independiente del layout interno (`layouts/app.blade.php`): sin sidebar ni grupos de navegación CRM/Proyectos, solo `flux:header` con logo y menú de usuario (Settings + Log out).
+- `routes/portal.php` (incluido desde `web.php`): grupo `role:client` con `portal.projects.index` (`/portal`) y `portal.projects.show` (`/portal/proyectos/{project}`).
+- `resources/views/pages/portal/projects/⚡index.blade.php` — lista los proyectos del cliente autenticado (`Project::where('client_id', auth()->user()->client_id)`), sin depender de `ProjectPolicy::viewAny()` (esa policy sigue siendo solo admin/staff/collaborator).
+- `resources/views/pages/portal/projects/⚡show.blade.php` — detalle de un proyecto propio: datos generales, servicios (con monto) y cobros, calcado de `pages::projects.show` pero sin las tarjetas de "Equipo asignado" ni "Agencias colaboradoras" y sin botón "Marcar pagado". Ambos componentes usan `#[Layout('layouts::portal')]` para no heredar el layout interno por defecto.
+- `app/Policies/ProjectPolicy.php` — `view()` ahora también autoriza a un `client` cuando `$user->client_id === $project->client_id`.
+- `app/Http/Responses/PortalAwareLoginResponse.php` — implementación de `Laravel\Fortify\Contracts\LoginResponse` que redirige a `portal.projects.index` si el usuario autenticado `isClient()`, o al `fortify.home` de siempre en cualquier otro caso; enlazada en `FortifyServiceProvider::register()`.
+- `routes/web.php` — la ruta `dashboard` ahora es un closure que redirige a `portal.projects.index` si el usuario es `client` (antes era una `Route::view` fija); esto cubre tanto el acceso directo a `/dashboard` como cualquier enlace viejo guardado.
+- Tests: `tests/Feature/Portal/PortalProjectsTest.php` (6 tests: acceso por rol —incluye `client` sin `client_id` vinculado—, scope a proyectos propios, detalle con servicios/cobros, 403 al ver el proyecto de otro cliente) + 1 test en `tests/Feature/DashboardTest.php` (redirección a portal) + 1 test en `tests/Feature/Auth/AuthenticationTest.php` (login de `client` redirige a portal).
+
+### Nota de diseño
+
+No se reutilizó `pages::projects.show` con condicionales adicionales por rol (como sí se hizo para ocultar montos a `collaborator` en Fase 2) porque el portal necesita un layout completamente distinto (sin sidebar) y una fuente de datos distinta (proyectos del `Client` del usuario, no proyectos asignados por `project_user`); duplicar la vista fue más simple que ramificar layout+query+visibilidad de tarjetas en un solo componente.
+
 ---
 
 ## Roadmap de fases futuras
 
-- **Fase 4 — Portal de clientes**: layout propio `resources/views/layouts/portal.blade.php` (sin nav interno), rutas bajo `role:client`, vistas de solo lectura de proyectos y cobros propios (4a), luego cuentas de correo propias (4b, depende de Fase 5).
+- **Fase 4b — Cuentas de correo propias en el portal**: depende de Fase 5 (necesita `email_accounts` para tener algo que listar).
 - **Fase 5 — Aprovisionamiento de correo**: interfaz de driver (`app/Services/EmailProvisioning/Contracts/EmailProviderDriver.php`: `createMailbox`, `deleteMailbox`, `changePassword`, `listMailboxes`, `getConnectionSettings`), tablas `email_providers`/`email_accounts` (credenciales con cast `encrypted`, nunca password en texto plano), driver MXroute primero (proveedor principal), cPanel y Hostinger después (requieren credenciales/documentación real del usuario).
 
 ## Verificación (repetir en cada fase nueva)

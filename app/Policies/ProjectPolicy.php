@@ -24,7 +24,11 @@ class ProjectPolicy
             return true;
         }
 
-        return $user->isCollaborator() && $project->users()->whereKey($user->id)->exists();
+        if ($user->isCollaborator()) {
+            return $project->users()->whereKey($user->id)->exists();
+        }
+
+        return $user->isClient() && $user->client_id !== null && $user->client_id === $project->client_id;
     }
 
     /**

@@ -14,3 +14,11 @@ test('authenticated users can visit the dashboard', function () {
     $response = $this->get(route('dashboard'));
     $response->assertOk();
 });
+
+test('client users are redirected to the portal instead of the dashboard', function () {
+    $clientUser = User::factory()->client()->create();
+    $this->actingAs($clientUser);
+
+    $response = $this->get(route('dashboard'));
+    $response->assertRedirect(route('portal.projects.index'));
+});
