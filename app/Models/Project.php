@@ -62,4 +62,14 @@ class Project extends Model
     {
         return $this->hasMany(Service::class);
     }
+
+    /**
+     * @return BelongsToMany<Agency, $this>
+     */
+    public function agencies(): BelongsToMany
+    {
+        return $this->belongsToMany(Agency::class)
+            ->withPivot(['billing_direction', 'notes'])
+            ->withTimestamps();
+    }
 }

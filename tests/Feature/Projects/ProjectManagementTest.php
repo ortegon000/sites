@@ -1,9 +1,11 @@
 <?php
 
+use App\Enums\AgencyBillingDirection;
 use App\Enums\ChargeStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceStatus;
+use App\Models\Agency;
 use App\Models\Charge;
 use App\Models\Client;
 use App\Models\Project;
@@ -88,6 +90,7 @@ test('collaborator does not see charge amounts or the cobros section on an assig
 
     Livewire::test('pages::projects.show', ['project' => $project])
         ->assertDontSee('Cobros')
+        ->assertDontSee('Agencias colaboradoras')
         ->assertDontSee($service->amount);
 });
 
@@ -165,4 +168,31 @@ test('admin can assign and unassign a user from a project team', function () {
         ->call('unassignUser', $staff->id);
 
     expect($project->users()->whereKey($staff->id)->exists())->toBeFalse();
+});
+
+test('staff can associate and remove a collaborator agency with a billing direction', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $project = Project::factory()->for($client)->create();
+    $agency = Agency::factory()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::projects.show', ['project' => $project])
+        ->set('agencyIdToAssign', $agency->id)
+        ->set('agencyBillingDirection', AgencyBillingDirection::TheyInvoiceUs->value)
+        ->set('agencyNotes', 'Nos subcontrataron el hosting.')
+        ->call('assignAgency')
+        ->assertHasNoErrors();
+
+    $pivot = $project->agencies()->whereKey($agency->id)->first()?->pivot;
+
+    expect($pivot)->not->toBeNull()
+        ->and($pivot->billing_direction)->toBe(AgencyBillingDirection::TheyInvoiceUs->value)
+        ->and($pivot->notes)->toBe('Nos subcontrataron el hosting.');
+
+    Livewire::test('pages::projects.show', ['project' => $project])
+        ->call('unassignAgency', $agency->id);
+
+    expect($project->agencies()->whereKey($agency->id)->exists())->toBeFalse();
 });

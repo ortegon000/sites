@@ -7,6 +7,7 @@ Route::middleware(['auth', 'verified', 'role:admin,staff'])->group(function () {
     Route::livewire('prospectos', 'pages::clients.index')->name('prospects.index');
     Route::livewire('clientes/{client}', 'pages::clients.show')->name('clients.show');
     Route::livewire('prospectos/{client}', 'pages::clients.show')->name('prospects.show');
+    Route::livewire('agencias', 'pages::agencies.index')->name('agencies.index');
 });
 
 Route::middleware(['auth', 'verified', 'role:admin,staff,collaborator'])->group(function () {

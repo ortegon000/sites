@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             ClientNoteSeeder::class,
             ProjectSeeder::class,
+            AgencySeeder::class,
         ]);
     }
 }

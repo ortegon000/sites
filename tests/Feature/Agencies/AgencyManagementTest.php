@@ -1,0 +1,85 @@
+<?php
+
+use App\Enums\AgencyStatus;
+use App\Models\Agency;
+use App\Models\User;
+use Livewire\Livewire;
+
+test('guests are redirected to the login page', function () {
+    $this->get(route('agencies.index'))->assertRedirect(route('login'));
+});
+
+test('admin can view the agencies list', function () {
+    $admin = User::factory()->admin()->create();
+    Agency::factory()->create(['name' => 'Northwind Digital']);
+
+    $this->actingAs($admin);
+
+    Livewire::test('pages::agencies.index')
+        ->assertSee('Northwind Digital');
+});
+
+test('staff can create an agency', function () {
+    $staff = User::factory()->staff()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::agencies.index')
+        ->set('name', 'Pixel Forge Studio')
+        ->set('email', 'hola@pixelforge.test')
+        ->set('status', AgencyStatus::Activa->value)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Agency::where('name', 'Pixel Forge Studio')->exists())->toBeTrue();
+});
+
+test('staff can edit an agency but cannot delete it', function () {
+    $staff = User::factory()->staff()->create();
+    $agency = Agency::factory()->create(['name' => 'Old Name']);
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::agencies.index')
+        ->call('openEditModal', $agency->id)
+        ->set('name', 'New Name')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($agency->fresh()->name)->toBe('New Name')
+        ->and($staff->can('delete', $agency))->toBeFalse();
+});
+
+test('admin can delete an agency', function () {
+    $admin = User::factory()->admin()->create();
+    $agency = Agency::factory()->create();
+
+    $this->actingAs($admin);
+
+    Livewire::test('pages::agencies.index')
+        ->call('delete', $agency->id);
+
+    expect(Agency::find($agency->id))->toBeNull();
+});
+
+test('collaborator cannot view the agencies list', function () {
+    $collaborator = User::factory()->collaborator()->create();
+
+    $this->actingAs($collaborator);
+
+    $this->get(route('agencies.index'))->assertForbidden();
+});
+
+test('client role cannot view the agencies list', function () {
+    $clientUser = User::factory()->client()->create();
+
+    $this->actingAs($clientUser);
+
+    $this->get(route('agencies.index'))->assertForbidden();
+});
+
+test('collaborator cannot access the agency policy', function () {
+    $collaborator = User::factory()->collaborator()->create();
+
+    expect($collaborator->can('viewAny', Agency::class))->toBeFalse();
+});

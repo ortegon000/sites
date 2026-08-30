@@ -2,10 +2,13 @@
 
 use App\Actions\Charges\MarkChargeAsPaid;
 use App\Actions\Services\CreateServiceWithSchedule;
+use App\Enums\AgencyBillingDirection;
+use App\Enums\AgencyStatus;
 use App\Enums\ChargeStatus;
 use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceStatus;
 use App\Enums\UserRole;
+use App\Models\Agency;
 use App\Models\Charge;
 use App\Models\Project;
 use App\Models\User;
@@ -35,6 +38,12 @@ new class extends Component {
     public ?int $installmentsCount = null;
 
     public ?int $userIdToAssign = null;
+
+    public ?int $agencyIdToAssign = null;
+
+    public string $agencyBillingDirection = '';
+
+    public ?string $agencyNotes = null;
 
     public function mount(Project $project): void
     {
@@ -67,6 +76,25 @@ new class extends Component {
     {
         return User::query()
             ->whereIn('role', [UserRole::Staff, UserRole::Collaborator])
+            ->whereDoesntHave('projects', fn ($query) => $query->whereKey($this->project->id))
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * @return array<int, AgencyBillingDirection>
+     */
+    #[Computed]
+    public function billingDirectionOptions(): array
+    {
+        return AgencyBillingDirection::cases();
+    }
+
+    #[Computed]
+    public function assignableAgencies()
+    {
+        return Agency::query()
+            ->where('status', AgencyStatus::Activa)
             ->whereDoesntHave('projects', fn ($query) => $query->whereKey($this->project->id))
             ->orderBy('name')
             ->get();
@@ -157,6 +185,37 @@ new class extends Component {
         Flux::toast(variant: 'success', text: __('Usuario removido del proyecto.'));
     }
 
+    public function assignAgency(): void
+    {
+        Gate::authorize('update', $this->project);
+
+        $validated = $this->validate([
+            'agencyIdToAssign' => ['required', 'exists:agencies,id'],
+            'agencyBillingDirection' => ['required', Rule::enum(AgencyBillingDirection::class)],
+            'agencyNotes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $this->project->agencies()->syncWithoutDetaching([
+            $validated['agencyIdToAssign'] => [
+                'billing_direction' => $validated['agencyBillingDirection'],
+                'notes' => $validated['agencyNotes'],
+            ],
+        ]);
+
+        $this->reset(['agencyIdToAssign', 'agencyBillingDirection', 'agencyNotes']);
+
+        Flux::toast(variant: 'success', text: __('Agencia asociada.'));
+    }
+
+    public function unassignAgency(int $agencyId): void
+    {
+        Gate::authorize('update', $this->project);
+
+        $this->project->agencies()->detach($agencyId);
+
+        Flux::toast(variant: 'success', text: __('Agencia removida del proyecto.'));
+    }
+
     public function markChargeAsPaid(int $chargeId, MarkChargeAsPaid $action): void
     {
         Gate::authorize('update', $this->project);
@@ -229,6 +288,57 @@ new class extends Component {
                     @endforelse
                 </div>
             </flux:card>
+
+            @if (auth()->user()->isAdmin() || auth()->user()->isStaff())
+                <flux:card class="flex flex-col gap-4">
+                    <flux:heading size="lg">{{ __('Agencias colaboradoras') }}</flux:heading>
+
+                    @can('update', $project)
+                        <form wire:submit="assignAgency" class="flex flex-col gap-2">
+                            <flux:select wire:model="agencyIdToAssign">
+                                <flux:select.option value="">{{ __('Selecciona una agencia') }}</flux:select.option>
+                                @foreach ($this->assignableAgencies as $agency)
+                                    <flux:select.option value="{{ $agency->id }}">{{ $agency->name }}</flux:select.option>
+                                @endforeach
+                            </flux:select>
+
+                            <flux:select wire:model="agencyBillingDirection">
+                                <flux:select.option value="">{{ __('Selecciona la dirección de facturación') }}</flux:select.option>
+                                @foreach ($this->billingDirectionOptions as $option)
+                                    <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
+                                @endforeach
+                            </flux:select>
+
+                            <flux:textarea wire:model="agencyNotes" :placeholder="__('Notas (opcional)')" rows="2" />
+
+                            <div class="flex justify-end">
+                                <flux:button type="submit" size="sm" variant="primary">{{ __('Agregar') }}</flux:button>
+                            </div>
+                        </form>
+
+                        <flux:separator />
+                    @endcan
+
+                    <div class="flex flex-col gap-3">
+                        @forelse ($project->agencies as $agency)
+                            <div wire:key="assigned-agency-{{ $agency->id }}" class="flex flex-col gap-1 border-b border-zinc-100 pb-3 last:border-0 dark:border-zinc-700">
+                                <div class="flex items-center justify-between text-sm">
+                                    <span>{{ $agency->name }}</span>
+                                    @can('update', $project)
+                                        <flux:button size="xs" variant="ghost" icon="x-mark" wire:click="unassignAgency({{ $agency->id }})" />
+                                    @endcan
+                                </div>
+                                <flux:badge size="sm">{{ \App\Enums\AgencyBillingDirection::from($agency->pivot->billing_direction)->label() }}</flux:badge>
+                                @if ($agency->pivot->notes)
+                                    <span class="text-xs text-zinc-400">{{ $agency->pivot->notes }}</span>
+                                @endif
+                            </div>
+                        @empty
+                            <flux:text class="text-zinc-400">{{ __('Sin agencias asociadas.') }}</flux:text>
+                        @endforelse
+                    </div>
+                </flux:card>
+            @endif
         </div>
 
         <div class="flex flex-col gap-6 md:col-span-2">
