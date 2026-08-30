@@ -6,12 +6,14 @@
 
 - ✅ **Fase 0 — Roles y fundamento de auth**: completa.
 - ✅ **Fase 1 — CRM de clientes y prospectos**: completa.
-- ⬜ **Fase 2 — Proyectos → Servicios → Cobros + recordatorios**: pendiente.
+- ✅ **Fase 2 — Proyectos → Servicios → Cobros + recordatorios**: completa.
 - ⬜ **Fase 3 — Agencias colaboradoras**: pendiente.
 - ⬜ **Fase 4 — Portal de clientes**: pendiente.
 - ⬜ **Fase 5 — Aprovisionamiento de correo**: pendiente.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
+
+Verificación al cierre de Fase 2: `php artisan test --compact` → 58 tests (56 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` y `php artisan charges:process` corridos manualmente contra `https://sites.test` sin errores.
 
 ## Contexto
 
@@ -71,18 +73,55 @@ Los requisitos se confirmaron con el dueño de la agencia por rondas de pregunta
 
 El tipo (`prospect`/`client`) inicialmente se calculaba con un método `#[Computed]` que leía `request()->routeIs('prospects.index')`. Esto se rompía en las peticiones AJAX subsecuentes de Livewire (que no pasan por la ruta original `/prospectos`), haciendo que el formulario de creación mostrara los estatus equivocados después de la primera interacción. Se corrigió fijando `$this->type` una sola vez como propiedad pública en `mount()`, que sí persiste correctamente entre peticiones de Livewire.
 
+## Fase 2 — Proyectos → Servicios → Cobros + recordatorios ✅
+
+### Modelo de datos (implementado)
+
+**`projects`**: `client_id` (FK clients, cascade), `name`, `description`, `status` (enum `ProjectStatus`: activo/pausado/completado/cancelado), `started_at`, `ended_at`, timestamps, soft deletes.
+
+**`project_user`** (pivot, clave primaria compuesta): habilita que un `collaborator` solo vea/acceda a los proyectos donde está asignado; admin/staff ven todos.
+
+**`services`**: `project_id`, `name`, `description`, `billing_frequency` (enum `ServiceBillingFrequency`: one_time/monthly/annual/installment), `amount` (monto por cada ocurrencia de cobro, no total del contrato), `currency`, `status` (enum `ServiceStatus`), `starts_on`, `next_charge_date` (solo monthly/annual), `installments_count` (solo installment).
+
+**`service_installments`**: `service_id`, `installment_number`, `amount`, `due_date` — generadas automáticamente (mensuales, monto igual) al crear un servicio `installment`.
+
+**`charges`**: `service_id`, `service_installment_id` (nullable), `amount`, `currency`, `status` (enum `ChargeStatus`: pendiente/pagado/vencido), `due_date`, `paid_at`, `due_soon_notified_at`, `overdue_notified_at` (estos dos evitan reenviar el mismo recordatorio).
+
+### Archivos clave ya creados
+
+- `app/Models/{Project,Service,ServiceInstallment,Charge}.php`; `User::projects()` (inversa de `project_user`).
+- `app/Policies/ProjectPolicy.php` — `viewAny`/`view` permiten también a `collaborator` (view solo si está asignado vía `project_user`); create/update/delete igual que `ClientPolicy`.
+- `app/Actions/Services/CreateServiceWithSchedule.php` — crea el servicio, genera las cuotas si es `installment`, fija `next_charge_date` si es recurrente, y genera el primer cobro de inmediato si ya corresponde (sin esperar la corrida diaria).
+- `app/Actions/Charges/{GenerateScheduledCharges,MarkOverdueCharges,SendChargeReminders,MarkChargeAsPaid}.php`.
+- `app/Console/Commands/ProcessScheduledCharges.php` (`charges:process`), programado en `routes/console.php` con `Schedule::command('charges:process')->dailyAt('07:00')`.
+- `app/Notifications/{ChargeDueSoonNotification,ChargeOverdueNotification}.php` — canales `mail`+`database`, sin `ShouldQueue` (se envían síncronas desde el comando, sin depender de un worker de colas). Destinatarios: todos los `admin` + los `staff` asignados al proyecto vía `project_user`.
+- `app/Livewire/NotificationsBell.php` + `resources/views/livewire/notifications-bell.blade.php` — componente de clase (no página) embebido en `sidebar.blade.php`, visible solo para admin/staff.
+- `routes/crm.php`: grupo `role:admin,staff,collaborator` para `/proyectos` y `/proyectos/{project}`.
+- `resources/views/pages/projects/⚡index.blade.php` y `⚡show.blade.php` — listado con filtro por estatus (y scope automático a proyectos asignados si el usuario es `collaborator`), detalle con equipo asignado, servicios y cobros gestionados inline (mismo patrón que `ClientNote` en Fase 1: sin policy propia, autorizado contra `update`/`view` del `Project` padre). Los `collaborator` no ven montos: la columna "Monto" de la tabla de servicios y toda la tarjeta "Cobros" están ocultas en la vista para ese rol (solo admin/staff ven ambas), conforme a la decisión de "sin acceso a datos financieros" para colaboradores ya confirmada por el dueño de la agencia.
+
+### Seeders y factories
+
+- `database/factories/{Project,Service,ServiceInstallment,Charge}Factory.php` (estados `oneTime()/monthly()/annual()/installment()` en `ServiceFactory`; `pending()/paid()/overdue()` en `ChargeFactory`).
+- `database/seeders/ProjectSeeder.php`: 3 proyectos (uno por cada cliente ya sembrado) con servicios variados y cobros ya en distintos estados (pendiente/pagado/vencido), para ver la UI poblada sin correr el comando. Registrado en `DatabaseSeeder` después de `ClientNoteSeeder`.
+- Tests: `tests/Feature/Projects/{ProjectManagementTest,ServiceSchedulingTest,ChargeProcessingTest}.php` (18 tests: acceso por rol, scope de colaborador, ocultamiento de montos/cobros para `collaborator`, CRUD de proyecto, alta de servicio con cada `billing_frequency`, generación/vencimiento/recordatorio de cobros vía el comando, sin duplicar notificaciones en corridas repetidas).
+
+### Nota de una corrección durante la implementación
+
+El modelo `Charge` originalmente no incluía `paid_at`, `due_soon_notified_at` ni `overdue_notified_at` en su atributo `#[Fillable(...)]`. Como Laravel descarta en silencio los campos no-fillable en `update()` (sin lanzar excepción), `MarkChargeAsPaid` y `SendChargeReminders` ejecutaban sus `update()` sin error pero sin persistir esos campos — el síntoma fue que el comando `charges:process` reenviaba el mismo recordatorio en cada corrida porque `due_soon_notified_at`/`overdue_notified_at` nunca quedaban guardados. Se corrigió agregando los tres campos al `#[Fillable(...)]` del modelo.
+
+Por separado, al actualizar esta documentación se detectó que la vista de detalle de proyecto mostraba montos de servicios y la tarjeta "Cobros" completa a cualquier usuario con acceso al proyecto, incluyendo `collaborator` — contradiciendo la decisión "sin acceso a datos financieros" ya confirmada para ese rol (ver README, sección "Roles y accesos"). Se corrigió ocultando ambos elementos en la vista para `collaborator`, y se agregó una prueba (`ProjectManagementTest`) que verifica que no aparecen en el HTML renderizado.
+
 ---
 
 ## Roadmap de fases futuras
 
-- **Fase 2 — Proyectos → Servicios → Cobros + recordatorios**: `projects`, `project_user` (pivot que habilita "colaborador solo ve sus proyectos asignados"), `services` (con `billing_frequency`: `one_time`/`monthly`/`annual`/`installment`), `service_installments`, `charges` (cobros con status `pendiente`/`pagado`/`vencido`), comando programado diario (`routes/console.php` vía `Schedule::command(...)->daily()`) que genera cobros, marca vencidos y dispara recordatorios; notificaciones `ChargeDueSoonNotification`/`ChargeOverdueNotification` (`mail` + `database`), y un componente Livewire de clase `NotificationsBell` embebido en el sidebar.
 - **Fase 3 — Agencias colaboradoras**: tablas `agencies` + `agency_project` (pivot con `billing_direction`: `we_invoice_them`/`they_invoice_us`).
 - **Fase 4 — Portal de clientes**: layout propio `resources/views/layouts/portal.blade.php` (sin nav interno), rutas bajo `role:client`, vistas de solo lectura de proyectos y cobros propios (4a), luego cuentas de correo propias (4b, depende de Fase 5).
 - **Fase 5 — Aprovisionamiento de correo**: interfaz de driver (`app/Services/EmailProvisioning/Contracts/EmailProviderDriver.php`: `createMailbox`, `deleteMailbox`, `changePassword`, `listMailboxes`, `getConnectionSettings`), tablas `email_providers`/`email_accounts` (credenciales con cast `encrypted`, nunca password en texto plano), driver MXroute primero (proveedor principal), cPanel y Hostinger después (requieren credenciales/documentación real del usuario).
 
 ## Verificación (repetir en cada fase nueva)
 
-- `vendor/bin/pint --format agent <rutas tocadas>` (este repo no es git, así que `--dirty` no funciona; pasar rutas explícitas).
+- `vendor/bin/pint --format agent <rutas tocadas>` (pasar rutas explícitas; también funciona `--dirty` ya que el repo usa git).
 - `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7; el límite de memoria por defecto de 128M no alcanza).
 - `php artisan test --compact` (suite completa) — o el archivo específico de la fase durante el desarrollo.
 - Verificar en navegador (`https://sites.test`) el flujo completo de la fase.

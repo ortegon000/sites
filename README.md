@@ -10,7 +10,7 @@ El desarrollo avanza por fases. El detalle completo, las decisiones de producto 
 
 - ✅ Fase 0 — Roles y fundamento de auth
 - ✅ Fase 1 — CRM de clientes y prospectos
-- ⬜ Fase 2 — Proyectos, servicios y cobros con recordatorios
+- ✅ Fase 2 — Proyectos, servicios y cobros con recordatorios
 - ⬜ Fase 3 — Agencias colaboradoras
 - ⬜ Fase 4 — Portal de clientes
 - ⬜ Fase 5 — Aprovisionamiento de cuentas de correo (cPanel/Hostinger/MXroute)
@@ -38,7 +38,7 @@ php artisan key:generate
 php artisan migrate:fresh --seed
 ```
 
-El seeder (`database/seeders/`) crea datos de ejemplo: clientes, prospectos, notas de actividad, y un usuario por rol.
+El seeder (`database/seeders/`) crea datos de ejemplo: clientes, prospectos, notas de actividad, un usuario por rol, y proyectos con servicios y cobros en distintos estados (pendiente, pagado, vencido).
 
 ### Usuarios de prueba
 
@@ -77,11 +77,14 @@ php artisan test --filter=nombreDelTest
 # Análisis estático (Larastan, nivel 7)
 vendor/bin/phpstan analyse --no-progress --memory-limit=512M
 
-# Formato de código (Pint) — este repo no usa git, así que --dirty no aplica
+# Formato de código (Pint)
 vendor/bin/pint --format agent <rutas>
 
 # Rutas registradas
 php artisan route:list
+
+# Generar cobros pendientes, marcar vencidos, y enviar recordatorios (corre diario vía scheduler)
+php artisan charges:process
 ```
 
 ## Documentación del proyecto
