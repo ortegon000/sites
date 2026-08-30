@@ -85,4 +85,12 @@ class Client extends Model
     {
         return $this->hasMany(User::class);
     }
+
+    /**
+     * @return HasMany<EmailAccount, $this>
+     */
+    public function emailAccounts(): HasMany
+    {
+        return $this->hasMany(EmailAccount::class);
+    }
 }

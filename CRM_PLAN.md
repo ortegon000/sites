@@ -8,8 +8,8 @@
 - ✅ **Fase 1 — CRM de clientes y prospectos**: completa.
 - ✅ **Fase 2 — Proyectos → Servicios → Cobros + recordatorios**: completa.
 - ✅ **Fase 3 — Agencias colaboradoras**: completa.
-- 🔶 **Fase 4 — Portal de clientes**: 4a (proyectos y cobros de solo lectura) completa; 4b (correos propios) pendiente de la Fase 5.
-- ⬜ **Fase 5 — Aprovisionamiento de correo**: pendiente.
+- 🔶 **Fase 4 — Portal de clientes**: 4a (proyectos y cobros de solo lectura) completa; 4b (correos propios) pendiente de que la Fase 5 tenga un driver real.
+- 🔶 **Fase 5 — Aprovisionamiento de correo**: andamiaje completo (interfaz de driver, tablas, CRUD de proveedores, altas/bajas/cambio de contraseña de cuentas) con un driver simulado; falta conectar un driver real (MXroute primero) cuando haya credenciales.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
 
@@ -18,6 +18,8 @@ Verificación al cierre de Fase 2: `php artisan test --compact` → 58 tests (56
 Verificación al cierre de Fase 3: `php artisan test --compact` → 67 tests (65 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` corrido manualmente y flujo completo verificado en `https://sites.test` (alta de agencia, asociación a proyecto con cada `billing_direction`, confirmación de que `collaborator` no ve la tarjeta).
 
 Verificación al cierre de Fase 4a: `php artisan test --compact` → 81 tests (79 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` corrido manualmente y flujo completo verificado en `https://sites.test` (login como `cliente@example.com` redirige a `/portal`, lista solo sus propios proyectos, detalle de proyecto muestra servicios/cobros propios sin agencias ni equipo asignado, acceso a `/portal/proyectos/{id}` de otro cliente devuelve 403, `/dashboard` redirige a `/portal`, logout funciona).
+
+Verificación al cierre del andamiaje de Fase 5: `php artisan test --compact` → 90 tests (88 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` corrido manualmente y flujo verificado en `https://sites.test` (admin ve/crea/elimina proveedores en `/proveedores-correo`, staff no puede entrar ahí, tarjeta "Cuentas de correo" en el detalle de cliente permite crear una cuenta nueva y cambiar su contraseña sin errores; la eliminación con confirmación nativa del navegador quedó verificada solo por el test automatizado, ya que el diálogo `confirm()` nativo no puede pilotarse desde la automatización de navegador usada en esta sesión).
 
 ## Contexto
 
@@ -169,12 +171,40 @@ Portal de solo lectura para usuarios con rol `client`: ven únicamente los proye
 
 No se reutilizó `pages::projects.show` con condicionales adicionales por rol (como sí se hizo para ocultar montos a `collaborator` en Fase 2) porque el portal necesita un layout completamente distinto (sin sidebar) y una fuente de datos distinta (proyectos del `Client` del usuario, no proyectos asignados por `project_user`); duplicar la vista fue más simple que ramificar layout+query+visibilidad de tarjetas en un solo componente.
 
----
+## Fase 5 — Aprovisionamiento de correo (andamiaje con driver simulado) 🔶
 
-## Roadmap de fases futuras
+### Decisión del usuario
 
-- **Fase 4b — Cuentas de correo propias en el portal**: depende de Fase 5 (necesita `email_accounts` para tener algo que listar).
-- **Fase 5 — Aprovisionamiento de correo**: interfaz de driver (`app/Services/EmailProvisioning/Contracts/EmailProviderDriver.php`: `createMailbox`, `deleteMailbox`, `changePassword`, `listMailboxes`, `getConnectionSettings`), tablas `email_providers`/`email_accounts` (credenciales con cast `encrypted`, nunca password en texto plano), driver MXroute primero (proveedor principal), cPanel y Hostinger después (requieren credenciales/documentación real del usuario).
+Se confirmó con el dueño de la agencia construir primero todo el andamiaje (interfaz de driver, tablas, políticas, UI de administración y de altas/bajas) usando un driver simulado que no llama a ninguna API real, en vez de esperar a tener las credenciales de MXroute. Cuando esas credenciales estén disponibles, solo hace falta agregar la clase de driver real y ampliar `EmailProviderDriverType::implemented()` — el resto de la aplicación (acciones, policies, vistas) ya está construido contra la interfaz y no necesita cambios.
+
+### Modelo de datos (implementado)
+
+**`email_providers`**: `name`, `driver` (enum `EmailProviderDriverType`: `null`/`mxroute`/`cpanel`/`hostinger` — solo `null` tiene una clase real por ahora), `credentials` (nullable, cast `encrypted:array`, nunca en texto plano), `status` (enum `EmailProviderStatus`: activo/inactivo), timestamps, soft deletes.
+
+**`email_accounts`**: `client_id` (FK clients, cascade), `email_provider_id` (FK email_providers, `restrictOnDelete` — no se puede borrar un proveedor con cuentas activas), `email_address` (único), `status` (enum `EmailAccountStatus`: activa/suspendida), `provisioned_at`, timestamps, soft deletes. La contraseña de la cuenta **nunca se persiste**: solo vive como propiedad transitoria de Livewire mientras se llama al driver, igual que en el formulario de creación.
+
+### Archivos clave creados
+
+- `app/Services/EmailProvisioning/Contracts/EmailProviderDriver.php` — interfaz con `createMailbox`, `deleteMailbox`, `changePassword`, `listMailboxes`, `getConnectionSettings`, tal como se planeó desde el inicio.
+- `app/Services/EmailProvisioning/Drivers/NullEmailProviderDriver.php` — implementación simulada: los métodos de escritura son no-op, `listMailboxes` lee las cuentas ya guardadas localmente (no hay API remota que consultar) y `getConnectionSettings` devuelve host/puerto de ejemplo, dejando claro en el docblock que es un sustituto temporal.
+- `app/Models/EmailProvider.php` — método `driver()` que resuelve la implementación concreta con un `match` sobre el enum; lanza una excepción clara si se intenta usar un driver todavía no implementado (mxroute/cpanel/hostinger).
+- `app/Actions/EmailAccounts/{ProvisionEmailAccount,DeleteEmailAccount,ChangeEmailAccountPassword}.php` — cada una resuelve el driver del proveedor y llama al método correspondiente del contrato antes de tocar la base de datos local.
+- `app/Policies/EmailProviderPolicy.php` — solo admin (las credenciales de proveedor son más sensibles que el resto del CRM, así que ni siquiera `staff` administra proveedores). `email_accounts` no tiene policy propia: se gestiona autorizando contra `update` del `Client` padre, igual que `ClientNote`.
+- `routes/crm.php`: grupo nuevo `role:admin` con `email-providers.index` (`/proveedores-correo`).
+- `resources/views/pages/email-providers/⚡index.blade.php` — CRUD de proveedores (el selector de driver en el formulario solo ofrece `EmailProviderDriverType::implemented()`, para no dejar elegir un driver que todavía no existe).
+- `resources/views/pages/clients/⚡show.blade.php` — nueva tarjeta "Cuentas de correo" (visible solo para admin/staff, mismo guard que "Cuentas de correo" y "Agencias colaboradoras"): alta de cuenta (proveedor + correo + contraseña), badge de estatus, botón para cambiar contraseña (modal) y botón para eliminar (con `wire:confirm`).
+- Sidebar: nuevo grupo "Correo" con el ítem "Proveedores", visible solo para admin.
+- Tests: `tests/Feature/EmailProviders/EmailProviderManagementTest.php` (5 tests: acceso por rol, CRUD) + `tests/Feature/EmailAccounts/EmailAccountManagementTest.php` (4 tests: alta/baja/cambio de contraseña desde el detalle de cliente, `collaborator` sin acceso).
+
+### Seeders y factories
+
+- `database/factories/{EmailProvider,EmailAccount}Factory.php`.
+- `database/seeders/EmailProviderSeeder.php`: crea "MXroute (simulado)" y aprovisiona (vía la acción real, no inserción directa) una cuenta para cada uno de los primeros dos clientes ya sembrados, para demostrar el flujo de punta a punta sin credenciales reales. Registrado en `DatabaseSeeder` después de `AgencySeeder`.
+
+### Pendiente para cerrar la fase por completo
+
+- Conectar un driver real (MXroute primero, según lo confirmado) cuando el usuario tenga credenciales/documentación de su API.
+- **Fase 4b — Cuentas de correo propias en el portal**: ahora que `email_accounts` existe, falta la vista de solo lectura en `/portal` para que el propio cliente vea sus cuentas (sin poder crearlas ni eliminarlas).
 
 ## Verificación (repetir en cada fase nueva)
 

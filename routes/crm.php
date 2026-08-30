@@ -14,3 +14,7 @@ Route::middleware(['auth', 'verified', 'role:admin,staff,collaborator'])->group(
     Route::livewire('proyectos', 'pages::projects.index')->name('projects.index');
     Route::livewire('proyectos/{project}', 'pages::projects.show')->name('projects.show');
 });
+
+Route::middleware(['auth', 'verified', 'role:admin'])->group(function () {
+    Route::livewire('proveedores-correo', 'pages::email-providers.index')->name('email-providers.index');
+});

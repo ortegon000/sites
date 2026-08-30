@@ -38,6 +38,14 @@
                         </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif
+
+                @if (auth()->user()->isAdmin())
+                    <flux:sidebar.group :heading="__('Correo')" class="grid">
+                        <flux:sidebar.item icon="at-symbol" :href="route('email-providers.index')" :current="request()->routeIs('email-providers.*')" wire:navigate>
+                            {{ __('Proveedores') }}
+                        </flux:sidebar.item>
+                    </flux:sidebar.group>
+                @endif
             </flux:sidebar.nav>
 
             <flux:spacer />

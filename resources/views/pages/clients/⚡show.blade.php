@@ -1,10 +1,16 @@
 <?php
 
 use App\Actions\Clients\ChangeClientStatus;
+use App\Actions\EmailAccounts\ChangeEmailAccountPassword;
+use App\Actions\EmailAccounts\DeleteEmailAccount;
+use App\Actions\EmailAccounts\ProvisionEmailAccount;
 use App\Enums\ClientNoteType;
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
+use App\Enums\EmailProviderStatus;
 use App\Models\Client;
+use App\Models\EmailAccount;
+use App\Models\EmailProvider;
 use Flux\Flux;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
@@ -16,6 +22,16 @@ new class extends Component {
     public string $note = '';
 
     public string $status = '';
+
+    public ?int $emailProviderIdToAssign = null;
+
+    public string $newEmailAddress = '';
+
+    public string $newEmailPassword = '';
+
+    public ?int $passwordAccountId = null;
+
+    public string $newPassword = '';
 
     /**
      * The route this component was reached through on the initial page
@@ -68,6 +84,15 @@ new class extends Component {
         return ClientStatus::forType($this->client->type);
     }
 
+    #[Computed]
+    public function activeEmailProviders()
+    {
+        return EmailProvider::query()
+            ->where('status', EmailProviderStatus::Activo)
+            ->orderBy('name')
+            ->get();
+    }
+
     public function addNote(): void
     {
         Gate::authorize('update', $this->client);
@@ -100,6 +125,72 @@ new class extends Component {
         Flux::toast(variant: 'success', text: __('Estatus actualizado.'));
 
         $this->redirectToCanonicalRoute();
+    }
+
+    public function provisionEmailAccount(ProvisionEmailAccount $action): void
+    {
+        Gate::authorize('update', $this->client);
+
+        $validated = $this->validate([
+            'emailProviderIdToAssign' => ['required', 'exists:email_providers,id'],
+            'newEmailAddress' => ['required', 'email', 'max:255', 'unique:email_accounts,email_address'],
+            'newEmailPassword' => ['required', 'string', 'min:8'],
+        ]);
+
+        $action->handle(
+            $this->client,
+            EmailProvider::findOrFail($validated['emailProviderIdToAssign']),
+            $validated['newEmailAddress'],
+            $validated['newEmailPassword'],
+        );
+
+        $this->reset(['emailProviderIdToAssign', 'newEmailAddress', 'newEmailPassword']);
+
+        Flux::toast(variant: 'success', text: __('Cuenta de correo creada.'));
+    }
+
+    public function deleteEmailAccount(int $emailAccountId, DeleteEmailAccount $action): void
+    {
+        Gate::authorize('update', $this->client);
+
+        $emailAccount = $this->client->emailAccounts()->findOrFail($emailAccountId);
+
+        $action->handle($emailAccount);
+
+        Flux::toast(variant: 'success', text: __('Cuenta de correo eliminada.'));
+    }
+
+    public function openPasswordModal(int $emailAccountId): void
+    {
+        Gate::authorize('update', $this->client);
+
+        $this->passwordAccountId = $emailAccountId;
+        $this->newPassword = '';
+        $this->resetValidation();
+
+        $this->modal('email-password-form')->show();
+    }
+
+    public function changePassword(ChangeEmailAccountPassword $action): void
+    {
+        Gate::authorize('update', $this->client);
+
+        $validated = $this->validate([
+            'newPassword' => ['required', 'string', 'min:8'],
+        ]);
+
+        $emailAccount = $this->client->emailAccounts()->findOrFail($this->passwordAccountId);
+
+        $action->handle($emailAccount, $validated['newPassword']);
+
+        $this->modal('email-password-form')->close();
+
+        Flux::toast(variant: 'success', text: __('Contraseña actualizada.'));
+    }
+
+    public function closePasswordModal(): void
+    {
+        $this->modal('email-password-form')->close();
     }
 
     public function render()
@@ -191,6 +282,64 @@ new class extends Component {
                     @endforelse
                 </div>
             </flux:card>
+
+            @if (auth()->user()->isAdmin() || auth()->user()->isStaff())
+                <flux:card class="flex flex-col gap-4">
+                    <flux:heading size="lg">{{ __('Cuentas de correo') }}</flux:heading>
+
+                    <form wire:submit="provisionEmailAccount" class="flex flex-col gap-2 sm:flex-row sm:items-end">
+                        <flux:select wire:model="emailProviderIdToAssign" :label="__('Proveedor')" class="flex-1">
+                            <flux:select.option value="">{{ __('Selecciona un proveedor') }}</flux:select.option>
+                            @foreach ($this->activeEmailProviders as $provider)
+                                <flux:select.option value="{{ $provider->id }}">{{ $provider->name }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+
+                        <flux:input wire:model="newEmailAddress" type="email" :label="__('Correo')" class="flex-1" />
+
+                        <flux:input wire:model="newEmailPassword" type="password" :label="__('Contraseña')" class="flex-1" />
+
+                        <flux:button type="submit" size="sm" variant="primary">{{ __('Crear') }}</flux:button>
+                    </form>
+
+                    <flux:separator />
+
+                    <div class="flex flex-col gap-2">
+                        @forelse ($client->emailAccounts as $emailAccount)
+                            <div wire:key="email-account-{{ $emailAccount->id }}" class="flex items-center justify-between gap-2 text-sm">
+                                <div class="flex flex-col">
+                                    <span>{{ $emailAccount->email_address }}</span>
+                                    <span class="text-xs text-zinc-400">{{ $emailAccount->provider->name }}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <flux:badge size="sm">{{ $emailAccount->status->label() }}</flux:badge>
+                                    <flux:button size="xs" variant="ghost" icon="key" wire:click="openPasswordModal({{ $emailAccount->id }})" />
+                                    <flux:button size="xs" variant="ghost" icon="trash" wire:click="deleteEmailAccount({{ $emailAccount->id }})" wire:confirm="{{ __('¿Eliminar esta cuenta de correo?') }}" />
+                                </div>
+                            </div>
+                        @empty
+                            <flux:text class="text-zinc-400">{{ __('Sin cuentas de correo todavía.') }}</flux:text>
+                        @endforelse
+                    </div>
+                </flux:card>
+            @endif
         </div>
     </div>
+
+    <flux:modal name="email-password-form" class="md:w-80">
+        <form wire:submit="changePassword" class="flex flex-col gap-6">
+            <flux:heading size="lg">{{ __('Cambiar contraseña') }}</flux:heading>
+
+            <flux:input wire:model="newPassword" type="password" :label="__('Nueva contraseña')" autofocus />
+
+            <div class="flex justify-end gap-2">
+                <flux:button variant="ghost" wire:click="closePasswordModal">
+                    {{ __('Cancelar') }}
+                </flux:button>
+                <flux:button type="submit" variant="primary">
+                    {{ __('Guardar') }}
+                </flux:button>
+            </div>
+        </form>
+    </flux:modal>
 </div>
