@@ -10,6 +10,7 @@
 - ✅ **Fase 3 — Agencias colaboradoras**: completa.
 - ✅ **Fase 4 — Portal de clientes**: completa (4a proyectos/cobros y 4b correos propios, ambas de solo lectura).
 - 🔶 **Fase 5 — Aprovisionamiento de correo**: andamiaje completo (interfaz de driver, tablas, CRUD de proveedores, altas/bajas/cambio de contraseña de cuentas) con un driver simulado; falta conectar un driver real (MXroute primero) cuando haya credenciales.
+- ✅ **Fase 6 — Dashboard interno**: completa (KPIs financieros y próximos cobros/actividad reciente para admin/staff, resumen de proyectos asignados sin datos financieros para collaborator).
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
 
@@ -22,6 +23,8 @@ Verificación al cierre de Fase 4a: `php artisan test --compact` → 81 tests (7
 Verificación al cierre del andamiaje de Fase 5: `php artisan test --compact` → 90 tests (88 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` corrido manualmente y flujo verificado en `https://sites.test` (admin ve/crea/elimina proveedores en `/proveedores-correo`, staff no puede entrar ahí, tarjeta "Cuentas de correo" en el detalle de cliente permite crear una cuenta nueva y cambiar su contraseña sin errores; la eliminación con confirmación nativa del navegador quedó verificada solo por el test automatizado, ya que el diálogo `confirm()` nativo no puede pilotarse desde la automatización de navegador usada en esta sesión).
 
 Verificación al cierre de Fase 4b: `php artisan test --compact` → 97 tests (95 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` corrido manualmente y flujo verificado en `https://sites.test` (login como `cliente@example.com` → `/portal/correo` muestra su propia cuenta de correo con la configuración IMAP/SMTP simulada, la barra "Proyectos / Correo" del portal navega entre ambas vistas).
+
+Verificación al cierre de Fase 6: `php artisan test --compact` → 101 tests (99 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` corrido manualmente y flujo verificado en `https://sites.test` con los 3 roles (`test@example.com` ve KPIs de cobros pendientes/vencidos, proyectos activos, prospectos abiertos, tabla de próximos cobros y actividad reciente; `colaborador@example.com` ve solo "Mis proyectos activos" y su tabla de proyectos asignados, sin ninguna tarjeta financiera; `cliente@example.com` sigue redirigiendo a `/portal` sin pasar por el dashboard interno).
 
 ## Contexto
 
@@ -217,6 +220,28 @@ Con `email_accounts` ya existente desde la Fase 5, se agregó la vista de solo l
 - `resources/views/pages/portal/email-accounts/⚡index.blade.php` — lista las cuentas de correo del cliente autenticado (`EmailAccount::where('client_id', auth()->user()->client_id)`, mismo patrón que `portal.projects.index`, sin política propia). Por cada cuenta muestra su estatus y la configuración de conexión (`$emailAccount->provider->driver()->getConnectionSettings(...)`) — con el driver simulado de Fase 5 esto son valores de ejemplo, pero en cuanto haya un driver real la misma vista mostrará datos reales sin cambios.
 - `resources/views/layouts/portal.blade.php` — se agregó un `flux:navbar` con dos ítems ("Proyectos" / "Correo") entre el logo y el menú de usuario, ya que con dos secciones el portal necesitaba alguna forma de navegar entre ellas (la decisión original de "sin nav interno" se refería a no reutilizar el sidebar completo del CRM interno, no a no tener ningún enlace).
 - Tests: `tests/Feature/Portal/PortalEmailAccountsTest.php` (5 tests: acceso por rol, scope a cuentas propias, configuración de conexión visible, `client` sin `client_id` vinculado).
+
+## Fase 6 — Dashboard interno ✅
+
+### Alcance
+
+Se reemplazó el placeholder del starter kit de Livewire en `/dashboard` (bloques `x-placeholder-pattern` sin datos) por un dashboard real, con contenido distinto según rol y respetando el mismo criterio de "sin acceso a datos financieros" ya aplicado en proyectos/agencias/correo para `collaborator`. No requirió modelo de datos nuevo: solo consultas de agregación sobre `charges`, `projects` y `clients` ya existentes.
+
+- **Admin/Staff** ven: tarjetas KPI (cobros pendientes y vencidos con su suma, proyectos activos, prospectos abiertos), tabla "Próximos cobros" (vencimiento en los próximos 7 días) y "Actividad reciente" (últimas 8 `ClientNote` de cualquier cliente).
+- **Collaborator** ve: tarjeta "Mis proyectos activos" y una tabla con sus proyectos asignados (vía `project_user`) — sin montos, cobros, ni actividad de clientes ajenos.
+- **Client**: sin cambios, la misma ruta `dashboard` lo sigue redirigiendo a `/portal` (comportamiento de la Fase 4a).
+
+### Archivos clave creados/modificados
+
+- `resources/views/pages/dashboard/⚡index.blade.php` — componente Livewire de clase única (mismo patrón `new class extends Component` que el resto de `pages::`), con `#[Computed]` por bloque de datos (`pendingCharges`, `overdueCharges`, `activeProjectsCount`, `openProspectsCount`, `upcomingCharges`, `recentActivity`, `myAssignedProjects`); `activeProjectsCount` se filtra a los proyectos asignados cuando el usuario es `collaborator` (mismo patrón `whereHas('users', ...)` que `projects/⚡index.blade.php`). La redirección de `client` a `/portal` ahora vive en `mount()` (`$this->redirect(...)`) en vez del closure de ruta.
+- `routes/web.php` — la ruta `dashboard` pasó de un closure con `view('dashboard')` a `Route::livewire('dashboard', 'pages::dashboard.index')`.
+- `resources/views/dashboard.blade.php` — eliminado (reemplazado por el componente anterior).
+- Sin policy nueva: el dashboard no expone un modelo propio: cada `#[Computed]` filtra según `auth()->user()->role`, igual que ya se hace en la vista de proyecto para ocultar montos a `collaborator`.
+- Tests: `tests/Feature/DashboardTest.php` ampliado (7 tests: acceso por rol —incluye el guest/redirect ya existente—, admin ve KPIs/próximos cobros/actividad reciente, staff ve el mismo dashboard que admin, collaborator no ve datos financieros y solo ve sus proyectos asignados, conteo de prospectos abiertos excluye ganados/perdidos).
+
+### Verificación
+
+`php artisan test --compact` → 101 tests (99 pasan, 2 se saltan), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, flujo verificado en `https://sites.test` con los 3 roles (ver nota de verificación arriba).
 
 ## Verificación (repetir en cada fase nueva)
 
