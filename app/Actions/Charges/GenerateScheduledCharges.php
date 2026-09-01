@@ -4,6 +4,7 @@ namespace App\Actions\Charges;
 
 use App\Enums\ChargeStatus;
 use App\Enums\ServiceBillingFrequency;
+use App\Enums\ServiceStatus;
 use App\Models\Service;
 use App\Models\ServiceInstallment;
 
@@ -19,6 +20,7 @@ class GenerateScheduledCharges
     private function generateOneTimeCharges(?Service $only): void
     {
         Service::query()
+            ->where('status', ServiceStatus::Activo)
             ->where('billing_frequency', ServiceBillingFrequency::OneTime)
             ->where('starts_on', '<=', today())
             ->whereDoesntHave('charges')
@@ -36,6 +38,7 @@ class GenerateScheduledCharges
     private function generateRecurringCharges(?Service $only): void
     {
         Service::query()
+            ->where('status', ServiceStatus::Activo)
             ->whereIn('billing_frequency', ServiceBillingFrequency::recurring())
             ->whereNotNull('next_charge_date')
             ->where('next_charge_date', '<=', today())
@@ -61,6 +64,7 @@ class GenerateScheduledCharges
     private function generateInstallmentCharges(?Service $only): void
     {
         ServiceInstallment::query()
+            ->whereHas('service', fn ($query) => $query->where('status', ServiceStatus::Activo))
             ->whereDoesntHave('charge')
             ->where('due_date', '<=', today())
             ->when($only, fn ($query) => $query->where('service_id', $only->id))

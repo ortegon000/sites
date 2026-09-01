@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ChargeStatus;
 use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceCategory;
 use App\Enums\ServiceStatus;
@@ -46,6 +47,16 @@ class Service extends Model
             'starts_on' => 'date',
             'next_charge_date' => 'date',
         ];
+    }
+
+    /**
+     * Un servicio con cobros pagados no se puede borrar: las llaves foráneas
+     * están en cascada, así que borrarlo eliminaría también la constancia del
+     * pago. Para esos se usa la cancelación.
+     */
+    public function canBeDeleted(): bool
+    {
+        return ! $this->charges()->where('status', ChargeStatus::Pagado)->exists();
     }
 
     /**

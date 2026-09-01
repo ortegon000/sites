@@ -1,7 +1,9 @@
 <?php
 
 use App\Actions\Charges\MarkChargeAsPaid;
+use App\Actions\Services\CancelService;
 use App\Actions\Services\CreateServiceWithSchedule;
+use App\Actions\Services\DeleteService;
 use App\Enums\AgencyBillingDirection;
 use App\Enums\AgencyStatus;
 use App\Enums\ChargeStatus;
@@ -182,6 +184,32 @@ new class extends Component {
         $this->modal('service-form')->close();
 
         Flux::toast(variant: 'success', text: __('Servicio creado.'));
+    }
+
+    public function deleteService(int $serviceId, DeleteService $action): void
+    {
+        Gate::authorize('update', $this->project);
+
+        $service = $this->project->services()->findOrFail($serviceId);
+
+        if (! $service->canBeDeleted()) {
+            Flux::toast(variant: 'danger', text: __('Este servicio ya tiene cobros pagados. Cancélalo para detenerlo sin borrar el historial.'));
+
+            return;
+        }
+
+        $action->handle($service);
+
+        Flux::toast(variant: 'success', text: __('Servicio eliminado.'));
+    }
+
+    public function cancelService(int $serviceId, CancelService $action): void
+    {
+        Gate::authorize('update', $this->project);
+
+        $action->handle($this->project->services()->findOrFail($serviceId));
+
+        Flux::toast(variant: 'success', text: __('Servicio cancelado.'));
     }
 
     public function closeServiceModal(): void
@@ -403,6 +431,9 @@ new class extends Component {
                             <flux:table.column>{{ __('Monto') }}</flux:table.column>
                         @endif
                         <flux:table.column>{{ __('Estatus') }}</flux:table.column>
+                        @can('update', $project)
+                            <flux:table.column></flux:table.column>
+                        @endcan
                     </flux:table.columns>
 
                     <flux:table.rows>
@@ -416,10 +447,27 @@ new class extends Component {
                                 <flux:table.cell>
                                     <flux:badge size="sm">{{ $service->status->label() }}</flux:badge>
                                 </flux:table.cell>
+                                @can('update', $project)
+                                    <flux:table.cell>
+                                        <div class="flex justify-end gap-2">
+                                            @if ($service->status !== \App\Enums\ServiceStatus::Cancelado)
+                                                <flux:button size="xs" variant="ghost" icon="no-symbol"
+                                                    :tooltip="__('Cancelar servicio')"
+                                                    wire:click="cancelService({{ $service->id }})"
+                                                    wire:confirm="{{ __('¿Cancelar este servicio? Dejará de generar cobros y conservará los que ya tiene.') }}" />
+                                            @endif
+
+                                            <flux:button size="xs" variant="ghost" icon="trash"
+                                                :tooltip="__('Eliminar servicio')"
+                                                wire:click="deleteService({{ $service->id }})"
+                                                wire:confirm="{{ __('¿Eliminar este servicio? Se borrarán también sus cobros pendientes y sus cuotas.') }}" />
+                                        </div>
+                                    </flux:table.cell>
+                                @endcan
                             </flux:table.row>
                         @empty
                             <flux:table.row>
-                                <flux:table.cell colspan="4" class="text-center text-zinc-400">
+                                <flux:table.cell colspan="5" class="text-center text-zinc-400">
                                     {{ __('Sin servicios todavía.') }}
                                 </flux:table.cell>
                             </flux:table.row>
