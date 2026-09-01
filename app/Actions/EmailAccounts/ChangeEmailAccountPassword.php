@@ -11,5 +11,9 @@ class ChangeEmailAccountPassword
         $provider = $emailAccount->provider;
 
         $provider->driver()->changePassword($provider, $emailAccount->email_address, $password);
+
+        if ($provider->storesPasswordLocally()) {
+            $emailAccount->update(['password' => $password]);
+        }
     }
 }

@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -87,10 +88,21 @@ class Client extends Model
     }
 
     /**
-     * @return HasMany<EmailAccount, $this>
+     * @return HasMany<Domain, $this>
      */
-    public function emailAccounts(): HasMany
+    public function domains(): HasMany
     {
-        return $this->hasMany(EmailAccount::class);
+        return $this->hasMany(Domain::class);
+    }
+
+    /**
+     * Mailboxes reach a client through their domain: a mailbox belongs to
+     * `acme.com`, and `acme.com` belongs to the client.
+     *
+     * @return HasManyThrough<EmailAccount, Domain, $this>
+     */
+    public function emailAccounts(): HasManyThrough
+    {
+        return $this->hasManyThrough(EmailAccount::class, Domain::class);
     }
 }

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('driver');
             $table->text('credentials')->nullable();
+            $table->json('connection_settings')->nullable();
             $table->string('status');
             $table->timestamps();
             $table->softDeletes();

@@ -23,7 +23,21 @@ class EmailProviderFactory extends Factory
             'name' => fake()->company().' (correo)',
             'driver' => EmailProviderDriverType::NullDriver,
             'credentials' => null,
+            'connection_settings' => null,
             'status' => EmailProviderStatus::Activo,
         ];
+    }
+
+    public function manual(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'driver' => EmailProviderDriverType::Manual,
+            'connection_settings' => [
+                'imap_host' => 'imap.'.fake()->domainName(),
+                'imap_port' => '993',
+                'smtp_host' => 'smtp.'.fake()->domainName(),
+                'smtp_port' => '587',
+            ],
+        ]);
     }
 }

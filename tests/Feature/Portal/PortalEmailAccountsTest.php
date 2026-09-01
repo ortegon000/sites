@@ -2,9 +2,18 @@
 
 use App\Enums\UserRole;
 use App\Models\Client;
+use App\Models\Domain;
 use App\Models\EmailAccount;
+use App\Models\Project;
 use App\Models\User;
 use Livewire\Livewire;
+
+function portalDomainFor(Client $client): Domain
+{
+    $project = Project::factory()->for($client)->create(['includes_email' => true]);
+
+    return Domain::factory()->for($client)->for($project)->withManagedEmail()->create();
+}
 
 test('guests are redirected to the login page', function () {
     $this->get(route('portal.email-accounts.index'))->assertRedirect(route('login'));
@@ -18,31 +27,66 @@ test('admin, staff and collaborator cannot access the portal email accounts page
     $this->get(route('portal.email-accounts.index'))->assertForbidden();
 })->with(['admin', 'staff', 'collaborator']);
 
-test('client can only see their own email accounts', function () {
+test('client can only see the mailboxes on their own domains', function () {
     $client = Client::factory()->client()->create();
     $clientUser = User::factory()->client($client)->create();
 
-    EmailAccount::factory()->for($client)->create(['email_address' => 'propio@cliente.test']);
-    EmailAccount::factory()->create(['email_address' => 'ajeno@otro.test']);
+    $ownDomain = portalDomainFor($client);
+    EmailAccount::factory()->for($ownDomain)->create(['email_address' => 'propio@cliente.test']);
+
+    $foreignDomain = portalDomainFor(Client::factory()->client()->create());
+    EmailAccount::factory()->for($foreignDomain)->create(['email_address' => 'ajeno@otro.test']);
 
     $this->actingAs($clientUser);
 
     Livewire::test('pages::portal.email-accounts.index')
+        ->assertSee($ownDomain->name)
         ->assertSee('propio@cliente.test')
         ->assertDontSee('ajeno@otro.test');
+});
+
+test('a domain whose email we do not manage is not listed in the portal', function () {
+    $client = Client::factory()->client()->create();
+    $clientUser = User::factory()->client($client)->create();
+
+    $project = Project::factory()->for($client)->create(['includes_email' => false]);
+    $domain = Domain::factory()->for($client)->for($project)->withManagedEmail()->create();
+
+    $this->actingAs($clientUser);
+
+    Livewire::test('pages::portal.email-accounts.index')
+        ->assertDontSee($domain->name);
 });
 
 test('client sees connection settings for their email account', function () {
     $client = Client::factory()->client()->create();
     $clientUser = User::factory()->client($client)->create();
 
-    EmailAccount::factory()->for($client)->create();
+    EmailAccount::factory()->for(portalDomainFor($client))->create();
 
     $this->actingAs($clientUser);
 
     Livewire::test('pages::portal.email-accounts.index')
         ->assertSee('imap.simulado.test')
         ->assertSee('smtp.simulado.test');
+});
+
+test('a stored password is hidden until the client asks to see it', function () {
+    $client = Client::factory()->client()->create();
+    $clientUser = User::factory()->client($client)->create();
+
+    $emailAccount = EmailAccount::factory()->for(portalDomainFor($client))->create([
+        'password' => 'secreto-del-buzon',
+    ]);
+
+    $this->actingAs($clientUser);
+
+    Livewire::test('pages::portal.email-accounts.index')
+        ->assertDontSee('secreto-del-buzon')
+        ->call('revealPassword', $emailAccount->id)
+        ->assertSee('secreto-del-buzon')
+        ->call('hidePassword', $emailAccount->id)
+        ->assertDontSee('secreto-del-buzon');
 });
 
 test('client user without a linked client record is forbidden', function () {

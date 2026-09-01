@@ -18,6 +18,14 @@ new class extends Component {
 
     public string $status = '';
 
+    public string $imapHost = '';
+
+    public string $imapPort = '';
+
+    public string $smtpHost = '';
+
+    public string $smtpPort = '';
+
     public function mount(): void
     {
         Gate::authorize('viewAny', EmailProvider::class);
@@ -54,7 +62,7 @@ new class extends Component {
     {
         Gate::authorize('create', EmailProvider::class);
 
-        $this->reset(['editingProviderId', 'name']);
+        $this->reset(['editingProviderId', 'name', 'imapHost', 'imapPort', 'smtpHost', 'smtpPort']);
         $this->driver = EmailProviderDriverType::NullDriver->value;
         $this->status = EmailProviderStatus::Activo->value;
         $this->resetValidation();
@@ -72,6 +80,10 @@ new class extends Component {
         $this->name = $provider->name;
         $this->driver = $provider->driver->value;
         $this->status = $provider->status->value;
+        $this->imapHost = $provider->connection_settings['imap_host'] ?? '';
+        $this->imapPort = (string) ($provider->connection_settings['imap_port'] ?? '');
+        $this->smtpHost = $provider->connection_settings['smtp_host'] ?? '';
+        $this->smtpPort = (string) ($provider->connection_settings['smtp_port'] ?? '');
         $this->resetValidation();
 
         $this->modal('provider-form')->show();
@@ -87,12 +99,28 @@ new class extends Component {
             'name' => ['required', 'string', 'max:255'],
             'driver' => ['required', Rule::enum(EmailProviderDriverType::class)],
             'status' => ['required', Rule::enum(EmailProviderStatus::class)],
+            'imapHost' => ['nullable', 'string', 'max:255'],
+            'imapPort' => ['nullable', 'string', 'max:10'],
+            'smtpHost' => ['nullable', 'string', 'max:255'],
+            'smtpPort' => ['nullable', 'string', 'max:10'],
         ]);
 
+        $attributes = [
+            'name' => $validated['name'],
+            'driver' => $validated['driver'],
+            'status' => $validated['status'],
+            'connection_settings' => array_filter([
+                'imap_host' => $validated['imapHost'],
+                'imap_port' => $validated['imapPort'],
+                'smtp_host' => $validated['smtpHost'],
+                'smtp_port' => $validated['smtpPort'],
+            ]) ?: null,
+        ];
+
         if ($provider) {
-            $provider->update($validated);
+            $provider->update($attributes);
         } else {
-            EmailProvider::create($validated);
+            EmailProvider::create($attributes);
         }
 
         $this->modal('provider-form')->close();
@@ -188,6 +216,19 @@ new class extends Component {
                     <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
                 @endforeach
             </flux:select>
+
+            <flux:separator />
+
+            <flux:text class="text-xs text-zinc-400">
+                {{ __('Datos de conexión que verá el cliente en su portal. Un driver con API real los resuelve solo; captúralos para proveedores manuales.') }}
+            </flux:text>
+
+            <div class="grid grid-cols-2 gap-4">
+                <flux:input wire:model="imapHost" :label="__('Servidor IMAP')" placeholder="imap.ejemplo.com" />
+                <flux:input wire:model="imapPort" :label="__('Puerto IMAP')" placeholder="993" />
+                <flux:input wire:model="smtpHost" :label="__('Servidor SMTP')" placeholder="smtp.ejemplo.com" />
+                <flux:input wire:model="smtpPort" :label="__('Puerto SMTP')" placeholder="587" />
+            </div>
 
             <div class="flex justify-end gap-2">
                 <flux:button variant="ghost" wire:click="closeFormModal">

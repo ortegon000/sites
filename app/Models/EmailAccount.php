@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\EmailAccountOrigin;
 use App\Enums\EmailAccountStatus;
 use Carbon\CarbonImmutable;
 use Database\Factories\EmailAccountFactory;
@@ -13,15 +14,17 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property int $id
- * @property int $client_id
+ * @property int $domain_id
  * @property int $email_provider_id
  * @property string $email_address
+ * @property string|null $password
+ * @property EmailAccountOrigin $origin
  * @property EmailAccountStatus $status
  * @property CarbonImmutable|null $provisioned_at
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['client_id', 'email_provider_id', 'email_address', 'status', 'provisioned_at'])]
+#[Fillable(['domain_id', 'email_provider_id', 'email_address', 'password', 'origin', 'status', 'provisioned_at'])]
 class EmailAccount extends Model
 {
     /** @use HasFactory<EmailAccountFactory> */
@@ -30,17 +33,19 @@ class EmailAccount extends Model
     protected function casts(): array
     {
         return [
+            'password' => 'encrypted',
+            'origin' => EmailAccountOrigin::class,
             'status' => EmailAccountStatus::class,
             'provisioned_at' => 'datetime',
         ];
     }
 
     /**
-     * @return BelongsTo<Client, $this>
+     * @return BelongsTo<Domain, $this>
      */
-    public function client(): BelongsTo
+    public function domain(): BelongsTo
     {
-        return $this->belongsTo(Client::class);
+        return $this->belongsTo(Domain::class);
     }
 
     /**

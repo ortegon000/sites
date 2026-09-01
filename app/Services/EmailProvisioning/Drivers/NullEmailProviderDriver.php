@@ -14,6 +14,13 @@ use App\Services\EmailProvisioning\Contracts\EmailProviderDriver;
  */
 class NullEmailProviderDriver implements EmailProviderDriver
 {
+    /**
+     * Mailboxes a real provider would typically already have on a domain.
+     * They exist so the import screen has something to offer while there is
+     * no API to ask; a real driver replaces this with an actual API call.
+     */
+    private const SIMULATED_REMOTE_LOCAL_PARTS = ['info', 'ventas', 'soporte'];
+
     public function createMailbox(EmailProvider $provider, string $emailAddress, string $password): void
     {
         // No-op: nothing to provision remotely yet.
@@ -29,9 +36,19 @@ class NullEmailProviderDriver implements EmailProviderDriver
         // No-op: nothing to update remotely yet.
     }
 
-    public function listMailboxes(EmailProvider $provider): array
+    public function listMailboxes(EmailProvider $provider, string $domain): array
     {
-        return $provider->emailAccounts()->pluck('email_address')->all();
+        $known = $provider->emailAccounts()
+            ->whereHas('domain', fn ($query) => $query->where('name', $domain))
+            ->pluck('email_address')
+            ->all();
+
+        $simulated = array_map(
+            fn (string $localPart) => "{$localPart}@{$domain}",
+            self::SIMULATED_REMOTE_LOCAL_PARTS,
+        );
+
+        return array_values(array_unique([...$known, ...$simulated]));
     }
 
     public function getConnectionSettings(EmailProvider $provider): array

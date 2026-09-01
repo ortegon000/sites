@@ -3,19 +3,25 @@
 namespace Database\Seeders;
 
 use App\Actions\EmailAccounts\ProvisionEmailAccount;
-use App\Enums\ClientType;
+use App\Enums\DomainEmailManagement;
+use App\Enums\DomainManagement;
+use App\Enums\DomainStatus;
 use App\Enums\EmailProviderDriverType;
 use App\Enums\EmailProviderStatus;
-use App\Models\Client;
+use App\Enums\ProjectType;
+use App\Models\Domain;
 use App\Models\EmailProvider;
+use App\Models\Project;
 use Illuminate\Database\Seeder;
 
 class EmailProviderSeeder extends Seeder
 {
     /**
-     * Seed a demo (simulated) email provider and provision a couple of
-     * mailboxes for existing clients, to show the Fase 5 scaffolding
-     * working end to end without any real provider credentials yet.
+     * Seed two demo providers — one simulated (stands in for an API-backed
+     * provider) and one manual (administered by hand, so it keeps mailbox
+     * passwords locally) — give a couple of existing projects a domain, and
+     * provision a mailbox on each, so the domain → mailbox chain is visible
+     * end to end without real provider credentials.
      */
     public function run(): void
     {
@@ -25,16 +31,51 @@ class EmailProviderSeeder extends Seeder
             'status' => EmailProviderStatus::Activo,
         ]);
 
-        $clients = Client::where('type', ClientType::Client)->take(2)->get();
+        $manualProvider = EmailProvider::factory()->create([
+            'name' => 'Proveedor manual (sin API)',
+            'driver' => EmailProviderDriverType::Manual,
+            'status' => EmailProviderStatus::Activo,
+            'connection_settings' => [
+                'imap_host' => 'imap.proveedor-manual.test',
+                'imap_port' => '993',
+                'smtp_host' => 'smtp.proveedor-manual.test',
+                'smtp_port' => '587',
+            ],
+        ]);
 
-        foreach ($clients as $client) {
-            $localPart = str($client->name)->slug('.');
+        $projects = Project::with('client')->take(2)->get();
+
+        foreach ($projects as $project) {
+            $project->update([
+                'type' => ProjectType::Web,
+                'includes_email' => true,
+            ]);
+
+            $domain = Domain::create([
+                'client_id' => $project->client_id,
+                'project_id' => $project->id,
+                'name' => str($project->client->name)->slug().'.test',
+                'management' => DomainManagement::Managed,
+                'registrar' => 'Namecheap',
+                'registered_at' => now()->subYear(),
+                'expires_at' => now()->addDays(20),
+                'auto_renew' => true,
+                'email_management' => DomainEmailManagement::Managed,
+                'status' => DomainStatus::Activo,
+            ]);
 
             app(ProvisionEmailAccount::class)->handle(
-                $client,
+                $domain,
                 $provider,
-                "{$localPart}@ejemplo-cliente.test",
+                'contacto@'.$domain->name,
                 'password-temporal',
+            );
+
+            app(ProvisionEmailAccount::class)->handle(
+                $domain,
+                $manualProvider,
+                'administracion@'.$domain->name,
+                'password-manual',
             );
         }
     }

@@ -342,6 +342,7 @@ new class extends Component {
                         @endforelse
                     </div>
                 </flux:card>
+
             @endif
         </div>
 
@@ -434,6 +435,8 @@ new class extends Component {
                         </flux:table.rows>
                     </flux:table>
                 </flux:card>
+
+                <livewire:project-domains :project="$project" :key="'project-domains-'.$project->id" />
             @endif
         </div>
     </div>

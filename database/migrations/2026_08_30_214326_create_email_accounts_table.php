@@ -13,9 +13,11 @@ return new class extends Migration
     {
         Schema::create('email_accounts', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('client_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('domain_id')->constrained()->cascadeOnDelete();
             $table->foreignId('email_provider_id')->constrained()->restrictOnDelete();
             $table->string('email_address')->unique();
+            $table->text('password')->nullable();
+            $table->string('origin');
             $table->string('status');
             $table->timestamp('provisioned_at')->nullable();
             $table->timestamps();

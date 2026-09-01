@@ -22,11 +22,14 @@ interface EmailProviderDriver
     public function changePassword(EmailProvider $provider, string $emailAddress, string $password): void;
 
     /**
-     * List the mailboxes that currently exist on the remote provider.
+     * List the mailboxes that currently exist on the remote provider for a
+     * domain. Real providers list per domain (a cPanel account or an MXroute
+     * domain holds its own mailboxes), and the import screen always asks about
+     * one domain at a time.
      *
      * @return array<int, string>
      */
-    public function listMailboxes(EmailProvider $provider): array;
+    public function listMailboxes(EmailProvider $provider, string $domain): array;
 
     /**
      * Get the IMAP/SMTP connection settings a mailbox owner would need.
