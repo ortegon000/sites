@@ -37,6 +37,20 @@ class Domain extends Model
     /** @use HasFactory<DomainFactory> */
     use HasFactory, SoftDeletes;
 
+    /**
+     * Renewing a domain pushes `expires_at` forward, which starts a new cycle:
+     * clearing the stamp is what lets next year's reminder fire instead of the
+     * domain going quiet after a single warning.
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (Domain $domain): void {
+            if ($domain->isDirty('expires_at')) {
+                $domain->expiry_notified_at = null;
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [

@@ -28,16 +28,25 @@
                     class="{{ $notification->read_at ? 'opacity-60' : '' }}"
                 >
                     <div class="flex flex-col gap-0.5 whitespace-normal text-start">
-                        <span class="text-sm">
-                            @if ($notification->data['type'] === 'charge_overdue')
-                                {{ __('Cobro vencido') }}: {{ $notification->data['service_name'] }}
-                            @else
-                                {{ __('Cobro próximo a vencer') }}: {{ $notification->data['service_name'] }}
-                            @endif
-                        </span>
-                        <span class="text-xs text-zinc-400">
-                            {{ $notification->data['project_name'] }} · {{ $notification->data['amount'] }} {{ $notification->data['currency'] }}
-                        </span>
+                        @if ($notification->data['type'] === 'domain_expiring')
+                            <span class="text-sm">
+                                {{ __('Dominio por expirar') }}: {{ $notification->data['domain_name'] }}
+                            </span>
+                            <span class="text-xs text-zinc-400">
+                                {{ $notification->data['client_name'] }} · {{ __('expira') }} {{ $notification->data['expires_at'] }}
+                            </span>
+                        @else
+                            <span class="text-sm">
+                                @if ($notification->data['type'] === 'charge_overdue')
+                                    {{ __('Cobro vencido') }}: {{ $notification->data['service_name'] }}
+                                @else
+                                    {{ __('Cobro próximo a vencer') }}: {{ $notification->data['service_name'] }}
+                                @endif
+                            </span>
+                            <span class="text-xs text-zinc-400">
+                                {{ $notification->data['project_name'] }} · {{ $notification->data['amount'] }} {{ $notification->data['currency'] }}
+                            </span>
+                        @endif
                         <span class="text-xs text-zinc-400">{{ $notification->created_at->diffForHumans() }}</span>
                     </div>
                 </flux:menu.item>
