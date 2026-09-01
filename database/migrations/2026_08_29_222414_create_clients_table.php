@@ -22,6 +22,7 @@ return new class extends Migration
             $table->string('phone')->nullable();
             $table->string('source')->nullable();
             $table->foreignId('assigned_to_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('agency_id')->nullable()->constrained()->nullOnDelete();
             $table->char('currency', 3)->default('MXN');
             $table->timestamp('won_at')->nullable();
             $table->string('lost_reason')->nullable();
@@ -30,6 +31,16 @@ return new class extends Migration
 
             $table->index(['type', 'status']);
         });
+
+        /**
+         * `users` and `clients` point at each other — a client is assigned to a
+         * user, and a portal user belongs to a client — so one of the two
+         * foreign keys has to be added after both tables exist. It lands here
+         * because `users` is created first.
+         */
+        Schema::table('users', function (Blueprint $table) {
+            $table->foreignId('client_id')->nullable()->after('role')->constrained('clients')->nullOnDelete();
+        });
     }
 
     /**
@@ -37,6 +48,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropConstrainedForeignId('client_id');
+        });
+
         Schema::dropIfExists('clients');
     }
 };
