@@ -11,6 +11,7 @@
 - ✅ **Fase 4 — Portal de clientes**: completa (4a proyectos/cobros y 4b correos propios, ambas de solo lectura).
 - 🔶 **Fase 5 — Aprovisionamiento de correo**: andamiaje completo (interfaz de driver, tablas, CRUD de proveedores, altas/bajas/cambio de contraseña de cuentas) con un driver simulado; falta conectar un driver real (MXroute primero) cuando haya credenciales.
 - ✅ **Fase 6 — Dashboard interno**: completa (KPIs financieros y próximos cobros/actividad reciente para admin/staff, resumen de proyectos asignados sin datos financieros para collaborator).
+- ✅ **Fase 7 — Dominios, tipos de proyecto y campañas de ads**: completa. Introduce la tabla `domains` (dueño: el cliente), mueve las cuentas de correo de `clients` a `domains`, agrega `ProjectType` como plantilla, `ServiceCategory`, frecuencias trimestral/semestral, proveedor de correo `manual` con contraseñas cifradas, importación de buzones existentes y campañas de ads.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
 
@@ -242,6 +243,129 @@ Se reemplazó el placeholder del starter kit de Livewire en `/dashboard` (bloque
 ### Verificación
 
 `php artisan test --compact` → 101 tests (99 pasan, 2 se saltan), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, flujo verificado en `https://sites.test` con los 3 roles (ver nota de verificación arriba).
+
+## Fase 7 — Dominios, tipos de proyecto y campañas de ads ✅
+
+> Nace de dos problemas detectados por el dueño de la agencia: (a) los proyectos tienen circunstancias muy distintas según su naturaleza (web, mantenimiento, ads) y hoy son todos la misma tabla con nombre libre; (b) las cuentas de correo cuelgan directamente del cliente (`email_accounts.client_id`), pero un cliente puede tener varios dominios registrados, así que el correo quedaba sin un dueño claro.
+
+### Diagnóstico
+
+La entidad que falta no es "un tipo de proyecto de correo" sino **el dominio**. Un buzón no pertenece a un cliente, pertenece a `acme.com`; y un dominio tiene vida propia (registrador, expiración, renovación anual). Colgar los correos de un "proyecto de email" solo movía la ambigüedad un nivel: si el cliente tiene tres dominios, ese proyecto vuelve a tener el mismo problema.
+
+Además faltaban dos clasificadores: `projects` no tenía tipo (así que había que recapturar a mano los servicios típicos en cada proyecto web) y `services` no tenía categoría (`name` es texto libre, así que "Hosting" y "hosting anual" son cosas distintas para la base y no se puede ligar la renovación de dominio *al dominio*).
+
+### Decisiones confirmadas por el usuario en esta fase
+
+- **El dominio pertenece al cliente** (`client_id` obligatorio); el proyecto es un vínculo opcional (`project_id` nullable), no el dueño. Así un dominio puede reasignarse entre proyectos o quedar sin proyecto sin perder los buzones.
+- **El tipo de proyecto actúa como plantilla al crear**, no como esquema rígido: precarga los servicios típicos con su frecuencia y el usuario ajusta.
+- **El correo se administra por dominio, no por cliente** — un mismo cliente puede tener `acme.com` con nosotros y `acme.mx` en Google Workspace.
+- **El correo del dominio solo se activa si su proyecto tiene la bandera `includes_email`**, que el tipo de proyecto precarga (web → sí, email → sí, ads/mantenimiento → no) y es ajustable. Esto reconcilia "el proyecto web normalmente incluye hosting, ssl, mail, website" con "debe existir proyecto de email para que se active".
+- **Se persisten contraseñas de buzones** (cifradas), revirtiendo la decisión de la Fase 5 de no persistirlas nunca. Motivo: la agencia administra correo en proveedores para los que no habrá driver, y sin guardarlas nadie puede recuperarlas. Se asume el riesgo residual de que un atacante con base de datos **y** `APP_KEY` obtendría todas.
+- **Visibilidad de la contraseña**: en el portal del cliente, oculta por defecto y revelable con un clic; en el CRM interno, **solo admin** (mismo criterio que `EmailProviderPolicy`). Consecuencia operativa aceptada: el staff que da de alta un buzón manual conoce la contraseña al capturarla, pero no puede volver a consultarla después.
+- **La importación de buzones existentes se construye en esta fase** contra el driver simulado, ya que `EmailProviderDriver::listMailboxes()` existe desde la Fase 5.
+- **Las migraciones existentes se reescriben en su lugar** en vez de agregar migraciones de `add_x_to_y`: no hay producción ni datos que preservar (base actual: 1 cliente, 0 correos/proyectos/servicios/cobros). Se resiembra con `php artisan migrate:fresh --seed` y no se escribe lógica de backfill.
+
+### 7.1 Nueva entidad `Domain`
+
+**`domains`**: `client_id` (FK clients, cascade, **obligatorio** — dueño), `project_id` (FK projects, nullOnDelete, **nullable** — vínculo), `name`, `management` (enum `DomainManagement`: `managed` = lo registramos y cobramos / `tracked` = solo damos seguimiento), `registrar` (nullable), `registered_at` (nullable), `expires_at` (nullable), `auto_renew` (bool), `email_management` (enum `DomainEmailManagement`: `managed` / `not_managed`), `email_notes` (text nullable — constancia de dónde vive el correo cuando no lo administramos), `status` (enum `DomainStatus`), timestamps, softDeletes. Índice único **`(client_id, name)`**, no global: dos clientes distintos pueden tener buzones en un mismo dominio público.
+
+- `Client::domains()`, `Project::domains()` (`hasMany`); `Domain::client()/project()/emailAccounts()/services()`.
+- `email_management` solo puede ponerse en `managed` si el dominio tiene `project_id` y ese proyecto tiene `includes_email = true`. Validación en el formulario y en una regla del modelo/acción.
+- Los dominios `managed` con `expires_at` entran al comando `charges:process` existente como recordatorio de renovación, reusando el patrón `due_soon_notified_at` de `charges`.
+
+### 7.2 Los correos se mueven del cliente al dominio
+
+- `email_accounts`: se reemplaza `client_id` por `domain_id` (FK domains, cascade). Se agregan `password` (nullable, cast `encrypted` — nunca en texto plano) y `origin` (enum `EmailAccountOrigin`: `provisioned` = la creamos desde el CRM / `imported` = ya existía en el proveedor y se vinculó).
+- El scoping del portal pasa a `whereHas('domain', fn ($q) => $q->where('client_id', ...))`.
+- La tarjeta "Cuentas de correo" se mueve de `clients/⚡show.blade.php` al detalle del proyecto, anidada bajo cada dominio. El detalle de cliente conserva un resumen de solo lectura agrupado por dominio.
+- `portal/email-accounts/⚡index.blade.php` agrupa por dominio y agrega el botón "mostrar contraseña" (oculta por defecto).
+- Archivos afectados (14): `app/Models/{Client,EmailAccount,EmailProvider}.php`, `app/Actions/EmailAccounts/*` (3), `app/Services/EmailProvisioning/Drivers/NullEmailProviderDriver.php`, `resources/views/pages/clients/⚡show.blade.php`, `resources/views/pages/portal/email-accounts/⚡index.blade.php`, `resources/views/pages/email-providers/⚡index.blade.php`, `database/seeders/EmailProviderSeeder.php`, `database/factories/EmailAccountFactory.php`, `tests/Feature/Portal/PortalEmailAccountsTest.php`, `tests/Feature/EmailAccounts/EmailAccountManagementTest.php`.
+
+### 7.3 Proveedor `manual` e importación de buzones
+
+Nuevo caso `Manual` en `EmailProviderDriverType` con su `ManualEmailProviderDriver`: escrituras no-op (el alta la hace un humano en el panel del proveedor) pero el CRM registra la cuenta, guarda la contraseña y devuelve la configuración de conexión. `email_providers` gana `connection_settings` (json **sin cifrar**: host/puertos IMAP-SMTP no son secretos y el portal los necesita), junto al `credentials` cifrado que ya tiene.
+
+| Proveedor | Alta/baja/cambio de pass | Contraseña en BD | Config de conexión |
+|---|---|---|---|
+| MXroute / cPanel (driver real, futuro) | vía API | no hace falta | del driver |
+| `manual` (lo administra la agencia a mano) | no-op, solo registro | sí, cifrada | del proveedor |
+| `null` (simulado, pruebas) | no-op | — | de ejemplo |
+
+**Importación**: pantalla que llama a `listMailboxes()` del proveedor para un dominio, lista los buzones que existen en el servidor y deja marcar cuáles registrar en el CRM (`origin = imported`, `provisioned_at` vacío). Los no marcados simplemente no existen para el sistema. Se construye contra el driver simulado.
+
+### 7.4 `ProjectType` como plantilla
+
+- Enum `ProjectType`: `web`, `maintenance`, `ads`, `email`, `other`. Columnas `projects.type` y `projects.includes_email` (bool).
+- Cada tipo declara una plantilla de servicios sugeridos (nombre + categoría + frecuencia) que el formulario de alta precarga y el usuario edita o quita antes de guardar:
+  - **web**: Sitio web (`one_time`) + Hosting, SSL, Correo, Dominio (`annual`) · `includes_email = true`
+  - **maintenance**: Mantenimiento (frecuencia a elegir) · `includes_email = false`
+  - **ads**: Fee de gestión (`monthly`) + Inversión publicitaria (opcional) · `includes_email = false`
+  - **email**: Correo (`annual`) · `includes_email = true`
+- Acción `CreateProjectFromTemplate` que envuelve el `CreateServiceWithSchedule` existente, para no duplicar la lógica de cuotas/`next_charge_date`.
+- Filtro por tipo en el listado de proyectos y en el dashboard.
+
+### 7.5 `ServiceCategory` y frecuencias faltantes
+
+- Enum `ServiceCategory`: `website`, `hosting`, `ssl`, `domain`, `email`, `maintenance`, `ads_management`, `ads_budget`, `other`. Columna `services.category`.
+- `services.domain_id` (nullable): liga la renovación de dominio o el servicio de correo al dominio concreto, para que el cobro anual diga de qué dominio es.
+- `ServiceBillingFrequency` gana `Quarterly` (trimestral) y `Semiannual` (semestral) — el dueño mencionó explícitamente mantenimiento trimestral. `GenerateScheduledCharges` ya resuelve con un `match` sobre el enum; solo se añaden los casos.
+
+### 7.6 Campañas de ads
+
+Como el presupuesto a veces pasa por la agencia y a veces lo paga el cliente directo a la plataforma, y un proyecto puede tener Meta y Google a la vez, va en tabla propia.
+
+**`ad_campaigns`**: `project_id` (FK, cascade), `platform` (enum `AdPlatform`: meta/google/tiktok/linkedin/other), `ad_account_id` (nullable), `name`, `objective` (nullable), `monthly_budget` + `currency`, `budget_billing` (enum `AdBudgetBilling`: `pass_through` = se lo cobramos nosotros / `client_direct` = paga la plataforma directo), `starts_on`, `ends_on` (nullable), `status`, timestamps.
+
+- Con `pass_through` se genera un `Service` de categoría `ads_budget` ligado a la campaña, separado del fee de gestión (`ads_management`), para que el cobro distinga honorarios de inversión publicitaria.
+- Con `client_direct` el presupuesto queda solo como referencia y no genera cobros.
+- Tarjeta "Campañas" en el detalle de proyecto, oculta a `collaborator` (mismo guard que Cobros/Agencias).
+
+### 7.7 Orden de trabajo
+
+1. Migraciones (reescritas en su lugar), enums y modelos de 7.1 y 7.5.
+2. Mover la UI de correos de cliente → dominio, ajustar el portal y actualizar los 14 archivos con sus tests.
+3. Proveedor `manual`, `connection_settings`, contraseñas cifradas e importación de buzones (7.3).
+4. `ProjectType`, `includes_email` y plantillas (7.4).
+5. `ad_campaigns` y tarjeta de campañas (7.6).
+6. Recordatorio de expiración de dominio en `charges:process` (7.1).
+
+Verificación en cada paso: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`.
+
+### Implementación (lo que realmente se construyó)
+
+Los seis pasos del orden de trabajo están hechos. Lo que quedó distinto de lo planeado, y por qué:
+
+**Correo y dominios**
+- `EmailProviderDriver::listMailboxes()` cambió de firma a `listMailboxes(EmailProvider $provider, string $domain)`. Sin el dominio la pantalla de importación no podía preguntar "qué buzones existen en *este* dominio", que además es como listan los proveedores reales (cPanel y MXroute listan por dominio).
+- Quién guarda la contraseña lo decide el **proveedor**, no la cuenta: `EmailProviderDriverType::storesPasswordLocally()` devuelve `true` solo para `manual`. Un driver con API puede resetear la contraseña cuando sea; uno manual no, y perderla ahí es perderla para siempre. Un test lee la columna cruda con `DB::table()` para comprobar que nunca queda en texto plano.
+- `NullEmailProviderDriver::listMailboxes()` devuelve, además de los buzones ya registrados, tres locales convencionales (`info@`, `ventas@`, `soporte@`) para que la pantalla de importación tenga algo que ofrecer mientras no hay API real. Está documentado en el propio driver como sustituto de la llamada remota.
+- La tarjeta de dominios y buzones vive en `app/Livewire/ProjectDomains.php` (componente de clase, mismo patrón que `NotificationsBell`) y no dentro de `pages::projects.show`, que ya carga servicios, equipo, cobros y agencias, y porque los formularios de buzón traen tres modales propios.
+
+**Tipos de proyecto y servicios**
+- Al agregar `Quarterly` y `Semiannual` se movió la lógica de recurrencia al propio enum (`isRecurring()`, `recurring()`, `advanceFrom()`). Antes vivía repartida entre un `whereIn` en `GenerateScheduledCharges` y un ternario mensual-o-anual que habría dado silenciosamente mal la fecha para las frecuencias nuevas.
+- El formulario de servicio ganó **categoría** y **dominio**. Sin eso `services.category` y `services.domain_id` eran inalcanzables desde la interfaz y todo servicio manual habría quedado en `other`. El selector de dominio solo aparece para categorías que tienen sentido por dominio (`ServiceCategory::belongsToDomain()`) y está acotado a los dominios de ese proyecto.
+- `projects.type` y `services.category` arrancan en `other` también como default de propiedad del componente, no solo de columna, para que el formulario sea válido aunque no se pase por el modal de alta.
+- Se corrigió un bug previo: el toast al **crear** un proyecto decía "Proyecto actualizado", porque la variable ya estaba asignada cuando se evaluaba el ternario.
+
+**Campañas de ads**
+- Se agregó `services.ad_campaign_id` para ligar el servicio de inversión a su campaña.
+- El servicio de inversión publicitaria es **opt-in**: al crear una campaña `pass_through` aparece una casilla "Crear servicio mensual de inversión publicitaria", marcada por defecto. Se dejó como elección y no como automatismo porque algunas campañas se facturan fuera del CRM, y un servicio que aparece solo significa cobros que aparecen solos. La tarjeta avisa en ámbar cuando una campaña `pass_through` se quedó sin servicio, que es el caso fácil de olvidar.
+- `AdBudgetBilling::isBilledByUs()` concentra la distinción: con `client_direct` el presupuesto es solo una cifra de referencia y nunca toca `charges` — si se colara, inflaría todos los KPIs del dashboard.
+- Vive en `app/Livewire/ProjectCampaigns.php`, mismo criterio que `ProjectDomains`.
+
+**Recordatorios de dominio**
+- La resolución de destinatarios se extrajo a `app/Actions/Notifications/NotifyProjectTeam.php` y ahora la comparten los recordatorios de cobro y los de dominio. Acepta un proyecto nulo: un dominio sin proyecto solo alerta a los admins.
+- `Domain::booted()` limpia `expiry_notified_at` cuando cambia `expires_at`. Sin eso, renovar un dominio dejaba el aviso apagado para siempre y solo se recibía una alerta en toda la vida del registro.
+- Solo se avisa de dominios `managed`: los `tracked` los renueva quien sea su dueño. **Pendiente de decidir**: si conviene avisar también de los `tracked`, ya que un dominio ajeno que expira igual tumba el sitio del cliente.
+- El comando conserva el nombre `charges:process` (cambiarlo rompería el `Schedule` ya registrado) pero su descripción ahora dice que también envía los recordatorios de expiración de dominios.
+
+### Verificación
+
+`php artisan test --compact` → 137 tests (135 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, `php artisan migrate:fresh --seed` y `php artisan charges:process` corridos sin errores, y flujo revisado en `https://sites.test` con la sesión de admin: tarjeta de dominios con buzones anidados, resumen de solo lectura en el detalle de cliente, la regla de `includes_email` deshabilitando el correo en un proyecto que no lo incluye, importación de buzones de punta a punta, formulario de proveedor con datos de conexión, plantilla de servicios al elegir tipo de proyecto, y las dos ramas de facturación de presupuesto en campañas.
+
+### Sigue pendiente
+
+- Conectar el driver real de MXroute cuando haya credenciales (viene de la Fase 5; toda la aplicación ya está construida contra la interfaz).
 
 ## Verificación (repetir en cada fase nueva)
 
