@@ -474,6 +474,8 @@ new class extends Component {
                 </flux:card>
 
                 <livewire:project-domains :project="$project" :key="'project-domains-'.$project->id" />
+
+                <livewire:project-campaigns :project="$project" :key="'project-campaigns-'.$project->id" />
             @endif
         </div>
     </div>

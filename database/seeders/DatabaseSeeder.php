@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             ClientNoteSeeder::class,
             ProjectSeeder::class,
             AgencySeeder::class,
+            AdCampaignSeeder::class,
             EmailProviderSeeder::class,
         ]);
     }
