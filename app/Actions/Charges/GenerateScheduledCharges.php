@@ -36,7 +36,7 @@ class GenerateScheduledCharges
     private function generateRecurringCharges(?Service $only): void
     {
         Service::query()
-            ->whereIn('billing_frequency', [ServiceBillingFrequency::Monthly, ServiceBillingFrequency::Annual])
+            ->whereIn('billing_frequency', ServiceBillingFrequency::recurring())
             ->whereNotNull('next_charge_date')
             ->where('next_charge_date', '<=', today())
             ->when($only, fn ($query) => $query->whereKey($only->id))
@@ -51,9 +51,7 @@ class GenerateScheduledCharges
                         'due_date' => $dueDate,
                     ]);
 
-                    $service->next_charge_date = $service->billing_frequency === ServiceBillingFrequency::Monthly
-                        ? $dueDate->copy()->addMonthNoOverflow()
-                        : $dueDate->copy()->addYear();
+                    $service->next_charge_date = $service->billing_frequency->advanceFrom($dueDate);
 
                     $service->save();
                 }

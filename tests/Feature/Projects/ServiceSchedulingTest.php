@@ -75,3 +75,43 @@ test('creating a one_time service generates a single charge and never recurs', f
 
     expect($service->charges()->count())->toBe(1);
 });
+
+test('creating a quarterly service advances next_charge_date by three months', function () {
+    $project = createProjectForScheduling();
+
+    $service = app(CreateServiceWithSchedule::class)->handle($project, [
+        'name' => 'Mantenimiento trimestral',
+        'description' => null,
+        'billing_frequency' => ServiceBillingFrequency::Quarterly,
+        'amount' => '2400.00',
+        'currency' => 'MXN',
+        'status' => ServiceStatus::Activo,
+        'starts_on' => now()->toDateString(),
+        'installments_count' => null,
+    ]);
+
+    $service->refresh();
+
+    expect($service->charges)->toHaveCount(1)
+        ->and($service->next_charge_date->toDateString())->toBe(now()->addMonthsNoOverflow(3)->toDateString());
+});
+
+test('creating a semiannual service advances next_charge_date by six months', function () {
+    $project = createProjectForScheduling();
+
+    $service = app(CreateServiceWithSchedule::class)->handle($project, [
+        'name' => 'Mantenimiento semestral',
+        'description' => null,
+        'billing_frequency' => ServiceBillingFrequency::Semiannual,
+        'amount' => '4200.00',
+        'currency' => 'MXN',
+        'status' => ServiceStatus::Activo,
+        'starts_on' => now()->toDateString(),
+        'installments_count' => null,
+    ]);
+
+    $service->refresh();
+
+    expect($service->charges)->toHaveCount(1)
+        ->and($service->next_charge_date->toDateString())->toBe(now()->addMonthsNoOverflow(6)->toDateString());
+});

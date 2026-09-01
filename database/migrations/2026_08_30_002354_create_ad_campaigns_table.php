@@ -11,22 +11,21 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('services', function (Blueprint $table) {
+        Schema::create('ad_campaigns', function (Blueprint $table) {
             $table->id();
             $table->foreignId('project_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('domain_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('ad_campaign_id')->nullable()->constrained()->nullOnDelete();
             $table->string('name');
-            $table->text('description')->nullable();
-            $table->string('category')->default('other');
-            $table->string('billing_frequency');
-            $table->decimal('amount', 10, 2);
+            $table->string('platform');
+            $table->string('ad_account_id')->nullable();
+            $table->string('objective')->nullable();
+            $table->decimal('monthly_budget', 10, 2);
             $table->char('currency', 3)->default('MXN');
-            $table->string('status');
+            $table->string('budget_billing');
             $table->date('starts_on');
-            $table->date('next_charge_date')->nullable();
-            $table->unsignedTinyInteger('installments_count')->nullable();
+            $table->date('ends_on')->nullable();
+            $table->string('status');
             $table->timestamps();
+            $table->softDeletes();
 
             $table->index(['project_id', 'status']);
         });
@@ -37,6 +36,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('services');
+        Schema::dropIfExists('ad_campaigns');
     }
 };

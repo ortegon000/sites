@@ -20,7 +20,7 @@ class CreateServiceWithSchedule
 
         if ($service->billing_frequency === ServiceBillingFrequency::Installment) {
             $this->createInstallments($service);
-        } elseif (in_array($service->billing_frequency, [ServiceBillingFrequency::Monthly, ServiceBillingFrequency::Annual], true)) {
+        } elseif ($service->billing_frequency->isRecurring()) {
             $service->update(['next_charge_date' => $service->starts_on]);
         }
 

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ServiceBillingFrequency;
+use App\Enums\ServiceCategory;
 use App\Enums\ServiceStatus;
 use Carbon\CarbonImmutable;
 use Database\Factories\ServiceFactory;
@@ -15,8 +16,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * @property int $id
  * @property int $project_id
+ * @property int|null $domain_id
+ * @property int|null $ad_campaign_id
  * @property string $name
  * @property string|null $description
+ * @property ServiceCategory $category
  * @property ServiceBillingFrequency $billing_frequency
  * @property string $amount
  * @property string $currency
@@ -27,7 +31,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['project_id', 'name', 'description', 'billing_frequency', 'amount', 'currency', 'status', 'starts_on', 'next_charge_date', 'installments_count'])]
+#[Fillable(['project_id', 'domain_id', 'ad_campaign_id', 'name', 'description', 'category', 'billing_frequency', 'amount', 'currency', 'status', 'starts_on', 'next_charge_date', 'installments_count'])]
 class Service extends Model
 {
     /** @use HasFactory<ServiceFactory> */
@@ -37,6 +41,7 @@ class Service extends Model
     {
         return [
             'billing_frequency' => ServiceBillingFrequency::class,
+            'category' => ServiceCategory::class,
             'status' => ServiceStatus::class,
             'starts_on' => 'date',
             'next_charge_date' => 'date',
@@ -49,6 +54,22 @@ class Service extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * @return BelongsTo<AdCampaign, $this>
+     */
+    public function adCampaign(): BelongsTo
+    {
+        return $this->belongsTo(AdCampaign::class);
+    }
+
+    /**
+     * @return BelongsTo<Domain, $this>
+     */
+    public function domain(): BelongsTo
+    {
+        return $this->belongsTo(Domain::class);
     }
 
     /**

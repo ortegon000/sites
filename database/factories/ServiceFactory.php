@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\ServiceBillingFrequency;
+use App\Enums\ServiceCategory;
 use App\Enums\ServiceStatus;
 use App\Models\Project;
 use App\Models\Service;
@@ -22,8 +23,11 @@ class ServiceFactory extends Factory
     {
         return [
             'project_id' => Project::factory(),
+            'domain_id' => null,
+            'ad_campaign_id' => null,
             'name' => fake()->randomElement(['Hosting', 'Dominio', 'Mantenimiento mensual', 'Ads', 'Desarrollo']),
             'description' => null,
+            'category' => ServiceCategory::Other,
             'billing_frequency' => ServiceBillingFrequency::Monthly,
             'amount' => fake()->randomFloat(2, 500, 5000),
             'currency' => 'MXN',
@@ -46,6 +50,22 @@ class ServiceFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'billing_frequency' => ServiceBillingFrequency::Monthly,
+            'next_charge_date' => $attributes['starts_on'] ?? now()->toDateString(),
+        ]);
+    }
+
+    public function quarterly(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'billing_frequency' => ServiceBillingFrequency::Quarterly,
+            'next_charge_date' => $attributes['starts_on'] ?? now()->toDateString(),
+        ]);
+    }
+
+    public function semiannual(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'billing_frequency' => ServiceBillingFrequency::Semiannual,
             'next_charge_date' => $attributes['starts_on'] ?? now()->toDateString(),
         ]);
     }
