@@ -6,6 +6,7 @@ use App\Enums\AgencyBillingDirection;
 use App\Enums\AgencyStatus;
 use App\Enums\ChargeStatus;
 use App\Enums\ServiceBillingFrequency;
+use App\Enums\ServiceCategory;
 use App\Enums\ServiceStatus;
 use App\Enums\UserRole;
 use App\Models\Agency;
@@ -24,6 +25,10 @@ new class extends Component {
     public string $serviceName = '';
 
     public ?string $serviceDescription = null;
+
+    public string $serviceCategory = ServiceCategory::Other->value;
+
+    public ?int $serviceDomainId = null;
 
     public string $billingFrequency = '';
 
@@ -65,6 +70,24 @@ new class extends Component {
     /**
      * @return array<int, ServiceStatus>
      */
+    /**
+     * @return array<int, ServiceCategory>
+     */
+    #[Computed]
+    public function serviceCategoryOptions(): array
+    {
+        return ServiceCategory::cases();
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, \App\Models\Domain>
+     */
+    #[Computed]
+    public function projectDomains(): \Illuminate\Database\Eloquent\Collection
+    {
+        return $this->project->domains()->orderBy('name')->get();
+    }
+
     #[Computed]
     public function serviceStatusOptions(): array
     {
@@ -114,7 +137,8 @@ new class extends Component {
     {
         Gate::authorize('update', $this->project);
 
-        $this->reset(['serviceName', 'serviceDescription', 'billingFrequency', 'amount', 'installmentsCount']);
+        $this->reset(['serviceName', 'serviceDescription', 'billingFrequency', 'amount', 'installmentsCount', 'serviceDomainId']);
+        $this->serviceCategory = ServiceCategory::Other->value;
         $this->currency = $this->project->client->currency;
         $this->serviceStatus = ServiceStatus::Activo->value;
         $this->startsOn = today()->toDateString();
@@ -130,6 +154,8 @@ new class extends Component {
         $validated = $this->validate([
             'serviceName' => ['required', 'string', 'max:255'],
             'serviceDescription' => ['nullable', 'string', 'max:2000'],
+            'serviceCategory' => ['required', Rule::enum(ServiceCategory::class)],
+            'serviceDomainId' => ['nullable', Rule::exists('domains', 'id')->where('project_id', $this->project->id)],
             'billingFrequency' => ['required', Rule::enum(ServiceBillingFrequency::class)],
             'amount' => ['required', 'numeric', 'min:0'],
             'currency' => ['required', 'string', 'size:3'],
@@ -141,6 +167,8 @@ new class extends Component {
         $action->handle($this->project, [
             'name' => $validated['serviceName'],
             'description' => $validated['serviceDescription'],
+            'category' => ServiceCategory::from($validated['serviceCategory']),
+            'domain_id' => $validated['serviceDomainId'],
             'billing_frequency' => ServiceBillingFrequency::from($validated['billingFrequency']),
             'amount' => $validated['amount'],
             'currency' => $validated['currency'],
@@ -248,6 +276,15 @@ new class extends Component {
             <flux:card class="flex flex-col gap-4">
                 <flux:heading size="lg">{{ __('Datos generales') }}</flux:heading>
 
+                <div class="flex flex-col gap-1 text-sm">
+                    <span class="text-zinc-400">{{ __('Tipo') }}</span>
+                    <span>
+                        {{ $project->type->label() }}
+                        @if ($project->includes_email)
+                            <span class="text-xs text-zinc-400">· {{ __('incluye correo') }}</span>
+                        @endif
+                    </span>
+                </div>
                 <div class="flex flex-col gap-1 text-sm">
                     <span class="text-zinc-400">{{ __('Descripción') }}</span>
                     <span>{{ $project->description ?? '—' }}</span>
@@ -447,6 +484,21 @@ new class extends Component {
 
             <flux:input wire:model="serviceName" :label="__('Nombre')" required autofocus />
             <flux:textarea wire:model="serviceDescription" :label="__('Descripción')" rows="2" />
+
+            <flux:select wire:model.live="serviceCategory" :label="__('Categoría')">
+                @foreach ($this->serviceCategoryOptions as $option)
+                    <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
+                @endforeach
+            </flux:select>
+
+            @if ($this->projectDomains->isNotEmpty() && \App\Enums\ServiceCategory::from($serviceCategory ?: 'other')->belongsToDomain())
+                <flux:select wire:model="serviceDomainId" :label="__('Dominio')">
+                    <flux:select.option value="">{{ __('Sin dominio específico') }}</flux:select.option>
+                    @foreach ($this->projectDomains as $projectDomain)
+                        <flux:select.option value="{{ $projectDomain->id }}">{{ $projectDomain->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
 
             <flux:select wire:model.live="billingFrequency" :label="__('Facturación')">
                 <flux:select.option value="">{{ __('Selecciona una opción') }}</flux:select.option>

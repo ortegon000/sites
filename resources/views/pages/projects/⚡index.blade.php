@@ -1,11 +1,16 @@
 <?php
 
 use App\Actions\Clients\SyncClientAgencyToProjects;
+use App\Actions\Projects\CreateProjectFromTemplate;
 use App\Enums\ClientType;
 use App\Enums\ProjectStatus;
+use App\Enums\ProjectType;
+use App\Enums\ServiceBillingFrequency;
+use App\Enums\ServiceCategory;
 use App\Models\Client;
 use App\Models\Project;
 use Flux\Flux;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
@@ -21,6 +26,8 @@ new class extends Component {
 
     public ?string $statusFilter = null;
 
+    public ?string $typeFilter = null;
+
     public ?int $editingProjectId = null;
 
     public string $name = '';
@@ -31,7 +38,20 @@ new class extends Component {
 
     public string $status = '';
 
+    public string $type = ProjectType::Other->value;
+
+    public bool $includes_email = false;
+
     public ?string $started_at = null;
+
+    /**
+     * Services the chosen project type suggests, as editable rows. They are
+     * only a starting point: staff ticks what applies and fills in the amounts,
+     * which is why the enum's template carries no prices.
+     *
+     * @var array<int, array{enabled: bool, name: string, category: string, billing_frequency: string, amount: string}>
+     */
+    public array $templateServices = [];
 
     public function mount(): void
     {
@@ -45,6 +65,54 @@ new class extends Component {
     public function statusOptions(): array
     {
         return ProjectStatus::cases();
+    }
+
+    /**
+     * @return array<int, ProjectType>
+     */
+    #[Computed]
+    public function typeOptions(): array
+    {
+        return ProjectType::cases();
+    }
+
+    /**
+     * @return array<int, ServiceBillingFrequency>
+     */
+    #[Computed]
+    public function billingFrequencyOptions(): array
+    {
+        return ServiceBillingFrequency::cases();
+    }
+
+    /**
+     * Reload the suggested services whenever the type changes, and seed the
+     * email flag from that type. Editing an existing project leaves both alone:
+     * its services already exist and its flag may have been adjusted on purpose.
+     */
+    public function updatedType(string $value): void
+    {
+        if ($this->editingProjectId !== null) {
+            return;
+        }
+
+        $type = ProjectType::tryFrom($value);
+
+        if ($type === null) {
+            $this->templateServices = [];
+
+            return;
+        }
+
+        $this->includes_email = $type->includesEmailByDefault();
+
+        $this->templateServices = array_map(fn (array $service) => [
+            'enabled' => true,
+            'name' => $service['name'],
+            'category' => $service['category']->value,
+            'billing_frequency' => $service['billing_frequency']->value,
+            'amount' => '',
+        ], $type->serviceTemplate());
     }
 
     #[Computed]
@@ -61,6 +129,7 @@ new class extends Component {
             ->when(auth()->user()->isCollaborator(), fn ($query) => $query->whereHas('users', fn ($q) => $q->whereKey(auth()->id())))
             ->when($this->search, fn ($query) => $query->where('name', 'like', "%{$this->search}%"))
             ->when($this->statusFilter, fn ($query) => $query->where('status', $this->statusFilter))
+            ->when($this->typeFilter, fn ($query) => $query->where('type', $this->typeFilter))
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->paginate(15);
@@ -70,8 +139,9 @@ new class extends Component {
     {
         Gate::authorize('create', Project::class);
 
-        $this->reset(['editingProjectId', 'name', 'description', 'client_id', 'started_at']);
+        $this->reset(['editingProjectId', 'name', 'description', 'client_id', 'started_at', 'templateServices', 'includes_email']);
         $this->status = ProjectStatus::Activo->value;
+        $this->type = ProjectType::Other->value;
         $this->resetValidation();
 
         $this->modal('project-form')->show();
@@ -88,13 +158,16 @@ new class extends Component {
         $this->description = $project->description;
         $this->client_id = $project->client_id;
         $this->status = $project->status->value;
+        $this->type = $project->type->value;
+        $this->includes_email = $project->includes_email;
         $this->started_at = $project->started_at?->toDateString();
+        $this->templateServices = [];
         $this->resetValidation();
 
         $this->modal('project-form')->show();
     }
 
-    public function save(SyncClientAgencyToProjects $syncClientAgencyToProjects): void
+    public function save(SyncClientAgencyToProjects $syncClientAgencyToProjects, CreateProjectFromTemplate $createProjectFromTemplate): void
     {
         $project = $this->editingProjectId ? Project::findOrFail($this->editingProjectId) : null;
 
@@ -105,20 +178,38 @@ new class extends Component {
             'description' => ['nullable', 'string', 'max:2000'],
             'client_id' => ['required', 'exists:clients,id'],
             'status' => ['required', Rule::enum(ProjectStatus::class)],
+            'type' => ['required', Rule::enum(ProjectType::class)],
+            'includes_email' => ['boolean'],
             'started_at' => ['nullable', 'date'],
+            'templateServices' => ['array'],
+            'templateServices.*.enabled' => ['boolean'],
+            'templateServices.*.name' => ['required', 'string', 'max:255'],
+            'templateServices.*.category' => ['required', Rule::enum(ServiceCategory::class)],
+            'templateServices.*.billing_frequency' => ['required', Rule::enum(ServiceBillingFrequency::class)],
+            'templateServices.*.amount' => ['exclude_if:templateServices.*.enabled,false', 'required', 'numeric', 'min:0'],
         ]);
 
+        $isNew = $project === null;
+        $attributes = Arr::except($validated, ['templateServices']);
+
         if ($project) {
-            $project->update($validated);
+            $project->update($attributes);
         } else {
-            $project = Project::create($validated);
+            $project = Project::create($attributes);
+        }
+
+        if ($isNew) {
+            $createProjectFromTemplate->handle(
+                $project,
+                array_values(array_filter($validated['templateServices'] ?? [], fn (array $service) => $service['enabled'])),
+            );
         }
 
         $syncClientAgencyToProjects->handle($project->client);
 
         $this->modal('project-form')->close();
 
-        Flux::toast(variant: 'success', text: $project ? __('Proyecto actualizado.') : __('Proyecto creado.'));
+        Flux::toast(variant: 'success', text: $isNew ? __('Proyecto creado.') : __('Proyecto actualizado.'));
     }
 
     public function delete(int $projectId): void
@@ -163,12 +254,20 @@ new class extends Component {
                 <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
             @endforeach
         </flux:select>
+
+        <flux:select wire:model.live="typeFilter" :placeholder="__('Todos los tipos')" class="max-w-xs">
+            <flux:select.option value="">{{ __('Todos los tipos') }}</flux:select.option>
+            @foreach ($this->typeOptions as $option)
+                <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
+            @endforeach
+        </flux:select>
     </div>
 
     <flux:table :paginate="$this->projects">
         <flux:table.columns>
             <flux:table.column>{{ __('Nombre') }}</flux:table.column>
             <flux:table.column>{{ __('Cliente') }}</flux:table.column>
+            <flux:table.column>{{ __('Tipo') }}</flux:table.column>
             <flux:table.column>{{ __('Estatus') }}</flux:table.column>
             <flux:table.column></flux:table.column>
         </flux:table.columns>
@@ -180,6 +279,7 @@ new class extends Component {
                         <flux:link :href="route('projects.show', $project)" wire:navigate>{{ $project->name }}</flux:link>
                     </flux:table.cell>
                     <flux:table.cell>{{ $project->client->name }}</flux:table.cell>
+                    <flux:table.cell>{{ $project->type->label() }}</flux:table.cell>
                     <flux:table.cell>
                         <flux:badge size="sm">{{ $project->status->label() }}</flux:badge>
                     </flux:table.cell>
@@ -196,7 +296,7 @@ new class extends Component {
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="4" class="text-center text-zinc-400">
+                    <flux:table.cell colspan="5" class="text-center text-zinc-400">
                         {{ __('Sin resultados.') }}
                     </flux:table.cell>
                 </flux:table.row>
@@ -204,7 +304,7 @@ new class extends Component {
         </flux:table.rows>
     </flux:table>
 
-    <flux:modal name="project-form" class="md:w-96">
+    <flux:modal name="project-form" class="md:w-[34rem]">
         <form wire:submit="save" class="flex flex-col gap-6">
             <flux:heading size="lg">
                 {{ $editingProjectId ? __('Editar') : __('Nuevo') }}
@@ -219,6 +319,15 @@ new class extends Component {
                 @endforeach
             </flux:select>
 
+            <flux:select wire:model.live="type" :label="__('Tipo de proyecto')">
+                @foreach ($this->typeOptions as $option)
+                    <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
+                @endforeach
+            </flux:select>
+
+            <flux:checkbox wire:model="includes_email" :label="__('Incluye correo')"
+                :description="__('Habilita administrar buzones en los dominios de este proyecto.')" />
+
             <flux:textarea wire:model="description" :label="__('Descripción')" rows="3" />
 
             <div class="grid grid-cols-2 gap-4">
@@ -230,6 +339,44 @@ new class extends Component {
                     @endforeach
                 </flux:select>
             </div>
+
+            @if ($templateServices !== [])
+                <flux:separator />
+
+                <div class="flex flex-col gap-3">
+                    <div class="flex flex-col gap-1">
+                        <flux:heading size="sm">{{ __('Servicios sugeridos') }}</flux:heading>
+                        <flux:text class="text-xs text-zinc-400">
+                            {{ __('Según el tipo de proyecto. Desmarca lo que no aplique y captura los montos.') }}
+                        </flux:text>
+                    </div>
+
+                    <div class="grid grid-cols-[auto_minmax(0,1fr)_9rem_7rem] items-center gap-2 text-xs text-zinc-400">
+                        <span></span>
+                        <span>{{ __('Servicio') }}</span>
+                        <span>{{ __('Facturación') }}</span>
+                        <span>{{ __('Monto') }}</span>
+                    </div>
+
+                    @foreach ($templateServices as $index => $templateService)
+                        <div wire:key="template-service-{{ $index }}"
+                            class="grid grid-cols-[auto_minmax(0,1fr)_9rem_7rem] items-center gap-2">
+                            <flux:checkbox wire:model.live="templateServices.{{ $index }}.enabled" />
+
+                            <flux:input wire:model="templateServices.{{ $index }}.name" size="sm" />
+
+                            <flux:select wire:model="templateServices.{{ $index }}.billing_frequency" size="sm">
+                                @foreach ($this->billingFrequencyOptions as $option)
+                                    <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
+                                @endforeach
+                            </flux:select>
+
+                            <flux:input wire:model="templateServices.{{ $index }}.amount" type="number" step="0.01"
+                                size="sm" :disabled="! $templateService['enabled']" />
+                        </div>
+                    @endforeach
+                </div>
+            @endif
 
             <div class="flex justify-end gap-2">
                 <flux:button variant="ghost" wire:click="closeFormModal">
