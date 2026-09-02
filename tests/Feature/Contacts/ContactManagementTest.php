@@ -5,13 +5,15 @@ use App\Models\Contact;
 use App\Models\Project;
 use App\Models\User;
 use Livewire\Livewire;
+use Symfony\Component\Routing\Exception\RouteNotFoundException;
 
-test('only admin and staff reach the contacts pages', function (string $factoryState, bool $allowed) {
+test('only admin and staff reach a contact detail', function (string $factoryState, bool $allowed) {
     $user = User::factory()->{$factoryState}()->create();
+    $contact = Contact::factory()->create();
 
     $this->actingAs($user);
 
-    $response = $this->get(route('contacts.index'));
+    $response = $this->get(route('contacts.show', $contact));
 
     $allowed ? $response->assertOk() : $response->assertForbidden();
 })->with([
@@ -133,24 +135,23 @@ test('the contact detail lists every company of that person', function () {
         ->assertDontSee('Empresa Ajena SA');
 });
 
-test('the directory edits people but cannot create them', function () {
+test('a person is edited from their own detail, reached through the client', function () {
     $staff = User::factory()->staff()->create();
     $contact = Contact::factory()->create(['name' => 'Juan Pérez']);
 
     $this->actingAs($staff);
 
-    $component = Livewire::test('pages::contacts.index')
-        ->assertDontSee('openCreateModal')
-        ->assertSee('se registran desde el detalle de cada empresa', escape: false);
-
-    expect(method_exists($component->instance(), 'openCreateModal'))->toBeFalse();
-
-    $component->call('openEditModal', $contact->id)
+    Livewire::test('pages::contacts.show', ['contact' => $contact])
+        ->call('openEditModal')
         ->set('name', 'Juan Pérez Ramírez')
+        ->set('phone', '55 0000 1111')
         ->call('save')
         ->assertHasNoErrors();
 
-    expect($contact->refresh()->name)->toBe('Juan Pérez Ramírez');
+    $contact->refresh();
+
+    expect($contact->name)->toBe('Juan Pérez Ramírez')
+        ->and($contact->phone)->toBe('55 0000 1111');
 });
 
 test('editing a contact cannot steal another person\'s email', function () {
@@ -160,8 +161,8 @@ test('editing a contact cannot steal another person\'s email', function () {
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::contacts.index')
-        ->call('openEditModal', $otro->id)
+    Livewire::test('pages::contacts.show', ['contact' => $otro])
+        ->call('openEditModal')
         ->set('email', 'juan@ejemplo.test')
         ->call('save')
         ->assertHasErrors('email');
@@ -191,28 +192,19 @@ test('linking an existing person without repeating their phone does not erase it
         ->and($contact->clients()->count())->toBe(1);
 });
 
-test('the contacts url lives under clientes without being swallowed by the client wildcard', function () {
+test('there is no contacts directory: people are reached through their client', function () {
     $staff = User::factory()->staff()->create();
+    $contact = Contact::factory()->create(['name' => 'Juan Pérez']);
+    $client = Client::factory()->client()->create();
+    $client->contacts()->attach($contact, ['is_primary' => true]);
 
     $this->actingAs($staff);
 
-    expect(route('contacts.index', absolute: false))->toBe('/clientes/contactos');
+    expect(fn () => route('contacts.index'))->toThrow(RouteNotFoundException::class);
 
-    $this->get('/clientes/contactos')
+    $this->get('/clientes/contactos')->assertNotFound();
+
+    $this->get(route('clients.show', $client))
         ->assertOk()
-        ->assertSee('Las personas con las que tratas', escape: false);
-});
-
-test('the companies list offers the contacts tab and the prospects list does not', function () {
-    $staff = User::factory()->staff()->create();
-
-    $this->actingAs($staff);
-
-    $this->get(route('clients.index'))
-        ->assertOk()
-        ->assertSee(route('contacts.index'), escape: false);
-
-    $this->get(route('prospects.index'))
-        ->assertOk()
-        ->assertDontSee(route('contacts.index'), escape: false);
+        ->assertSee(route('contacts.show', $contact), escape: false);
 });

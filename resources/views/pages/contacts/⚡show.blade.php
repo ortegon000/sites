@@ -1,12 +1,22 @@
 <?php
 
 use App\Models\Contact;
+use Flux\Flux;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 
 new class extends Component {
     public Contact $contact;
+
+    public string $name = '';
+
+    public ?string $email = null;
+
+    public ?string $phone = null;
+
+    public ?string $notes = null;
 
     public function mount(Contact $contact): void
     {
@@ -30,6 +40,46 @@ new class extends Component {
             ->get();
     }
 
+    public function openEditModal(): void
+    {
+        Gate::authorize('update', $this->contact);
+
+        $this->name = $this->contact->name;
+        $this->email = $this->contact->email;
+        $this->phone = $this->contact->phone;
+        $this->notes = $this->contact->notes;
+        $this->resetValidation();
+
+        $this->modal('contact-form')->show();
+    }
+
+    /**
+     * Los datos de la persona se editan aquí, que es donde se ve a quién
+     * afectan: el cambio se refleja en todas sus empresas.
+     */
+    public function save(): void
+    {
+        Gate::authorize('update', $this->contact);
+
+        $validated = $this->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255', Rule::unique('contacts', 'email')->ignore($this->contact->id)],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $this->contact->update($validated);
+
+        $this->modal('contact-form')->close();
+
+        Flux::toast(variant: 'success', text: __('Contacto actualizado.'));
+    }
+
+    public function closeFormModal(): void
+    {
+        $this->modal('contact-form')->close();
+    }
+
     public function render()
     {
         return $this->view()->title($this->contact->name);
@@ -48,9 +98,11 @@ new class extends Component {
             </flux:text>
         </div>
 
-        <flux:button size="sm" variant="ghost" icon="arrow-left" :href="route('contacts.index')" wire:navigate>
-            {{ __('Contactos') }}
-        </flux:button>
+        @can('update', $contact)
+            <flux:button size="sm" icon="pencil" wire:click="openEditModal">
+                {{ __('Editar') }}
+            </flux:button>
+        @endcan
     </div>
 
     @if ($contact->notes)
@@ -60,7 +112,12 @@ new class extends Component {
     @endif
 
     <flux:card class="flex flex-col gap-4">
-        <flux:heading size="lg">{{ __('Empresas') }}</flux:heading>
+        <div class="flex flex-col gap-1">
+            <flux:heading size="lg">{{ __('Empresas') }}</flux:heading>
+            <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">
+                {{ __('Editar estos datos cambia a la persona, así que el cambio se ve en todas sus empresas.') }}
+            </flux:text>
+        </div>
 
         <flux:table>
             <flux:table.columns>
@@ -92,11 +149,29 @@ new class extends Component {
                 @empty
                     <flux:table.row>
                         <flux:table.cell colspan="5" class="text-center text-zinc-400">
-                            {{ __('Esta persona todavía no está ligada a ninguna empresa.') }}
+                            {{ __('Esta persona ya no está ligada a ninguna empresa.') }}
                         </flux:table.cell>
                     </flux:table.row>
                 @endforelse
             </flux:table.rows>
         </flux:table>
     </flux:card>
+
+    <flux:modal name="contact-form" class="md:w-96">
+        <form wire:submit="save" class="flex flex-col gap-6">
+            <flux:heading size="lg">{{ __('Editar contacto') }}</flux:heading>
+
+            <div class="flex flex-col gap-4">
+                <flux:input wire:model="name" :label="__('Nombre')" required autofocus />
+                <flux:input wire:model="email" type="email" :label="__('Correo')" />
+                <flux:input wire:model="phone" :label="__('Teléfono')" />
+                <flux:textarea wire:model="notes" :label="__('Notas')" rows="3" />
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <flux:button variant="ghost" wire:click="closeFormModal">{{ __('Cancelar') }}</flux:button>
+                <flux:button type="submit" variant="primary">{{ __('Guardar') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
 </div>
