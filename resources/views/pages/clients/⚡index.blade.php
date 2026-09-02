@@ -228,6 +228,10 @@ new class extends Component {
         </flux:button>
     </div>
 
+    @if ($this->type->value !== 'prospect')
+        @include('partials.clients-nav', ['current' => 'companies'])
+    @endif
+
     <div class="flex flex-wrap items-center gap-4">
         <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Buscar por nombre, empresa o correo...')" class="max-w-sm" />
 

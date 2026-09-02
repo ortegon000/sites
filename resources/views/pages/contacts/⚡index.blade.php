@@ -135,6 +135,8 @@ new class extends Component {
         @endcan
     </div>
 
+    @include('partials.clients-nav', ['current' => 'contacts'])
+
     <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Buscar por nombre, correo o teléfono...')" class="max-w-sm" />
 
     <flux:table :paginate="$this->contacts">

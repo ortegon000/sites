@@ -168,3 +168,29 @@ test('linking an existing person without repeating their phone does not erase it
     expect($contact->refresh()->phone)->toBe('55 1234 5678')
         ->and($contact->clients()->count())->toBe(1);
 });
+
+test('the contacts url lives under clientes without being swallowed by the client wildcard', function () {
+    $staff = User::factory()->staff()->create();
+
+    $this->actingAs($staff);
+
+    expect(route('contacts.index', absolute: false))->toBe('/clientes/contactos');
+
+    $this->get('/clientes/contactos')
+        ->assertOk()
+        ->assertSee('Las personas con las que tratas', escape: false);
+});
+
+test('the companies list offers the contacts tab and the prospects list does not', function () {
+    $staff = User::factory()->staff()->create();
+
+    $this->actingAs($staff);
+
+    $this->get(route('clients.index'))
+        ->assertOk()
+        ->assertSee(route('contacts.index'), escape: false);
+
+    $this->get(route('prospects.index'))
+        ->assertOk()
+        ->assertDontSee(route('contacts.index'), escape: false);
+});
