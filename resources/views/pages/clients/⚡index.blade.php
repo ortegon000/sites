@@ -287,35 +287,50 @@ new class extends Component {
     </flux:table>
 
     <flux:modal name="client-form" class="md:w-96">
-        <form wire:submit="save" class="flex flex-col gap-6">
+        <form wire:submit="save" class="flex flex-col gap-8">
             <flux:heading size="lg">
                 {{ $editingClientId ? __('Editar') : __('Nuevo') }}
             </flux:heading>
 
-            <flux:input wire:model="name" :label="__('Nombre')" required autofocus />
-            <flux:input wire:model="company_name" :label="__('Empresa')" />
+            {{-- Los datos de la empresa: es el registro que se está creando. --}}
+            <div class="flex flex-col gap-4">
+                <flux:input wire:model="name" :label="__('Nombre')" required autofocus />
+                <flux:input wire:model="company_name" :label="__('Razón social')" />
 
-            <flux:select wire:model.live="agency_id" :label="__('Agencia')" :description="__('Si el cliente llega a través de una agencia colaboradora, sus proyectos se asocian a ella automáticamente y sus datos de contacto se usan como prellenado.')">
-                <flux:select.option value="">{{ __('Sin agencia (contacto directo)') }}</flux:select.option>
-                @foreach ($this->assignableAgencies as $agency)
-                    <flux:select.option value="{{ $agency->id }}">{{ $agency->name }}</flux:select.option>
-                @endforeach
-            </flux:select>
-
-            <flux:input wire:model="contact_name" :label="__('Persona de contacto')"
-                :description="__('Si esta persona ya existe en el sistema, se reutiliza en vez de duplicarla.')" />
-            <flux:input wire:model="email" type="email" :label="__('Correo')" />
-            <flux:input wire:model="phone" :label="__('Teléfono')" />
-            <flux:input wire:model="source" :label="__('Fuente')" />
-
-            <div class="grid grid-cols-2 gap-4">
-                <flux:input wire:model="currency" :label="__('Moneda')" maxlength="3" />
-
-                <flux:select wire:model="status" :label="__('Estatus')">
-                    @foreach ($this->statusOptions as $option)
-                        <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
+                <flux:select wire:model.live="agency_id" :label="__('Agencia')" :description="__('Si el cliente llega a través de una agencia colaboradora, sus proyectos se asocian a ella automáticamente y sus datos de contacto se usan como prellenado.')">
+                    <flux:select.option value="">{{ __('Sin agencia (contacto directo)') }}</flux:select.option>
+                    @foreach ($this->assignableAgencies as $agency)
+                        <flux:select.option value="{{ $agency->id }}">{{ $agency->name }}</flux:select.option>
                     @endforeach
                 </flux:select>
+
+                <flux:input wire:model="source" :label="__('Fuente')" />
+
+                <div class="grid grid-cols-2 gap-4">
+                    <flux:input wire:model="currency" :label="__('Moneda')" maxlength="3" />
+
+                    <flux:select wire:model="status" :label="__('Estatus')">
+                        @foreach ($this->statusOptions as $option)
+                            <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </div>
+            </div>
+
+            {{-- Los datos de la persona, que se guardan en `contacts` y pueden
+                 pertenecer a varias empresas. La separación es visual porque el
+                 dato también está separado. --}}
+            <div class="flex flex-col gap-4 border-t border-zinc-200 pt-6 dark:border-zinc-700">
+                <div class="flex flex-col gap-1">
+                    <flux:heading size="sm">{{ __('Contacto principal') }}</flux:heading>
+                    <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">
+                        {{ __('Se guarda como persona, no dentro de la empresa. Si ya existe, se reutiliza y queda ligada también a esta.') }}
+                    </flux:text>
+                </div>
+
+                <flux:input wire:model="contact_name" :label="__('Nombre')" />
+                <flux:input wire:model="email" type="email" :label="__('Correo')" />
+                <flux:input wire:model="phone" :label="__('Teléfono')" />
             </div>
 
             <div class="flex justify-end gap-2">
