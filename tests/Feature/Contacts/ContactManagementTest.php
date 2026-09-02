@@ -133,18 +133,40 @@ test('the contact detail lists every company of that person', function () {
         ->assertDontSee('Empresa Ajena SA');
 });
 
-test('two contacts cannot share an email', function () {
+test('the directory edits people but cannot create them', function () {
+    $staff = User::factory()->staff()->create();
+    $contact = Contact::factory()->create(['name' => 'Juan Pérez']);
+
+    $this->actingAs($staff);
+
+    $component = Livewire::test('pages::contacts.index')
+        ->assertDontSee('openCreateModal')
+        ->assertSee('se registran desde el detalle de cada empresa', escape: false);
+
+    expect(method_exists($component->instance(), 'openCreateModal'))->toBeFalse();
+
+    $component->call('openEditModal', $contact->id)
+        ->set('name', 'Juan Pérez Ramírez')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($contact->refresh()->name)->toBe('Juan Pérez Ramírez');
+});
+
+test('editing a contact cannot steal another person\'s email', function () {
     $staff = User::factory()->staff()->create();
     Contact::factory()->create(['email' => 'juan@ejemplo.test']);
+    $otro = Contact::factory()->create(['email' => 'otro@ejemplo.test']);
 
     $this->actingAs($staff);
 
     Livewire::test('pages::contacts.index')
-        ->call('openCreateModal')
-        ->set('name', 'Otro Juan')
+        ->call('openEditModal', $otro->id)
         ->set('email', 'juan@ejemplo.test')
         ->call('save')
         ->assertHasErrors('email');
+
+    expect($otro->refresh()->email)->toBe('otro@ejemplo.test');
 });
 
 test('linking an existing person without repeating their phone does not erase it', function () {

@@ -43,16 +43,6 @@ new class extends Component {
             ->paginate(15);
     }
 
-    public function openCreateModal(): void
-    {
-        Gate::authorize('create', Contact::class);
-
-        $this->reset(['editingContactId', 'name', 'email', 'phone', 'notes']);
-        $this->resetValidation();
-
-        $this->modal('contact-form')->show();
-    }
-
     public function openEditModal(int $contactId): void
     {
         $contact = Contact::findOrFail($contactId);
@@ -69,11 +59,16 @@ new class extends Component {
         $this->modal('contact-form')->show();
     }
 
+    /**
+     * Este directorio solo edita personas que ya existen. Registrarlas es
+     * atribución del detalle de cada empresa: un contacto sin empresa no le
+     * sirve a nadie, y permitirlo aquí llenaría la lista de gente suelta.
+     */
     public function save(): void
     {
-        $contact = $this->editingContactId ? Contact::findOrFail($this->editingContactId) : null;
+        $contact = Contact::findOrFail($this->editingContactId);
 
-        Gate::authorize($contact ? 'update' : 'create', $contact ?? Contact::class);
+        Gate::authorize('update', $contact);
 
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -82,19 +77,13 @@ new class extends Component {
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $isNew = $contact === null;
-
-        if ($contact) {
-            $contact->update($validated);
-        } else {
-            Contact::create($validated);
-        }
+        $contact->update($validated);
 
         unset($this->contacts);
 
         $this->modal('contact-form')->close();
 
-        Flux::toast(variant: 'success', text: $isNew ? __('Contacto creado.') : __('Contacto actualizado.'));
+        Flux::toast(variant: 'success', text: __('Contacto actualizado.'));
     }
 
     public function delete(int $contactId): void
@@ -125,14 +114,8 @@ new class extends Component {
     <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
             <flux:heading size="xl">{{ __('Contactos') }}</flux:heading>
-            <flux:text class="text-zinc-400">{{ __('Las personas con las que tratas. Una misma persona puede ser contacto de varias empresas.') }}</flux:text>
+            <flux:text class="text-zinc-400">{{ __('Las personas con las que tratas. Una misma persona puede ser contacto de varias empresas; se registran desde el detalle de cada empresa.') }}</flux:text>
         </div>
-
-        @can('create', \App\Models\Contact::class)
-            <flux:button variant="primary" icon="plus" wire:click="openCreateModal">
-                {{ __('Nuevo') }}
-            </flux:button>
-        @endcan
     </div>
 
     @include('partials.clients-nav', ['current' => 'contacts'])
@@ -189,7 +172,7 @@ new class extends Component {
             @empty
                 <flux:table.row>
                     <flux:table.cell colspan="4" class="text-center text-zinc-400">
-                        {{ __('Sin resultados.') }}
+                        {{ $search ? __('Sin resultados.') : __('Todavía no hay contactos. Se registran desde el detalle de cada empresa.') }}
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse
@@ -198,9 +181,7 @@ new class extends Component {
 
     <flux:modal name="contact-form" class="md:w-96">
         <form wire:submit="save" class="flex flex-col gap-6">
-            <flux:heading size="lg">
-                {{ $editingContactId ? __('Editar') : __('Nuevo') }}
-            </flux:heading>
+            <flux:heading size="lg">{{ __('Editar contacto') }}</flux:heading>
 
             <flux:input wire:model="name" :label="__('Nombre')" required autofocus />
             <flux:input wire:model="email" type="email" :label="__('Correo')" />
