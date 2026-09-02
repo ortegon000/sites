@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Clients\ChangeClientStatus;
+use App\Actions\Clients\LinkContactToClient;
 use App\Enums\ClientNoteType;
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
@@ -16,6 +17,14 @@ new class extends Component {
     public string $note = '';
 
     public string $status = '';
+
+    public string $newContactName = '';
+
+    public ?string $newContactEmail = null;
+
+    public ?string $newContactPhone = null;
+
+    public ?string $newContactRole = null;
 
     /**
      * The route this component was reached through on the initial page
@@ -66,6 +75,62 @@ new class extends Component {
     public function statusOptions(): array
     {
         return ClientStatus::forType($this->client->type);
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, \App\Models\Contact>
+     */
+    #[Computed]
+    public function contacts(): \Illuminate\Database\Eloquent\Collection
+    {
+        return $this->client->contacts()->get();
+    }
+
+    public function addContact(LinkContactToClient $action): void
+    {
+        Gate::authorize('update', $this->client);
+
+        $validated = $this->validate([
+            'newContactName' => ['required', 'string', 'max:255'],
+            'newContactEmail' => ['nullable', 'email', 'max:255'],
+            'newContactPhone' => ['nullable', 'string', 'max:50'],
+            'newContactRole' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $action->handle($this->client, [
+            'name' => $validated['newContactName'],
+            'email' => $validated['newContactEmail'],
+            'phone' => $validated['newContactPhone'],
+            'role' => $validated['newContactRole'],
+        ], isPrimary: $this->contacts->isEmpty());
+
+        $this->reset(['newContactName', 'newContactEmail', 'newContactPhone', 'newContactRole']);
+        unset($this->contacts);
+
+        Flux::toast(variant: 'success', text: __('Contacto agregado.'));
+    }
+
+    public function makeContactPrimary(int $contactId): void
+    {
+        Gate::authorize('update', $this->client);
+
+        $this->client->contacts()->newPivotQuery()->update(['is_primary' => false]);
+        $this->client->contacts()->updateExistingPivot($contactId, ['is_primary' => true]);
+
+        unset($this->contacts);
+
+        Flux::toast(variant: 'success', text: __('Contacto principal actualizado.'));
+    }
+
+    public function detachContact(int $contactId): void
+    {
+        Gate::authorize('update', $this->client);
+
+        $this->client->contacts()->detach($contactId);
+
+        unset($this->contacts);
+
+        Flux::toast(variant: 'success', text: __('Contacto desvinculado de esta empresa.'));
     }
 
     /**
@@ -140,18 +205,6 @@ new class extends Component {
                     <span>{{ $client->agency?->name ?? __('Sin agencia (contacto directo)') }}</span>
                 </div>
                 <div class="flex flex-col gap-1 text-sm">
-                    <span class="text-zinc-400">{{ __('Contacto') }}</span>
-                    <span>{{ $client->contact_name ?? '—' }}</span>
-                </div>
-                <div class="flex flex-col gap-1 text-sm">
-                    <span class="text-zinc-400">{{ __('Correo') }}</span>
-                    <span>{{ $client->email ?? '—' }}</span>
-                </div>
-                <div class="flex flex-col gap-1 text-sm">
-                    <span class="text-zinc-400">{{ __('Teléfono') }}</span>
-                    <span>{{ $client->phone ?? '—' }}</span>
-                </div>
-                <div class="flex flex-col gap-1 text-sm">
                     <span class="text-zinc-400">{{ __('Fuente') }}</span>
                     <span>{{ $client->source ?? '—' }}</span>
                 </div>
@@ -159,6 +212,59 @@ new class extends Component {
                     <span class="text-zinc-400">{{ __('Moneda') }}</span>
                     <span>{{ $client->currency }}</span>
                 </div>
+            </flux:card>
+
+            <flux:card class="flex flex-col gap-4">
+                <flux:heading size="lg">{{ __('Contactos') }}</flux:heading>
+
+                <div class="flex flex-col gap-3">
+                    @forelse ($this->contacts as $contact)
+                        <div wire:key="client-contact-{{ $contact->id }}" class="flex items-start justify-between gap-2">
+                            <div class="flex flex-col text-sm">
+                                <a href="{{ route('contacts.show', $contact) }}" wire:navigate class="font-medium hover:underline">
+                                    {{ $contact->name }}
+                                </a>
+                                <span class="text-xs text-zinc-400">
+                                    {{ $contact->email ?? '—' }}
+                                    @if ($contact->phone)
+                                        · {{ $contact->phone }}
+                                    @endif
+                                </span>
+                                @if ($contact->pivot->role)
+                                    <span class="text-xs text-zinc-400">{{ $contact->pivot->role }}</span>
+                                @endif
+                            </div>
+
+                            <div class="flex shrink-0 items-center gap-1">
+                                @if ($contact->pivot->is_primary)
+                                    <flux:badge size="sm">{{ __('Principal') }}</flux:badge>
+                                @else
+                                    <flux:button size="xs" variant="ghost" icon="star"
+                                        :tooltip="__('Hacer contacto principal')"
+                                        wire:click="makeContactPrimary({{ $contact->id }})" />
+                                @endif
+                                <flux:button size="xs" variant="ghost" icon="x-mark"
+                                    :tooltip="__('Desvincular de esta empresa')"
+                                    wire:click="detachContact({{ $contact->id }})"
+                                    wire:confirm="{{ __('¿Desvincular este contacto de esta empresa? La persona se conserva y sigue ligada a sus demás empresas.') }}" />
+                            </div>
+                        </div>
+                    @empty
+                        <flux:text class="text-zinc-400">{{ __('Sin contactos todavía.') }}</flux:text>
+                    @endforelse
+                </div>
+
+                @can('update', $client)
+                    <flux:separator />
+
+                    <form wire:submit="addContact" class="flex flex-col gap-2">
+                        <flux:input wire:model="newContactName" size="sm" :placeholder="__('Nombre')" />
+                        <flux:input wire:model="newContactEmail" type="email" size="sm" :placeholder="__('Correo')" />
+                        <flux:input wire:model="newContactPhone" size="sm" :placeholder="__('Teléfono')" />
+                        <flux:input wire:model="newContactRole" size="sm" :placeholder="__('Cargo (opcional)')" />
+                        <flux:button type="submit" size="sm">{{ __('Agregar contacto') }}</flux:button>
+                    </form>
+                @endcan
             </flux:card>
 
             <flux:card class="flex flex-col gap-4">

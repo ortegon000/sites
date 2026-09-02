@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -20,9 +21,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property ClientStatus $status
  * @property string $name
  * @property string|null $company_name
- * @property string|null $contact_name
- * @property string|null $email
- * @property string|null $phone
  * @property string|null $source
  * @property int|null $assigned_to_user_id
  * @property int|null $agency_id
@@ -32,7 +30,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['type', 'status', 'name', 'company_name', 'contact_name', 'email', 'phone', 'source', 'assigned_to_user_id', 'agency_id', 'currency'])]
+#[Fillable(['type', 'status', 'name', 'company_name', 'source', 'assigned_to_user_id', 'agency_id', 'currency'])]
 class Client extends Model
 {
     /** @use HasFactory<ClientFactory> */
@@ -72,19 +70,32 @@ class Client extends Model
     }
 
     /**
+     * Las personas de contacto de esta empresa. La misma persona puede ser
+     * contacto de varias empresas, así que los datos viven en `contacts` y no
+     * duplicados en cada cliente.
+     *
+     * @return BelongsToMany<Contact, $this>
+     */
+    public function contacts(): BelongsToMany
+    {
+        return $this->belongsToMany(Contact::class)
+            ->withPivot(['role', 'is_primary'])
+            ->withTimestamps()
+            ->orderByDesc('client_contact.is_primary')
+            ->orderBy('contacts.name');
+    }
+
+    public function primaryContact(): ?Contact
+    {
+        return $this->contacts->firstWhere('pivot.is_primary', true) ?? $this->contacts->first();
+    }
+
+    /**
      * @return HasMany<ClientNote, $this>
      */
     public function notes(): HasMany
     {
         return $this->hasMany(ClientNote::class)->latest();
-    }
-
-    /**
-     * @return HasMany<User, $this>
-     */
-    public function portalUsers(): HasMany
-    {
-        return $this->hasMany(User::class);
     }
 
     /**

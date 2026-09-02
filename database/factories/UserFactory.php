@@ -3,7 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\UserRole;
-use App\Models\Client;
+use App\Models\Contact;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -60,11 +60,11 @@ class UserFactory extends Factory
         ]);
     }
 
-    public function client(?Client $client = null): static
+    public function client(?Contact $contact = null): static
     {
         return $this->state(fn (array $attributes) => [
             'role' => UserRole::Client,
-            'client_id' => $client === null ? Client::factory() : $client->id,
+            'contact_id' => $contact === null ? Contact::factory() : $contact->id,
         ]);
     }
 

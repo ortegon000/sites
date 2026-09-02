@@ -12,6 +12,7 @@
 - 🔶 **Fase 5 — Aprovisionamiento de correo**: andamiaje completo (interfaz de driver, tablas, CRUD de proveedores, altas/bajas/cambio de contraseña de cuentas) con un driver simulado; falta conectar un driver real (MXroute primero) cuando haya credenciales.
 - ✅ **Fase 6 — Dashboard interno**: completa (KPIs financieros y próximos cobros/actividad reciente para admin/staff, resumen de proyectos asignados sin datos financieros para collaborator).
 - ✅ **Fase 7 — Dominios, tipos de proyecto y campañas de ads**: completa. Introduce la tabla `domains` (dueño: el cliente), mueve las cuentas de correo de `clients` a `domains`, agrega `ProjectType` como plantilla, `ServiceCategory`, frecuencias trimestral/semestral, proveedor de correo `manual` con contraseñas cifradas, importación de buzones existentes y campañas de ads.
+- ✅ **Fase 8 — Contactos como entidad propia**: completa. Separa a la persona de la empresa: `contacts` con pivot `client_contact`, para que un dueño de varias empresas se escriba una sola vez y entre al portal con un solo acceso.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
 
@@ -366,6 +367,49 @@ Los seis pasos del orden de trabajo están hechos. Lo que quedó distinto de lo 
 ### Sigue pendiente
 
 - Conectar el driver real de MXroute cuando haya credenciales (viene de la Fase 5; toda la aplicación ya está construida contra la interfaz).
+
+## Fase 8 — Contactos como entidad propia ✅
+
+> Nace de una pregunta del dueño de la agencia: "los clientes pueden tener varias empresas, ¿qué recomiendas?".
+
+### Diagnóstico
+
+La palabra "cliente" significaba dos cosas distintas. Para el dueño, el cliente es **la persona**: Juan Pérez. En la base de datos, `clients` es **la empresa**: es lo que tiene proyectos, dominios, correos y cobros. Como los datos de la persona (`contact_name`, `email`, `phone`) vivían dentro de `clients`, un dueño con tres empresas quedaba escrito tres veces: la bitácora partida, cambiar un teléfono eran tres ediciones, y ninguna ficha revelaba que las otras dos también eran suyas.
+
+Se descartó la modelación "de libro" —convertir `clients` en la persona y crear `companies` debajo— porque obligaba a reparentar proyectos, dominios, correos, portal, políticas y casi toda la suite, para llegar al mismo resultado visible. También se descartó un agrupador tipo `account`: con el contacto bien modelado, "las empresas de Juan" ya es una consulta a la relación, sin tabla extra.
+
+### Decisiones confirmadas por el usuario
+
+- **`clients` sigue siendo la empresa** y el ancla de proyectos, dominios y cobros. Nada aguas abajo se movió.
+- Se asume que **se factura por empresa**, no consolidado a la persona. Si eso cambiara, habría que revisar dónde vive el ancla de cobros.
+
+### Modelo de datos (implementado)
+
+**`contacts`**: `name`, `email` (nullable, único), `phone`, `notes`, timestamps, soft deletes. Una fila por persona.
+
+**`client_contact`** (pivot, clave primaria compuesta): `role` (cargo), `is_primary`. Una empresa puede tener varios contactos y una persona puede estar en varias empresas.
+
+**`clients`**: pierde `contact_name`, `email` y `phone`.
+
+**`users`**: `client_id` pasa a `contact_id`. El acceso de portal cuelga de la persona, así que un dueño con tres empresas entra una sola vez y las ve todas. Esto además deshizo el ciclo `users ↔ clients` que obligaba a agregar una llave foránea fuera de su `create`.
+
+### Archivos clave
+
+- `app/Models/Contact.php`, `Client::contacts()` / `primaryContact()`, `User::contact()` / `clients()`.
+- `app/Actions/Clients/LinkContactToClient.php` — resuelve los datos capturados contra `contacts`: si la persona ya existe (por correo, o por nombre si no hay correo) la reutiliza en vez de duplicarla. Un valor capturado siempre pisa al guardado, porque editar el contacto desde la ficha del cliente tiene que guardar; uno vacío no pisa nada, para que ligar a alguien existente sin repetir su teléfono no se lo borre.
+- `app/Policies/ContactPolicy.php` — mismo criterio que `ClientPolicy`.
+- `resources/views/pages/contacts/⚡{index,show}.blade.php` — el directorio de personas y la vista "todo lo de Juan": sus empresas con cargo, número de proyectos y dominios.
+- `resources/views/pages/clients/⚡index.blade.php` — el formulario conserva los mismos tres campos de contacto, así que la captura no cambió; lo que cambió es que ahora resuelven contra `contacts` en vez de duplicar.
+- `resources/views/pages/clients/⚡show.blade.php` — tarjeta "Contactos" con cargo, marca de principal, y acciones para cambiar el principal o desvincular. Desvincular conserva a la persona y sus demás empresas.
+- Portal: `portal/projects` y `portal/email-accounts` se acotan a las empresas del contacto; la columna "Empresa" aparece solo cuando hay más de una.
+
+### Nota sobre el alcance del commit
+
+El cambio no se pudo partir en commits independientes que quedaran verdes por separado: quitar columnas de `clients` y crear `contacts` es atómico, y el formulario de cliente, el portal y las pruebas dejan de funcionar en el instante intermedio. Se commiteó como un solo cambio a propósito.
+
+### Verificación
+
+`php artisan test --compact` → 154 tests (152 pasan, 2 se saltan), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y revisado en `https://sites.test`: el directorio de contactos, la ficha de Juan Pérez con sus tres empresas, y la tarjeta de contactos en el detalle de cliente. El seeder incluye a propósito el caso que motivó la fase: una persona dueña de tres empresas, escrita una sola vez.
 
 ## Verificación (repetir en cada fase nueva)
 

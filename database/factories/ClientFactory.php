@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
 use App\Models\Client;
+use App\Models\Contact;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -22,11 +23,8 @@ class ClientFactory extends Factory
         return [
             'type' => ClientType::Prospect,
             'status' => ClientStatus::Nuevo,
-            'name' => fake()->name(),
-            'company_name' => fake()->company(),
-            'contact_name' => fake()->name(),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
+            'name' => fake()->company(),
+            'company_name' => fake()->company().' S.A. de C.V.',
             'source' => fake()->randomElement(['referido', 'google', 'redes_sociales', 'evento']),
             'currency' => 'MXN',
         ];
@@ -38,6 +36,18 @@ class ClientFactory extends Factory
             'type' => ClientType::Prospect,
             'status' => ClientStatus::Nuevo,
         ]);
+    }
+
+    /**
+     * Le cuelga una persona de contacto, marcada como principal.
+     */
+    public function withContact(?Contact $contact = null): static
+    {
+        return $this->hasAttached(
+            $contact ?? Contact::factory(),
+            ['is_primary' => true],
+            'contacts',
+        );
     }
 
     public function client(): static

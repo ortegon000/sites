@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Client;
+use App\Models\Contact;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -28,10 +28,14 @@ class UserSeeder extends Seeder
             'email' => 'colaborador@example.com',
         ]);
 
-        $demoClient = Client::where('name', 'Cliente Demo')->firstOrFail();
+        /**
+         * El acceso de portal cuelga de la persona, así que este usuario ve las
+         * tres empresas de Juan Pérez con un solo login.
+         */
+        $owner = Contact::where('email', 'juan.perez@ejemplo.test')->firstOrFail();
 
-        User::factory()->client($demoClient)->create([
-            'name' => 'Usuario de Cliente Demo',
+        User::factory()->client($owner)->create([
+            'name' => 'Juan Pérez',
             'email' => 'cliente@example.com',
         ]);
     }

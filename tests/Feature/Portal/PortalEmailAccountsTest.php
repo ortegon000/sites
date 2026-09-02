@@ -2,11 +2,20 @@
 
 use App\Enums\UserRole;
 use App\Models\Client;
+use App\Models\Contact;
 use App\Models\Domain;
 use App\Models\EmailAccount;
 use App\Models\Project;
 use App\Models\User;
 use Livewire\Livewire;
+
+function portalEmailContactFor(Client $client): Contact
+{
+    $contact = Contact::factory()->create();
+    $contact->clients()->attach($client, ['is_primary' => true]);
+
+    return $contact;
+}
 
 function portalDomainFor(Client $client): Domain
 {
@@ -29,7 +38,7 @@ test('admin, staff and collaborator cannot access the portal email accounts page
 
 test('client can only see the mailboxes on their own domains', function () {
     $client = Client::factory()->client()->create();
-    $clientUser = User::factory()->client($client)->create();
+    $clientUser = User::factory()->client(portalEmailContactFor($client))->create();
 
     $ownDomain = portalDomainFor($client);
     EmailAccount::factory()->for($ownDomain)->create(['email_address' => 'propio@cliente.test']);
@@ -47,7 +56,7 @@ test('client can only see the mailboxes on their own domains', function () {
 
 test('a domain whose email we do not manage is not listed in the portal', function () {
     $client = Client::factory()->client()->create();
-    $clientUser = User::factory()->client($client)->create();
+    $clientUser = User::factory()->client(portalEmailContactFor($client))->create();
 
     $project = Project::factory()->for($client)->create(['includes_email' => false]);
     $domain = Domain::factory()->for($client)->for($project)->withManagedEmail()->create();
@@ -60,7 +69,7 @@ test('a domain whose email we do not manage is not listed in the portal', functi
 
 test('client sees connection settings for their email account', function () {
     $client = Client::factory()->client()->create();
-    $clientUser = User::factory()->client($client)->create();
+    $clientUser = User::factory()->client(portalEmailContactFor($client))->create();
 
     EmailAccount::factory()->for(portalDomainFor($client))->create();
 
@@ -73,7 +82,7 @@ test('client sees connection settings for their email account', function () {
 
 test('a stored password is hidden until the client asks to see it', function () {
     $client = Client::factory()->client()->create();
-    $clientUser = User::factory()->client($client)->create();
+    $clientUser = User::factory()->client(portalEmailContactFor($client))->create();
 
     $emailAccount = EmailAccount::factory()->for(portalDomainFor($client))->create([
         'password' => 'secreto-del-buzon',
@@ -89,8 +98,8 @@ test('a stored password is hidden until the client asks to see it', function () 
         ->assertDontSee('secreto-del-buzon');
 });
 
-test('client user without a linked client record is forbidden', function () {
-    $clientUser = User::factory()->create(['role' => UserRole::Client, 'client_id' => null]);
+test('client user without a linked contact is forbidden', function () {
+    $clientUser = User::factory()->create(['role' => UserRole::Client, 'contact_id' => null]);
 
     $this->actingAs($clientUser);
 

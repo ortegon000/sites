@@ -18,7 +18,7 @@ new #[Layout('layouts::portal')] class extends Component {
 
     public function mount(): void
     {
-        abort_if(auth()->user()->client_id === null, 403);
+        abort_if(auth()->user()->contact_id === null, 403);
     }
 
     /**
@@ -28,7 +28,8 @@ new #[Layout('layouts::portal')] class extends Component {
     public function domains(): Collection
     {
         return Domain::query()
-            ->where('client_id', auth()->user()->client_id)
+            ->whereIn('client_id', auth()->user()->clients()->select('clients.id'))
+            ->with('client')
             ->with(['emailAccounts.provider'])
             ->orderBy('name')
             ->get()
@@ -63,7 +64,10 @@ new #[Layout('layouts::portal')] class extends Component {
 
     @forelse ($this->domains as $domain)
         <div wire:key="portal-domain-{{ $domain->id }}" class="flex flex-col gap-3">
-            <flux:heading size="lg">{{ $domain->name }}</flux:heading>
+            <div class="flex flex-wrap items-baseline gap-2">
+                <flux:heading size="lg">{{ $domain->name }}</flux:heading>
+                <flux:text class="text-xs text-zinc-400">{{ $domain->client->name }}</flux:text>
+            </div>
 
             <div class="grid gap-4 md:grid-cols-2">
                 @forelse ($domain->emailAccounts as $emailAccount)

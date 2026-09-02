@@ -25,6 +25,10 @@
                         <flux:sidebar.item icon="user-plus" :href="route('prospects.index')" :current="request()->routeIs('prospects.index')" wire:navigate>
                             {{ __('Prospectos') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="identification" :href="route('contacts.index')" :current="request()->routeIs('contacts.*')" wire:navigate>
+                            {{ __('Contactos') }}
+                        </flux:sidebar.item>
+
                         <flux:sidebar.item icon="building-office-2" :href="route('agencies.index')" :current="request()->routeIs('agencies.*')" wire:navigate>
                             {{ __('Agencias') }}
                         </flux:sidebar.item>

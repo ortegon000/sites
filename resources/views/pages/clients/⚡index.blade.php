@@ -2,6 +2,7 @@
 
 use App\Actions\Clients\ChangeClientStatus;
 use App\Actions\Clients\SyncClientAgencyToProjects;
+use App\Actions\Clients\LinkContactToClient;
 use App\Enums\AgencyStatus;
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
@@ -98,10 +99,13 @@ new class extends Component {
     {
         return Client::query()
             ->where('type', $this->type)
+            ->with('contacts')
             ->when($this->search, fn ($query) => $query->where(fn ($q) => $q
                 ->where('name', 'like', "%{$this->search}%")
                 ->orWhere('company_name', 'like', "%{$this->search}%")
-                ->orWhere('email', 'like', "%{$this->search}%")))
+                ->orWhereHas('contacts', fn ($contact) => $contact
+                    ->where('contacts.name', 'like', "%{$this->search}%")
+                    ->orWhere('contacts.email', 'like', "%{$this->search}%"))))
             ->when($this->statusFilter, fn ($query) => $query->where('status', $this->statusFilter))
             ->orderByDesc('created_at')
             ->orderByDesc('id')
@@ -129,9 +133,10 @@ new class extends Component {
         $this->editingClientId = $client->id;
         $this->name = $client->name;
         $this->company_name = $client->company_name;
-        $this->contact_name = $client->contact_name;
-        $this->email = $client->email;
-        $this->phone = $client->phone;
+        $contact = $client->primaryContact();
+        $this->contact_name = $contact?->name;
+        $this->email = $contact?->email;
+        $this->phone = $contact?->phone;
         $this->source = $client->source;
         $this->agency_id = $client->agency_id;
         $this->currency = $client->currency;
@@ -141,7 +146,7 @@ new class extends Component {
         $this->modal('client-form')->show();
     }
 
-    public function save(ChangeClientStatus $changeClientStatus, SyncClientAgencyToProjects $syncClientAgencyToProjects): void
+    public function save(ChangeClientStatus $changeClientStatus, SyncClientAgencyToProjects $syncClientAgencyToProjects, LinkContactToClient $linkContactToClient): void
     {
         $client = $this->editingClientId ? Client::findOrFail($this->editingClientId) : null;
 
@@ -160,7 +165,14 @@ new class extends Component {
         ]);
 
         $status = ClientStatus::from($validated['status']);
-        unset($validated['status']);
+        $contactAttributes = [
+            'name' => $validated['contact_name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'],
+        ];
+        unset($validated['status'], $validated['contact_name'], $validated['email'], $validated['phone']);
+
+        $isNew = $client === null;
 
         if ($client) {
             $client->update($validated);
@@ -175,11 +187,12 @@ new class extends Component {
             $client = Client::create($validated);
         }
 
+        $linkContactToClient->handle($client, $contactAttributes);
         $syncClientAgencyToProjects->handle($client);
 
         $this->modal('client-form')->close();
 
-        Flux::toast(variant: 'success', text: $client ? __('Cliente actualizado.') : __('Cliente creado.'));
+        Flux::toast(variant: 'success', text: $isNew ? __('Cliente creado.') : __('Cliente actualizado.'));
     }
 
     public function delete(int $clientId): void
@@ -243,9 +256,10 @@ new class extends Component {
                     </flux:table.cell>
                     <flux:table.cell>{{ $client->company_name ?? '—' }}</flux:table.cell>
                     <flux:table.cell>
+                        @php $contact = $client->primaryContact() @endphp
                         <div class="flex flex-col">
-                            <span>{{ $client->email ?? '—' }}</span>
-                            <span class="text-zinc-400">{{ $client->phone }}</span>
+                            <span>{{ $contact?->name ?? '—' }}</span>
+                            <span class="text-zinc-400">{{ $contact?->email }}</span>
                         </div>
                     </flux:table.cell>
                     <flux:table.cell>
@@ -284,7 +298,8 @@ new class extends Component {
                 @endforeach
             </flux:select>
 
-            <flux:input wire:model="contact_name" :label="__('Persona de contacto')" />
+            <flux:input wire:model="contact_name" :label="__('Persona de contacto')"
+                :description="__('Si esta persona ya existe en el sistema, se reutiliza en vez de duplicarla.')" />
             <flux:input wire:model="email" type="email" :label="__('Correo')" />
             <flux:input wire:model="phone" :label="__('Teléfono')" />
             <flux:input wire:model="source" :label="__('Fuente')" />

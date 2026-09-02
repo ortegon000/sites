@@ -25,7 +25,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property UserRole $role
- * @property int|null $client_id
+ * @property int|null $contact_id
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -55,11 +55,26 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
-     * @return BelongsTo<Client, $this>
+     * El usuario de portal pertenece a la persona, no a una de sus empresas:
+     * un dueño con varias empresas entra una vez y ve todas las suyas.
+     *
+     * @return BelongsTo<Contact, $this>
      */
-    public function client(): BelongsTo
+    public function contact(): BelongsTo
     {
-        return $this->belongsTo(Client::class);
+        return $this->belongsTo(Contact::class);
+    }
+
+    /**
+     * Las empresas que este usuario de portal puede ver.
+     *
+     * @return BelongsToMany<Client, $this>
+     */
+    public function clients(): BelongsToMany
+    {
+        return $this->belongsToMany(Client::class, 'client_contact', 'contact_id', 'client_id', 'contact_id', 'id')
+            ->withPivot(['role', 'is_primary'])
+            ->orderBy('clients.name');
     }
 
     /**
