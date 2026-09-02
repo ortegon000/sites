@@ -45,6 +45,27 @@ class ChargeFactory extends Factory
         ]);
     }
 
+    /**
+     * Vence dentro de la ventana de recordatorio de `charges:process`.
+     */
+    public function dueSoon(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => ChargeStatus::Pendiente,
+            'due_date' => now()->addDays(2)->toDateString(),
+        ]);
+    }
+
+    /**
+     * Su recordatorio ya salió, así que una corrida del comando lo deja en paz.
+     */
+    public function alreadyNotified(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'due_soon_notified_at' => now()->subDay(),
+        ]);
+    }
+
     public function overdue(): static
     {
         return $this->state(fn (array $attributes) => [
