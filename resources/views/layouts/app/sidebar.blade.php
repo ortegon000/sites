@@ -19,14 +19,14 @@
 
                 @if (auth()->user()->isAdmin() || auth()->user()->isStaff())
                     <flux:sidebar.group :heading="__('CRM')" class="grid">
-                        <flux:sidebar.item icon="users" :href="route('clients.index')" :current="request()->routeIs('clients.*') || request()->routeIs('contacts.*')" wire:navigate>
-                            {{ __('Clientes') }}
+                        <flux:sidebar.item icon="building-office-2" :href="route('agencies.index')" :current="request()->routeIs('agencies.*')" wire:navigate>
+                            {{ __('Agencias') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="user-plus" :href="route('prospects.index')" :current="request()->routeIs('prospects.index')" wire:navigate>
                             {{ __('Prospectos') }}
                         </flux:sidebar.item>
-                        <flux:sidebar.item icon="building-office-2" :href="route('agencies.index')" :current="request()->routeIs('agencies.*')" wire:navigate>
-                            {{ __('Agencias') }}
+                        <flux:sidebar.item icon="users" :href="route('clients.index')" :current="request()->routeIs('clients.*') || request()->routeIs('contacts.*')" wire:navigate>
+                            {{ __('Clientes') }}
                         </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif
@@ -42,12 +42,6 @@
                         <flux:sidebar.item icon="arrow-path" :href="route('renewals.index')" :current="request()->routeIs('renewals.*')" wire:navigate>
                             {{ __('Renovaciones') }}
                         </flux:sidebar.item>
-                        <flux:sidebar.item icon="document-check" :href="route('contracts.index')" :current="request()->routeIs('contracts.*')" wire:navigate>
-                            {{ __('Contratos') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="briefcase" :href="route('projects.index')" :current="request()->routeIs('projects.*')" wire:navigate>
-                            {{ __('Proyectos') }}
-                        </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif
 
@@ -61,16 +55,6 @@
             </flux:sidebar.nav>
 
             <flux:spacer />
-
-            <flux:sidebar.nav>
-                <flux:sidebar.item icon="folder-git-2" href="https://github.com/laravel/livewire-starter-kit" target="_blank">
-                    {{ __('Repository') }}
-                </flux:sidebar.item>
-
-                <flux:sidebar.item icon="book-open-text" href="https://laravel.com/docs/starter-kits#livewire" target="_blank">
-                    {{ __('Documentation') }}
-                </flux:sidebar.item>
-            </flux:sidebar.nav>
 
             @if (auth()->user()->isAdmin() || auth()->user()->isStaff())
                 <livewire:notifications-bell class="hidden lg:block" />
