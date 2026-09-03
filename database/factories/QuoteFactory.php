@@ -25,6 +25,7 @@ class QuoteFactory extends Factory
             'client_id' => Client::factory()->client(),
             'project_id' => null,
             'service_id' => null,
+            'is_project' => false,
             'name' => 'Cotización '.fake()->word().' '.fake()->word(),
             'description' => null,
             'category' => ServiceCategory::Other,
@@ -41,6 +42,16 @@ class QuoteFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'status' => QuoteStatus::Enviada,
             'sent_at' => now()->subDays(fake()->numberBetween(1, 10)),
+        ]);
+    }
+
+    /**
+     * Lo cotizado es un trabajo completo, así que al aceptarse abre proyecto.
+     */
+    public function asProject(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_project' => true,
         ]);
     }
 

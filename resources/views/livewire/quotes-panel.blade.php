@@ -29,6 +29,8 @@
                                 {{ $quote->category->label() }} · {{ $quote->billing_frequency->label() }}
                                 @if (! $project && $quote->project)
                                     · {{ $quote->project->name }}
+                                @elseif ($quote->is_project)
+                                    · {{ __('abre proyecto') }}
                                 @endif
                             </span>
                             @if ($quote->notes)
@@ -127,6 +129,11 @@
                 :description="__('Al pasar esta fecha, una cotización enviada expira sola.')" />
 
             <flux:textarea wire:model="quoteNotes" :label="__('Notas')" rows="2" />
+
+            @unless ($project)
+                <flux:switch wire:model="quoteIsProject" :label="__('Es un proyecto')"
+                    :description="__('Al aceptarse abre un proyecto y la línea cobrable nace dentro. Apagado, queda como línea suelta del cliente.')" />
+            @endunless
 
             <div class="flex justify-end gap-2">
                 <flux:button variant="ghost" wire:click="closeQuoteModal">{{ __('Cancelar') }}</flux:button>

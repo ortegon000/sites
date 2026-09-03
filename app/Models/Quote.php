@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $client_id
  * @property int|null $project_id
  * @property int|null $service_id
+ * @property bool $is_project
  * @property string $name
  * @property string|null $description
  * @property ServiceCategory $category
@@ -38,7 +39,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['client_id', 'project_id', 'service_id', 'name', 'description', 'category', 'billing_frequency', 'amount', 'currency', 'status', 'valid_until', 'sent_at', 'decided_at', 'notes'])]
+#[Fillable(['client_id', 'project_id', 'service_id', 'is_project', 'name', 'description', 'category', 'billing_frequency', 'amount', 'currency', 'status', 'valid_until', 'sent_at', 'decided_at', 'notes'])]
 class Quote extends Model
 {
     /** @use HasFactory<QuoteFactory> */
@@ -47,6 +48,7 @@ class Quote extends Model
     protected function casts(): array
     {
         return [
+            'is_project' => 'boolean',
             'category' => ServiceCategory::class,
             'billing_frequency' => ServiceBillingFrequency::class,
             'status' => QuoteStatus::class,

@@ -18,6 +18,8 @@ return new class extends Migration
             $table->foreignId('project_id')->nullable()->constrained()->cascadeOnDelete();
             /** La línea cobrable que nació al aceptarla. */
             $table->foreignId('service_id')->nullable()->constrained()->nullOnDelete();
+            /** Marcado a mano al cotizar: al aceptarse nace un proyecto en vez de una línea suelta. */
+            $table->boolean('is_project')->default(false);
             $table->string('name');
             $table->text('description')->nullable();
             $table->string('category')->default('other');

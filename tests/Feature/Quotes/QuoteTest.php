@@ -5,8 +5,11 @@ use App\Actions\Quotes\RejectQuote;
 use App\Actions\Quotes\SendQuote;
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
+use App\Enums\ProjectStatus;
+use App\Enums\ProjectType;
 use App\Enums\QuoteStatus;
 use App\Enums\ServiceBillingFrequency;
+use App\Enums\ServiceCategory;
 use App\Livewire\QuotesPanel;
 use App\Models\Client;
 use App\Models\Quote;
@@ -57,6 +60,60 @@ test('aceptar una cotización genera su línea cobrable con lo cotizado', functi
         ->and((float) $quote->service->amount)->toBe(5500.0)
         ->and($quote->service->billing_frequency)->toBe(ServiceBillingFrequency::Monthly)
         ->and($quote->service->charges()->count())->toBe(1);
+});
+
+test('una cotización marcada como proyecto abre el proyecto al aceptarse y mete ahí la línea', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $quote = Quote::factory()->for($client)->sent()->asProject()->create([
+        'name' => 'Sitio web institucional',
+        'category' => ServiceCategory::Website,
+    ]);
+
+    app(AcceptQuote::class)->handle($quote, $staff);
+
+    $quote->refresh();
+
+    expect($client->projects()->count())->toBe(1)
+        ->and($quote->project)->not->toBeNull()
+        ->and($quote->project->name)->toBe('Sitio web institucional')
+        ->and($quote->project->type)->toBe(ProjectType::Web)
+        ->and($quote->project->status)->toBe(ProjectStatus::Activo)
+        ->and($quote->service->project_id)->toBe($quote->project->id);
+});
+
+test('una cotización sin marcar como proyecto nace como línea suelta del cliente', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $quote = Quote::factory()->for($client)->sent()->create();
+
+    app(AcceptQuote::class)->handle($quote, $staff);
+
+    $quote->refresh();
+
+    expect($client->projects()->count())->toBe(0)
+        ->and($quote->project_id)->toBeNull()
+        ->and($quote->service->project_id)->toBeNull();
+});
+
+test('el switch del formulario es lo que deja la cotización marcada como proyecto', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->call('openQuoteModal')
+        ->assertSet('quoteIsProject', false)
+        ->set('quoteName', 'Rediseño completo')
+        ->set('quoteAmount', '80000')
+        ->set('quoteIsProject', true)
+        ->call('saveQuote')
+        ->assertHasNoErrors();
+
+    expect($client->quotes()->firstOrFail()->is_project)->toBeTrue();
 });
 
 test('aceptar la cotización de un prospecto lo gana y lo convierte en cliente', function () {

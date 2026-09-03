@@ -51,6 +51,12 @@ class QuotesPanel extends Component
 
     public ?string $quoteNotes = null;
 
+    /**
+     * Marcado en el formulario: al aceptarse, lo cotizado abre proyecto en vez
+     * de quedar como línea suelta del cliente.
+     */
+    public bool $quoteIsProject = false;
+
     public ?int $rejectingQuoteId = null;
 
     public ?string $rejectionReason = null;
@@ -112,6 +118,7 @@ class QuotesPanel extends Component
             $this->quoteCurrency = $this->client->currency;
             $this->quoteValidUntil = today()->addDays(30)->toDateString();
             $this->quoteNotes = null;
+            $this->quoteIsProject = false;
         } else {
             $quote = $this->findQuote($quoteId);
 
@@ -123,6 +130,7 @@ class QuotesPanel extends Component
             $this->quoteCurrency = $quote->currency;
             $this->quoteValidUntil = $quote->valid_until?->toDateString();
             $this->quoteNotes = $quote->notes;
+            $this->quoteIsProject = $quote->is_project;
         }
 
         $this->modal('quote-form')->show();
@@ -141,6 +149,7 @@ class QuotesPanel extends Component
             'quoteCurrency' => ['required', 'string', 'size:3'],
             'quoteValidUntil' => ['nullable', 'date'],
             'quoteNotes' => ['nullable', 'string', 'max:2000'],
+            'quoteIsProject' => ['boolean'],
         ]);
 
         $attributes = [
@@ -152,6 +161,8 @@ class QuotesPanel extends Component
             'currency' => $validated['quoteCurrency'],
             'valid_until' => $validated['quoteValidUntil'],
             'notes' => $validated['quoteNotes'],
+            // Dentro de un proyecto la pregunta no aplica: lo cotizado ya es de ese trabajo.
+            'is_project' => $this->project === null && $validated['quoteIsProject'],
         ];
 
         if ($this->editingQuoteId !== null) {

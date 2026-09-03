@@ -28,7 +28,8 @@ class QuoteSeeder extends Seeder
         $demo = Client::where('name', 'Cliente Demo')->firstOrFail();
         $tacos = Client::where('name', 'Tacos El Güero')->firstOrFail();
 
-        Quote::factory()->for($prospect)->sent()->create([
+        /** Marcada como proyecto: si el prospecto acepta, el sitio nace como trabajo con su propio expediente. */
+        Quote::factory()->for($prospect)->sent()->asProject()->create([
             'name' => 'Sitio web institucional',
             'description' => 'Sitio de cinco secciones con blog y formulario.',
             'category' => ServiceCategory::Website,

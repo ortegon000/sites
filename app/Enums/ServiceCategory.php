@@ -30,6 +30,22 @@ enum ServiceCategory: string
     }
 
     /**
+     * El tipo de proyecto que abre una cotización de esta categoría cuando se
+     * marcó como proyecto. Hosting, SSL y dominio caen en "otro" a propósito:
+     * son trabajo de infraestructura que no describe un proyecto en sí.
+     */
+    public function projectType(): ProjectType
+    {
+        return match ($this) {
+            self::Website => ProjectType::Web,
+            self::Maintenance => ProjectType::Maintenance,
+            self::AdsManagement, self::AdsBudget => ProjectType::Ads,
+            self::Email => ProjectType::Email,
+            self::Hosting, self::Ssl, self::Domain, self::Other => ProjectType::Other,
+        };
+    }
+
+    /**
      * Categories that describe work on a specific domain, so the service form
      * offers to link one and the resulting charge can say which domain it is for.
      */
