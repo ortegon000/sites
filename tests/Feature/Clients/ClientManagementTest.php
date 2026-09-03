@@ -128,7 +128,7 @@ test('selecting an agency does not overwrite a contact already captured', functi
         ->assertSet('contact_name', 'Contacto Directo');
 });
 
-test('assigning an agency to a client links all of its existing projects to that agency', function () {
+test('el proyecto toma la agencia de su cliente, sin asociarla aparte', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
     $project = Project::factory()->for($client)->create();
@@ -142,8 +142,7 @@ test('assigning an agency to a client links all of its existing projects to that
         ->call('save')
         ->assertHasNoErrors();
 
-    expect($project->fresh()->agencies)->toHaveCount(1)
-        ->and($project->fresh()->agencies->first()->id)->toBe($agency->id);
+    expect($project->fresh()->client->agency_id)->toBe($agency->id);
 });
 
 test('moving the status switch on the client detail applies the change without a save button', function () {
