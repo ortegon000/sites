@@ -42,7 +42,7 @@
             <flux:table.column>{{ __('Concepto') }}</flux:table.column>
             <flux:table.column>{{ __('Facturación') }}</flux:table.column>
             <flux:table.column>{{ __('Monto') }}</flux:table.column>
-            <flux:table.column>{{ __('Subtareas') }}</flux:table.column>
+            <flux:table.column>{{ __('Qué incluye') }}</flux:table.column>
             <flux:table.column>{{ __('Estatus') }}</flux:table.column>
             <flux:table.column></flux:table.column>
         </flux:table.columns>
@@ -79,7 +79,7 @@
                     <flux:table.cell>
                         <div class="flex justify-end gap-2">
                             <flux:button size="xs" variant="ghost" icon="list-bullet"
-                                :tooltip="__('Subtareas')"
+                                :tooltip="__('Qué incluye')"
                                 wire:click="openItemsModal({{ $service->id }})" />
 
                             @can('update', $client)
@@ -112,12 +112,12 @@
         @if ($this->itemsService)
             <div class="flex flex-col gap-6">
                 <div class="flex flex-col gap-1">
-                    <flux:heading size="lg">{{ __('Subtareas') }}</flux:heading>
+                    <flux:heading size="lg">{{ __('Qué incluye') }}</flux:heading>
                     <flux:text class="text-zinc-400">
                         {{ $this->itemsService->name }} · {{ number_format((float) $this->itemsService->amount, 2) }} {{ $this->itemsService->currency }}
                     </flux:text>
                     <flux:text class="text-xs text-zinc-400">
-                        {{ __('Lo que cubre este cobro. Marcarlas no cobra de más: el monto es del servicio, no de cada subtarea.') }}
+                        {{ __('El alcance de la línea: las visitas que cubre el anual, los entregables que van al contrato. Marcarlos no cobra de más, porque el monto es del servicio. Los pendientes del trabajo son las tareas del proyecto.') }}
                     </flux:text>
                 </div>
 
@@ -146,11 +146,11 @@
                             @can('update', $client)
                                 <flux:button size="xs" variant="ghost" icon="trash"
                                     wire:click="deleteItem({{ $item->id }})"
-                                    wire:confirm="{{ __('¿Eliminar esta subtarea?') }}" />
+                                    wire:confirm="{{ __('¿Quitar esto del alcance de la línea?') }}" />
                             @endcan
                         </div>
                     @empty
-                        <flux:text class="text-zinc-400">{{ __('Sin subtareas todavía.') }}</flux:text>
+                        <flux:text class="text-zinc-400">{{ __('Sin nada capturado: el monto no desglosa qué cubre.') }}</flux:text>
                     @endforelse
                 </div>
 
@@ -158,7 +158,7 @@
                     <flux:separator />
 
                     <form wire:submit="addItem" class="flex flex-wrap items-end gap-2">
-                        <flux:input wire:model="itemDescription" size="sm" :label="__('Descripción')" :placeholder="__('Visita de mantenimiento')" class="min-w-56 flex-1" />
+                        <flux:input wire:model="itemDescription" size="sm" :label="__('Concepto')" :placeholder="__('Visita de mantenimiento')" class="min-w-56 flex-1" />
                         <flux:input wire:model="itemDueDate" type="date" size="sm" :label="__('Fecha')" class="w-40" />
                         <flux:button type="submit" size="sm" variant="primary">{{ __('Agregar') }}</flux:button>
                     </form>

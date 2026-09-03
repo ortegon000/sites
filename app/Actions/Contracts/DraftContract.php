@@ -17,10 +17,10 @@ class DraftContract
 {
     /**
      * Arma el borrador con lo que ya está en el sistema: los servicios que
-     * ampara, sus montos, sus subtareas como entregables y la vigencia. El
-     * texto se renderiza una sola vez y desde ahí se edita en el contrato, no
-     * en la plantilla: lo que se firmó no debe cambiar cuando cambie el
-     * catálogo.
+     * ampara, sus montos, lo que cada uno incluye —que son los entregables— y
+     * la vigencia. El texto se renderiza una sola vez y desde ahí se edita en
+     * el contrato, no en la plantilla: lo que se firmó no debe cambiar cuando
+     * cambie el catálogo.
      *
      * @param  Collection<int, Service>  $services
      */

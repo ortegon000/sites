@@ -318,7 +318,7 @@ class ServicesPanel extends Component
 
         unset($this->services, $this->itemsService);
 
-        Flux::toast(variant: 'success', text: __('Subtarea agregada.'));
+        Flux::toast(variant: 'success', text: __('Alcance actualizado.'));
     }
 
     public function toggleItem(int $itemId): void
@@ -340,7 +340,7 @@ class ServicesPanel extends Component
 
         unset($this->services, $this->itemsService);
 
-        Flux::toast(variant: 'success', text: __('Subtarea eliminada.'));
+        Flux::toast(variant: 'success', text: __('Se quitó del alcance de la línea.'));
     }
 
     public function closeItemsModal(): void

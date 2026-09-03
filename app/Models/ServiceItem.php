@@ -10,9 +10,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Una subtarea de un servicio: las tres visitas que cubre un mantenimiento
+ * Qué incluye una línea cobrable: las tres visitas que cubre un mantenimiento
  * cuatrimestral de $1,000 al año —no $1,000 por visita—, o la lista numerada
  * de cambios que hoy se escribe dentro del concepto de "Mejora continua".
+ *
+ * Es el alcance de lo que se cobra, y es de donde el contrato saca sus
+ * entregables. No es la lista de pendientes del trabajo: eso son las tareas
+ * del proyecto (`ProjectTask`), que llevan responsable y viven en su detalle.
  *
  * @property int $id
  * @property int $service_id
