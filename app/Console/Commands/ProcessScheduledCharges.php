@@ -6,6 +6,8 @@ use App\Actions\Charges\GenerateScheduledCharges;
 use App\Actions\Charges\MarkOverdueCharges;
 use App\Actions\Charges\SendChargeReminders;
 use App\Actions\Domains\SendDomainExpiryReminders;
+use App\Actions\Renewals\OpenRenewalCycles;
+use App\Actions\Renewals\SendRenewalNotices;
 use Illuminate\Console\Command;
 
 class ProcessScheduledCharges extends Command
@@ -22,13 +24,15 @@ class ProcessScheduledCharges extends Command
      *
      * @var string
      */
-    protected $description = 'Genera los cobros programados, marca los vencidos, y envía los recordatorios de cobro y de expiración de dominios.';
+    protected $description = 'Genera los cobros programados, marca los vencidos, abre los ciclos de renovación y envía los recordatorios internos y los avisos de renovación al cliente.';
 
     public function handle(
         GenerateScheduledCharges $generateScheduledCharges,
         MarkOverdueCharges $markOverdueCharges,
         SendChargeReminders $sendChargeReminders,
         SendDomainExpiryReminders $sendDomainExpiryReminders,
+        OpenRenewalCycles $openRenewalCycles,
+        SendRenewalNotices $sendRenewalNotices,
     ): void {
         $generateScheduledCharges->handle();
 
@@ -38,6 +42,12 @@ class ProcessScheduledCharges extends Command
 
         $sendDomainExpiryReminders->handle();
 
+        $openedCycles = $openRenewalCycles->handle();
+
+        $noticesSent = $sendRenewalNotices->handle();
+
         $this->info("Cobros vencidos marcados: {$overdueCount}.");
+        $this->info("Ciclos de renovación abiertos: {$openedCycles}.");
+        $this->info("Avisos de renovación enviados al cliente: {$noticesSent}.");
     }
 }

@@ -43,3 +43,25 @@ test('charges:process generates due recurring charges, marks overdue ones, and s
     Notification::assertSentToTimes($admin, ChargeDueSoonNotification::class, 1);
     Notification::assertSentToTimes($admin, ChargeOverdueNotification::class, 1);
 });
+
+test('el recordatorio de una línea suelta sale sin proyecto y nombra al cliente', function () {
+    Notification::fake();
+
+    $admin = User::factory()->admin()->create();
+    $client = Client::factory()->client()->create(['name' => 'Clínica Sur']);
+
+    $service = Service::factory()->standalone()->for($client)->oneTime()->create(['name' => 'Renovación anual']);
+
+    Charge::factory()->for($service)->dueSoon()->create(['amount' => '4000.00']);
+
+    $this->artisan('charges:process')->assertSuccessful();
+
+    Notification::assertSentTo($admin, ChargeDueSoonNotification::class, function (ChargeDueSoonNotification $notification) use ($admin, $client) {
+        $mail = $notification->toMail($admin);
+        $data = $notification->toArray($admin);
+
+        return $data['project_id'] === null
+            && $data['client_name'] === $client->name
+            && str_contains((string) $mail->render(), 'Clínica Sur');
+    });
+});

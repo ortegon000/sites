@@ -44,7 +44,8 @@
                                 @endif
                             </span>
                             <span class="text-xs text-zinc-400">
-                                {{ $notification->data['project_name'] }} · {{ $notification->data['amount'] }} {{ $notification->data['currency'] }}
+                                {{ $notification->data['project_name'] ?? $notification->data['client_name'] ?? __('Línea suelta') }}
+                                · {{ $notification->data['amount'] }} {{ $notification->data['currency'] }}
                             </span>
                         @endif
                         <span class="text-xs text-zinc-400">{{ $notification->created_at->diffForHumans() }}</span>

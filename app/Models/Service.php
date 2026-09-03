@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 /**
  * @property int $id
@@ -59,6 +60,14 @@ class Service extends Model
     public function canBeDeleted(): bool
     {
         return ! $this->charges()->whereHas('payments')->exists();
+    }
+
+    /**
+     * @return MorphMany<Renewal, $this>
+     */
+    public function renewals(): MorphMany
+    {
+        return $this->morphMany(Renewal::class, 'renewable');
     }
 
     /**

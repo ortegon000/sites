@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -82,6 +83,14 @@ class Domain extends Model
     public function managesEmail(): bool
     {
         return $this->email_management === DomainEmailManagement::Managed;
+    }
+
+    /**
+     * @return MorphMany<Renewal, $this>
+     */
+    public function renewals(): MorphMany
+    {
+        return $this->morphMany(Renewal::class, 'renewable');
     }
 
     /**

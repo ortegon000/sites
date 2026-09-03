@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             AgencySeeder::class,
             EmailProviderSeeder::class,
             ProjectSeeder::class,
+            RenewalSeeder::class,
         ]);
     }
 }

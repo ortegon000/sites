@@ -14,6 +14,9 @@
                 <flux:navbar.item icon="at-symbol" :href="route('portal.email-accounts.index')" :current="request()->routeIs('portal.email-accounts.*')" wire:navigate>
                     {{ __('Correo') }}
                 </flux:navbar.item>
+                <flux:navbar.item icon="arrow-path" :href="route('portal.renewals.index')" :current="request()->routeIs('portal.renewals.*')" wire:navigate>
+                    {{ __('Renovaciones') }}
+                </flux:navbar.item>
             </flux:navbar>
 
             <flux:spacer />

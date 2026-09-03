@@ -36,6 +36,9 @@
                         <flux:sidebar.item icon="banknotes" :href="route('billables.index')" :current="request()->routeIs('billables.*')" wire:navigate>
                             {{ __('Trabajos y cobros') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="arrow-path" :href="route('renewals.index')" :current="request()->routeIs('renewals.*')" wire:navigate>
+                            {{ __('Renovaciones') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="briefcase" :href="route('projects.index')" :current="request()->routeIs('projects.*')" wire:navigate>
                             {{ __('Proyectos') }}
                         </flux:sidebar.item>

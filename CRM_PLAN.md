@@ -4,15 +4,15 @@
 
 ## Para retomar en otra conversación
 
-**Dónde estamos.** Fases 0 a 11 implementadas (la 5 sigue a medias: falta un driver de correo real). El modelo cubre clientes y contactos, dominios con buzones y accesos, licencias, campañas, líneas cobrables con o sin proyecto, cobros con abonos, agencias, portal y notificaciones. El libro de hosting del dueño ya está importado: 19 clientes, 19 dominios, 59 buzones, 23 accesos.
+**Dónde estamos.** Fases 0 a 12 implementadas (la 5 sigue a medias: falta un driver de correo real). El modelo cubre clientes y contactos, dominios con buzones y accesos, licencias, campañas, líneas cobrables con o sin proyecto, cobros con abonos, agencias, portal y notificaciones. El libro de hosting del dueño ya está importado: 19 clientes, 19 dominios, 59 buzones, 23 accesos.
 
-**Qué sigue.** La **Fase 12 (renovaciones)**, descrita más abajo: el tablero unificado de caducidades y el aviso al cliente, que es lo que motivó todo esto. Ojo con el pendiente del dueño: sin fechas de renovación capturadas, ese tablero no tendrá nada que avisar.
+**Qué sigue.** La **Fase 13 (cotizaciones)**: el trabajo cotizado y no aceptado necesita un estado propio antes de que exista cobro. Ojo con el pendiente del dueño: el tablero de renovaciones ya existe, pero sin fechas de renovación capturadas no tiene nada que avisar.
 
 **Antes de empezar, leer** la sección "Modelo objetivo y hoja de ruta (Fases 9+)": explica la distinción entre activo, trabajo y servicio recurrente, y por qué el modelo actual hay que aflojarlo en dos puntos —el proyecto obligatorio en los servicios y el cobro binario— en vez de rehacerlo.
 
 **Pendientes del dueño, no de código**: renombrar los 19 clientes importados (quedaron derivados del dominio, como "Geeaguasresiduales"), capturar las fechas de renovación que su hoja no traía en ninguna fila, y rotar las contraseñas que estuvieron en texto plano en el archivo.
 
-**Verificación en cada fase**: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`, y revisión en `https://sites.test`. Al cierre de la Fase 11: 202 tests, 200 pasan, 2 se saltan.
+**Verificación en cada fase**: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`, y revisión en `https://sites.test`. Al cierre de la Fase 12: 213 tests, 211 pasan, 2 se saltan.
 
 ## Estado actual
 
@@ -27,7 +27,8 @@
 - ✅ **Fase 8 — Contactos como entidad propia**: completa. Separa a la persona de la empresa: `contacts` con pivot `client_contact`, para que un dueño de varias empresas se escriba una sola vez y entre al portal con un solo acceso.
 - ✅ **Fase 10 — Abonos, cobros editables y agencias**: completa. El cobro deja de ser binario (abonos, estatus derivado y restante), se pueden editar monto, fecha y concepto, y la agencia pasa a declarar a quién se le factura, con filtros y reporte de cobrado/por cobrar.
 - ✅ **Fase 11 — Líneas sueltas, subtareas y campañas del cliente**: completa. El proyecto deja de ser obligatorio para cobrar, la ficha del cliente gana captura rápida, los servicios llevan subtareas, aparece la frecuencia quincenal y el menú de Proyectos cede el paso a "Trabajos y cobros".
-- 🔶 **Fases 9–14 — Centralizar los tres Excel**: de la 9 a la 11 completas, el resto planeadas. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
+- ✅ **Fase 12 — Renovaciones**: completa. Tablero unificado de caducidades, ciclo explícito con su historial por vencimiento, y aviso automático al cliente con enlace al portal.
+- 🔶 **Fases 9–14 — Centralizar los tres Excel**: de la 9 a la 12 completas, la 13 y la 14 planeadas. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
 
@@ -560,13 +561,24 @@ Mata el CSV de cobrables. **Implementada.**
 - **"Trabajos y cobros"** (`/trabajos`): todo lo cobrable con filtros por cliente, agencia, categoría, frecuencia y estatus, con el proyecto como una columna más y los totales de lo filtrado —no solo de la página— arriba. El menú de Proyectos se conserva debajo: quitarlo hoy dejaría sin puerta de entrada al alta de proyectos, que sigue viviendo en su listado.
 - **El dashboard del colaborador es su lista completa** de proyectos asignados, activos o no, con los activos primero. Es su única entrada al sistema, porque no tiene menú de proyectos ni acceso a la ficha del cliente.
 
-### Fase 12 — Renovaciones
+### Fase 12 — Renovaciones ✅
 
-Mata el Excel de renovaciones y entrega el aviso automático que motivó todo esto.
+Mata el Excel de renovaciones y entrega el aviso automático que motivó todo esto. **Implementada.**
 
 - **Tablero unificado de caducidades**: dominios, licencias y servicios anuales en una sola vista, "qué caduca en los próximos N días".
 - **Ciclo explícito**: por avisar → avisado → renovó (genera la línea cobrable) → no renovó (baja). Hoy no hay dónde registrar "ya le avisé, estoy esperando".
 - **Aviso al cliente**, no solo interno. **Con enlace al portal, nunca con las contraseñas en el cuerpo**: un correo se queda para siempre en la bandeja, se reenvía y se filtra. La pantalla donde el cliente ve sus datos y revela su contraseña con un clic ya existe.
+
+**Lo que se construyó**
+
+- **`renewals`**, una fila por vencimiento, con morph a dominio, licencia o servicio anual. Guardar el ciclo aparte —en vez de un par de columnas en cada activo— es lo que deja historial: qué se avisó, cuándo y qué decidió el cliente, año con año.
+- **`OpenRenewalCycles`** abre los ciclos de lo que caduca en los próximos 60 días y es idempotente por la llave única del vencimiento, así que la corrida diaria no los duplica. Los dominios de solo seguimiento quedan fuera: los renueva su dueño, no nosotros.
+- **`SendRenewalNotices`** avisa al cliente a 30 días. Un ciclo sin contacto con correo **se queda por avisar** y a la vista en el tablero, en vez de darse por avisado en falso.
+- **Renovó** empuja la fecha un año y genera la línea cobrable —que es justo la que antes se apuntaba a mano—, salvo para un servicio anual, que ya se cobra por su propio calendario y duplicarla cobraría dos veces lo mismo. **No renovó** da de baja: dominio expirado, licencia cancelada, servicio cancelado sin próximo cobro.
+- **Tablero `/renovaciones`** con las tres cifras que importan (por avisar, esperando respuesta, vencidas sin decisión), filtros por ventana, tipo, estatus y cliente, y el costo editable, que es lo que ve el cliente en su aviso.
+- **Portal `/portal/renovaciones`**: lo que el cliente encuentra al llegar desde el correo, con su historial. De solo lectura y sin una sola credencial.
+
+**Un error que la Fase 11 dejó y esta destapó**: los recordatorios de cobro asumían que todo servicio tiene proyecto, así que la corrida diaria reventaba con la primera línea suelta que llegaba a su ventana de aviso. Ahora nombran al cliente y tratan el proyecto como opcional.
 
 ### Fase 13 — Cotizaciones
 

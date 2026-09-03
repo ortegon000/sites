@@ -22,6 +22,8 @@ El **cobro no es binario**: cada `Charge` lleva sus abonos (`ChargePayment`) y s
 
 La **agencia es de dónde viene el trabajo y quién paga**: cada una declara si se le factura a ella o al cliente final, y el listado reporta por agencia cuánto se cobró y cuánto falta.
 
+Lo que **caduca** —dominios, licencias y servicios anuales— abre un ciclo de renovación con estado propio: por avisar → avisado → renovó (que genera la línea cobrable y empuja la fecha un año) → no renovó (que da de baja). El aviso sale al cliente por correo con enlace a su portal, nunca con credenciales en el cuerpo.
+
 El razonamiento completo detrás de estas decisiones está en **[CRM_PLAN.md](CRM_PLAN.md)**.
 
 ## Estado del proyecto
@@ -38,7 +40,8 @@ El razonamiento completo detrás de estas decisiones está en **[CRM_PLAN.md](CR
 - ✅ Fase 9 — Accesos de servidor, licencias e importación del libro de hosting
 - ✅ Fase 10 — Abonos y pagos parciales, cobros editables y agencias reorientadas
 - ✅ Fase 11 — Líneas cobrables sin proyecto, subtareas, cobro quincenal y vista de trabajos y cobros
-- 📋 Fases 12–14 — Renovaciones con aviso al cliente, cotizaciones y contratos
+- ✅ Fase 12 — Renovaciones: tablero de caducidades, ciclo explícito y aviso automático al cliente
+- 📋 Fases 13–14 — Cotizaciones y contratos
 
 ## Desarrollo local
 
@@ -106,7 +109,7 @@ pnpm run build
 | **Admin** | Acceso total, incluidos los accesos de servidor, las credenciales de licencia y los proveedores de correo. |
 | **Staff** (equipo interno) | Todo el CRM —clientes, contactos, proyectos, trabajos y cobros, dominios, buzones— **menos** contraseñas de servidor y de licencia. |
 | **Collaborator** (colaborador externo) | Solo los proyectos que se le asignen, listados en su dashboard, que es su entrada al sistema. Sin datos financieros, sin dominios, sin campañas. |
-| **Client** (cliente) | Portal de solo lectura: los proyectos, cobros y buzones de todas sus empresas. |
+| **Client** (cliente) | Portal de solo lectura: los proyectos, cobros, buzones y renovaciones próximas de todas sus empresas. |
 
 ## Datos sensibles
 
@@ -131,7 +134,7 @@ vendor/bin/phpstan analyse --no-progress --memory-limit=512M
 vendor/bin/pint --dirty --format agent
 ```
 
-Corrida diaria vía scheduler: genera los cobros programados, marca los vencidos y envía los recordatorios de cobro y de expiración de dominios.
+Corrida diaria vía scheduler: genera los cobros programados, marca los vencidos, abre los ciclos de renovación de lo que caduca en los próximos 60 días y envía los recordatorios internos y los avisos de renovación al cliente.
 
 ```bash
 php artisan charges:process

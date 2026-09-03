@@ -21,13 +21,14 @@ class ChargeOverdueNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $service = $this->charge->service;
-        $project = $service->project;
-        $client = $project->client;
+        $client = $service->client;
+        /** El proyecto es opcional: una línea suelta se cobra igual sin él. */
+        $where = $service->project ? "{$client->name} ({$service->project->name})" : $client->name;
 
         return (new MailMessage)
-            ->subject("Cobro vencido: {$service->name}")
+            ->subject("Cobro vencido: {$this->charge->conceptLabel()}")
             ->greeting('Cobro vencido')
-            ->line("El cobro de \"{$service->name}\" para {$client->name} ({$project->name}) venció el {$this->charge->due_date->format('d/m/Y')} y sigue sin registrarse como pagado.")
+            ->line("El cobro de \"{$this->charge->conceptLabel()}\" para {$where} venció el {$this->charge->due_date->format('d/m/Y')} y sigue sin registrarse como pagado.")
             ->line("Monto: {$this->charge->amount} {$this->charge->currency}");
     }
 
@@ -37,14 +38,14 @@ class ChargeOverdueNotification extends Notification
     public function toArray(object $notifiable): array
     {
         $service = $this->charge->service;
-        $project = $service->project;
 
         return [
             'type' => 'charge_overdue',
             'charge_id' => $this->charge->id,
-            'service_name' => $service->name,
-            'project_id' => $project->id,
-            'project_name' => $project->name,
+            'service_name' => $this->charge->conceptLabel(),
+            'client_name' => $service->client->name,
+            'project_id' => $service->project?->id,
+            'project_name' => $service->project?->name,
             'amount' => $this->charge->amount,
             'currency' => $this->charge->currency,
             'due_date' => $this->charge->due_date->toDateString(),
