@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             EmailProviderSeeder::class,
             ProjectSeeder::class,
             RenewalSeeder::class,
+            QuoteSeeder::class,
         ]);
     }
 }

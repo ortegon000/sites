@@ -4,15 +4,15 @@
 
 ## Para retomar en otra conversación
 
-**Dónde estamos.** Fases 0 a 12 implementadas (la 5 sigue a medias: falta un driver de correo real). El modelo cubre clientes y contactos, dominios con buzones y accesos, licencias, campañas, líneas cobrables con o sin proyecto, cobros con abonos, agencias, portal y notificaciones. El libro de hosting del dueño ya está importado: 19 clientes, 19 dominios, 59 buzones, 23 accesos.
+**Dónde estamos.** Fases 0 a 13 implementadas (la 5 sigue a medias: falta un driver de correo real). El modelo cubre clientes y contactos, dominios con buzones y accesos, licencias, campañas, líneas cobrables con o sin proyecto, cobros con abonos, agencias, portal y notificaciones. El libro de hosting del dueño ya está importado: 19 clientes, 19 dominios, 59 buzones, 23 accesos.
 
-**Qué sigue.** La **Fase 13 (cotizaciones)**: el trabajo cotizado y no aceptado necesita un estado propio antes de que exista cobro. Ojo con el pendiente del dueño: el tablero de renovaciones ya existe, pero sin fechas de renovación capturadas no tiene nada que avisar.
+**Qué sigue.** La **Fase 14 (contratos)**, la última planeada: con activos, servicios, montos, vigencias y entregas ya en el sistema, el contrato es un documento generable. Ojo con el pendiente del dueño: el tablero de renovaciones ya existe, pero sin fechas de renovación capturadas no tiene nada que avisar.
 
 **Antes de empezar, leer** la sección "Modelo objetivo y hoja de ruta (Fases 9+)": explica la distinción entre activo, trabajo y servicio recurrente, y por qué el modelo actual hay que aflojarlo en dos puntos —el proyecto obligatorio en los servicios y el cobro binario— en vez de rehacerlo.
 
 **Pendientes del dueño, no de código**: renombrar los 19 clientes importados (quedaron derivados del dominio, como "Geeaguasresiduales"), capturar las fechas de renovación que su hoja no traía en ninguna fila, y rotar las contraseñas que estuvieron en texto plano en el archivo.
 
-**Verificación en cada fase**: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`, y revisión en `https://sites.test`. Al cierre de la Fase 12: 213 tests, 211 pasan, 2 se saltan.
+**Verificación en cada fase**: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`, y revisión en `https://sites.test`. Al cierre de la Fase 13: 224 tests, 222 pasan, 2 se saltan.
 
 ## Estado actual
 
@@ -28,7 +28,8 @@
 - ✅ **Fase 10 — Abonos, cobros editables y agencias**: completa. El cobro deja de ser binario (abonos, estatus derivado y restante), se pueden editar monto, fecha y concepto, y la agencia pasa a declarar a quién se le factura, con filtros y reporte de cobrado/por cobrar.
 - ✅ **Fase 11 — Líneas sueltas, subtareas y campañas del cliente**: completa. El proyecto deja de ser obligatorio para cobrar, la ficha del cliente gana captura rápida, los servicios llevan subtareas, aparece la frecuencia quincenal y el menú de Proyectos cede el paso a "Trabajos y cobros".
 - ✅ **Fase 12 — Renovaciones**: completa. Tablero unificado de caducidades, ciclo explícito con su historial por vencimiento, y aviso automático al cliente con enlace al portal.
-- 🔶 **Fases 9–14 — Centralizar los tres Excel**: de la 9 a la 12 completas, la 13 y la 14 planeadas. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
+- ✅ **Fase 13 — Cotizaciones**: completa. El trabajo ofrecido tiene entidad y estatus propios, no genera cobros mientras nadie lo acepta, y al aceptarse genera su línea cobrable y gana al prospecto.
+- 🔶 **Fases 9–14 — Centralizar los tres Excel**: de la 9 a la 13 completas, la 14 planeada. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
 
@@ -580,9 +581,19 @@ Mata el Excel de renovaciones y entrega el aviso automático que motivó todo es
 
 **Un error que la Fase 11 dejó y esta destapó**: los recordatorios de cobro asumían que todo servicio tiene proyecto, así que la corrida diaria reventaba con la primera línea suelta que llegaba a su ventana de aviso. Ahora nombran al cliente y tratan el proyecto como opcional.
 
-### Fase 13 — Cotizaciones
+### Fase 13 — Cotizaciones ✅
 
-Su CSV tiene filas en estatus *Pendiente* sin costo, con el precio escrito en Notas ("Mexico Juega — Costo $5500"): trabajo cotizado y no aceptado. Necesita un estado propio antes de que exista cobro.
+Su CSV tiene filas en estatus *Pendiente* sin costo, con el precio escrito en Notas ("Mexico Juega — Costo $5500"): trabajo cotizado y no aceptado. Necesita un estado propio antes de que exista cobro. **Implementada.**
+
+**Lo que se construyó**
+
+- **`quotes`**, entidad propia y no un estatus más de `Service`. Un servicio genera cobros; una cotización no debe generar ninguno hasta que alguien diga que sí, y además necesita sus propias fechas —vigencia, envío, decisión— que en un servicio no tendrían dónde vivir.
+- **Aceptar genera la línea cobrable** con lo cotizado (concepto, categoría, frecuencia y monto), y la cotización se queda como constancia de qué se ofreció y cuándo se decidió, ligada a la línea que nació de ella.
+- **La cotización mueve el pipeline**: marcarla enviada pasa al prospecto a "propuesta enviada" y aceptarla lo **gana**, que es exactamente el momento en que deja de ser prospecto. Tenerlos que actualizar por separado es cómo se desincronizan. Rechazar, en cambio, **no** lo da por perdido: eso es una decisión de quien lo atiende, no un efecto secundario.
+- **Expiran solas**: una cotización enviada cuya vigencia pasó pasa a expirada en la corrida diaria, para que la lista de "sin contestar" no se llene de cosas de hace medio año. Un borrador no expira, porque nunca salió.
+- **Panel en la ficha** del cliente y del prospecto —que es donde más se usa, porque cotizar pasa antes de que exista proyecto— y listado transversal en `/cotizaciones` con lo que está en juego y lo aceptado de los últimos 90 días.
+
+**Un fallo que esta fase destapó en el dashboard**: la tabla de próximos cobros enlazaba al proyecto del servicio, que desde la Fase 11 puede no existir, así que el dashboard devolvía 500 en cuanto una línea suelta entraba a la ventana de siete días. Ahora ancla en el cliente y muestra el proyecto solo cuando lo hay. Es la tercera aparición del mismo descuido —notificaciones, corrida diaria y dashboard—: cualquier código que toque `service->project` tiene que asumir que puede ser nulo.
 
 ### Fase 14 — Contratos
 

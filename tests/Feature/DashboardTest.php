@@ -114,3 +114,22 @@ test('el dashboard del colaborador lista todos sus proyectos asignados, no solo 
         ->assertSee('Proyecto en curso')
         ->assertSee('Proyecto terminado');
 });
+
+test('el dashboard lista el cobro de una línea suelta, que no tiene proyecto', function () {
+    $admin = User::factory()->admin()->create();
+    $client = Client::factory()->client()->create(['name' => 'Cliente Suelto']);
+    $service = Service::factory()->standalone()->for($client)->create(['name' => 'Renovación anual']);
+
+    Charge::factory()->for($service)->create([
+        'status' => ChargeStatus::Pendiente,
+        'due_date' => now()->addDays(2)->toDateString(),
+    ]);
+
+    $this->actingAs($admin);
+
+    /** Antes reventaba aquí: la tabla enlazaba al proyecto, que ya puede no existir. */
+    $this->get(route('dashboard'))
+        ->assertOk()
+        ->assertSee('Cliente Suelto')
+        ->assertSee('Renovación anual');
+});

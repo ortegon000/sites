@@ -33,6 +33,9 @@
 
                 @if (auth()->user()->isAdmin() || auth()->user()->isStaff())
                     <flux:sidebar.group :heading="__('Trabajo')" class="grid">
+                        <flux:sidebar.item icon="document-text" :href="route('quotes.index')" :current="request()->routeIs('quotes.*')" wire:navigate>
+                            {{ __('Cotizaciones') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="banknotes" :href="route('billables.index')" :current="request()->routeIs('billables.*')" wire:navigate>
                             {{ __('Trabajos y cobros') }}
                         </flux:sidebar.item>

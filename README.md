@@ -22,6 +22,8 @@ El **cobro no es binario**: cada `Charge` lleva sus abonos (`ChargePayment`) y s
 
 La **agencia es de dónde viene el trabajo y quién paga**: cada una declara si se le factura a ella o al cliente final, y el listado reporta por agencia cuánto se cobró y cuánto falta.
 
+Lo **cotizado** existe antes que el cobro: una `Quote` es trabajo ofrecido y sin aceptar, no genera ningún cargo, y al aceptarse nace su línea cobrable —y, si quien aceptó era un prospecto, se marca como ganado—. Una cotización enviada expira sola al pasar su vigencia.
+
 Lo que **caduca** —dominios, licencias y servicios anuales— abre un ciclo de renovación con estado propio: por avisar → avisado → renovó (que genera la línea cobrable y empuja la fecha un año) → no renovó (que da de baja). El aviso sale al cliente por correo con enlace a su portal, nunca con credenciales en el cuerpo.
 
 El razonamiento completo detrás de estas decisiones está en **[CRM_PLAN.md](CRM_PLAN.md)**.
@@ -41,7 +43,8 @@ El razonamiento completo detrás de estas decisiones está en **[CRM_PLAN.md](CR
 - ✅ Fase 10 — Abonos y pagos parciales, cobros editables y agencias reorientadas
 - ✅ Fase 11 — Líneas cobrables sin proyecto, subtareas, cobro quincenal y vista de trabajos y cobros
 - ✅ Fase 12 — Renovaciones: tablero de caducidades, ciclo explícito y aviso automático al cliente
-- 📋 Fases 13–14 — Cotizaciones y contratos
+- ✅ Fase 13 — Cotizaciones: el trabajo ofrecido existe antes del cobro y se vuelve línea cobrable al aceptarse
+- 📋 Fase 14 — Contratos
 
 ## Desarrollo local
 
@@ -134,7 +137,7 @@ vendor/bin/phpstan analyse --no-progress --memory-limit=512M
 vendor/bin/pint --dirty --format agent
 ```
 
-Corrida diaria vía scheduler: genera los cobros programados, marca los vencidos, abre los ciclos de renovación de lo que caduca en los próximos 60 días y envía los recordatorios internos y los avisos de renovación al cliente.
+Corrida diaria vía scheduler: genera los cobros programados, marca los vencidos, abre los ciclos de renovación de lo que caduca en los próximos 60 días, expira las cotizaciones vencidas y envía los recordatorios internos y los avisos de renovación al cliente.
 
 ```bash
 php artisan charges:process

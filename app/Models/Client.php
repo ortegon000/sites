@@ -103,6 +103,16 @@ class Client extends Model
     }
 
     /**
+     * Lo cotizado y todavía no aceptado: existe antes que cualquier cobro.
+     *
+     * @return HasMany<Quote, $this>
+     */
+    public function quotes(): HasMany
+    {
+        return $this->hasMany(Quote::class);
+    }
+
+    /**
      * @return HasMany<AdCampaign, $this>
      */
     public function adCampaigns(): HasMany

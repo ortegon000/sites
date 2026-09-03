@@ -66,7 +66,7 @@ new class extends Component
         return Charge::query()
             ->whereIn('status', ChargeStatus::open())
             ->whereBetween('due_date', [today(), today()->addDays(7)])
-            ->with(['service.project.client', 'payments'])
+            ->with(['service.client', 'service.project', 'payments'])
             ->orderBy('due_date')
             ->get();
     }
@@ -153,9 +153,13 @@ new class extends Component
                         @forelse ($this->upcomingCharges as $charge)
                             <flux:table.row wire:key="upcoming-charge-{{ $charge->id }}">
                                 <flux:table.cell>
-                                    <flux:link :href="route('projects.show', $charge->service->project)" wire:navigate>
-                                        {{ $charge->service->project->client->name }}
+                                    <flux:link :href="route('clients.show', $charge->service->client)" wire:navigate>
+                                        {{ $charge->service->client->name }}
                                     </flux:link>
+                                    {{-- El proyecto es opcional: una línea suelta se cobra igual sin él. --}}
+                                    @if ($charge->service->project)
+                                        <flux:text class="text-xs text-zinc-400">{{ $charge->service->project->name }}</flux:text>
+                                    @endif
                                 </flux:table.cell>
                                 <flux:table.cell>{{ $charge->conceptLabel() }}</flux:table.cell>
                                 <flux:table.cell>{{ $charge->due_date->format('d/m/Y') }}</flux:table.cell>

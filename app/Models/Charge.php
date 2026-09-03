@@ -54,9 +54,15 @@ class Charge extends Model
         return $this->concept ?: $this->service->name;
     }
 
+    /**
+     * Usa los abonos ya cargados cuando los hay: en una tabla de cobros esto es
+     * la diferencia entre una consulta y una por renglón.
+     */
     public function paidAmount(): float
     {
-        return (float) $this->payments()->sum('amount');
+        return $this->relationLoaded('payments')
+            ? (float) $this->payments->sum('amount')
+            : (float) $this->payments()->sum('amount');
     }
 
     public function remainingAmount(): float
