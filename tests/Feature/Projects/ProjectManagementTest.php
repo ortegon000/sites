@@ -5,6 +5,7 @@ use App\Enums\ProjectStatus;
 use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceStatus;
 use App\Livewire\ChargesPanel;
+use App\Livewire\ProjectsPanel;
 use App\Livewire\ServicesPanel;
 use App\Models\Agency;
 use App\Models\Charge;
@@ -12,6 +13,7 @@ use App\Models\Client;
 use App\Models\Project;
 use App\Models\Service;
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Livewire\Livewire;
 
 test('guests are redirected to the login page', function () {
@@ -69,7 +71,7 @@ test('staff can create a project', function () {
     expect(Project::where('name', 'Nuevo proyecto')->exists())->toBeTrue();
 });
 
-test('creating a project for a client with an agency links that agency automatically', function () {
+test('el proyecto nuevo queda bajo la agencia de su cliente', function () {
     $staff = User::factory()->staff()->create();
     $agency = Agency::factory()->create();
     $client = Client::factory()->client()->create(['agency_id' => $agency->id]);
@@ -85,8 +87,7 @@ test('creating a project for a client with an agency links that agency automatic
 
     $project = Project::where('name', 'Nuevo proyecto')->firstOrFail();
 
-    expect($project->agencies)->toHaveCount(1)
-        ->and($project->agencies->first()->id)->toBe($agency->id);
+    expect($project->client->agency_id)->toBe($agency->id);
 });
 
 test('collaborator cannot access the project policy for creating or updating', function () {
@@ -191,38 +192,13 @@ test('admin can assign and unassign a user from a project team', function () {
     expect($project->users()->whereKey($staff->id)->exists())->toBeFalse();
 });
 
-test('staff can associate and remove an agency', function () {
-    $staff = User::factory()->staff()->create();
-    $client = Client::factory()->client()->create();
-    $project = Project::factory()->for($client)->create();
-    $agency = Agency::factory()->create();
-
-    $this->actingAs($staff);
-
-    Livewire::test('pages::projects.show', ['project' => $project])
-        ->set('agencyIdToAssign', $agency->id)
-        ->set('agencyNotes', 'Nos subcontrataron el hosting.')
-        ->call('assignAgency')
-        ->assertHasNoErrors();
-
-    $pivot = $project->agencies()->whereKey($agency->id)->first()?->pivot;
-
-    expect($pivot)->not->toBeNull()
-        ->and($pivot->notes)->toBe('Nos subcontrataron el hosting.');
-
-    Livewire::test('pages::projects.show', ['project' => $project])
-        ->call('unassignAgency', $agency->id);
-
-    expect($project->agencies()->whereKey($agency->id)->exists())->toBeFalse();
-});
-
 test('el listado de proyectos se puede filtrar por agencia', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
     $agency = Agency::factory()->create();
 
-    $byAgency = Project::factory()->for($client)->create(['name' => 'Sitio de AgenciaEfe5']);
-    $byAgency->agencies()->attach($agency);
+    $agencyClient = Client::factory()->client()->create(['agency_id' => $agency->id]);
+    Project::factory()->for($agencyClient)->create(['name' => 'Sitio de AgenciaEfe5']);
 
     Project::factory()->for($client)->create(['name' => 'Sitio propio']);
 
@@ -232,4 +208,49 @@ test('el listado de proyectos se puede filtrar por agencia', function () {
         ->set('agencyFilter', $agency->id)
         ->assertSee('Sitio de AgenciaEfe5')
         ->assertDontSee('Sitio propio');
+});
+
+test('la tarjeta de la ficha del cliente da de alta el proyecto sin salir de ahí', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test(ProjectsPanel::class, ['client' => $client])
+        ->call('openCreateModal')
+        ->assertSet('client_id', $client->id)
+        ->set('name', 'Sitio desde la ficha')
+        ->call('save')
+        ->assertHasNoErrors()
+        ->assertSee('Sitio desde la ficha');
+
+    expect(Project::where('name', 'Sitio desde la ficha')->first()?->client_id)->toBe($client->id);
+});
+
+test('el cliente de la tarjeta manda sobre el que llegue del navegador', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $otherClient = Client::factory()->client()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test(ProjectsPanel::class, ['client' => $client])
+        ->call('openCreateModal')
+        ->set('name', 'Proyecto ajeno')
+        ->set('client_id', $otherClient->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Project::where('name', 'Proyecto ajeno')->first()?->client_id)->toBe($client->id);
+});
+
+test('no se puede editar el proyecto de otro cliente desde esta tarjeta', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $foreign = Project::factory()->for(Client::factory()->client())->create();
+
+    $this->actingAs($staff);
+
+    expect(fn () => Livewire::test(ProjectsPanel::class, ['client' => $client])->call('openEditModal', $foreign->id))
+        ->toThrow(ModelNotFoundException::class);
 });

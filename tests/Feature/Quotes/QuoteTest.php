@@ -11,6 +11,7 @@ use App\Enums\QuoteStatus;
 use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceCategory;
 use App\Livewire\ChargesPanel;
+use App\Livewire\ProjectsPanel;
 use App\Livewire\QuotesPanel;
 use App\Models\Client;
 use App\Models\Quote;
@@ -127,9 +128,8 @@ test('lo que crea una cotización aceptada aparece sin recargar la ficha', funct
 
     $this->actingAs($staff);
 
-    /** La ficha renderiza el panel de cotizaciones dentro, así que el nombre ya se ve: lo que todavía no existe es el proyecto. */
-    $ficha = Livewire::test('pages::clients.show', ['client' => $client])
-        ->set('tab', 'trabajo')
+    /** Las tarjetas de la ficha escuchan el aviso: hasta que la cotización se acepta, ahí no hay proyecto ni cobro. */
+    $proyectos = Livewire::test(ProjectsPanel::class, ['client' => $client])
         ->assertSee('No todos los clientes necesitan uno', escape: false);
 
     $cobros = Livewire::test(ChargesPanel::class, ['client' => $client])
@@ -139,7 +139,7 @@ test('lo que crea una cotización aceptada aparece sin recargar la ficha', funct
         ->call('accept', $quote->id)
         ->assertDispatched('quote-accepted');
 
-    $ficha->dispatch('quote-accepted')
+    $proyectos->dispatch('quote-accepted')
         ->assertDontSee('No todos los clientes necesitan uno', escape: false)
         ->assertSee('Sitio web institucional');
 

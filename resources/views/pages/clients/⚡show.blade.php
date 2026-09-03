@@ -121,23 +121,6 @@ new class extends Component {
     }
 
     /**
-     * Los proyectos del cliente, con lo que cuelga de cada uno. Vive aquí
-     * porque la ficha del cliente es su expediente: antes había que ir al
-     * listado de proyectos y filtrar para ver los suyos.
-     *
-     * @return \Illuminate\Database\Eloquent\Collection<int, \App\Models\Project>
-     */
-    #[Computed]
-    public function projects(): \Illuminate\Database\Eloquent\Collection
-    {
-        return $this->client->projects()
-            ->withCount(['services', 'domains'])
-            ->orderByDesc('started_at')
-            ->orderByDesc('id')
-            ->get();
-    }
-
-    /**
      * @return \Illuminate\Database\Eloquent\Collection<int, \App\Models\Contact>
      */
     #[Computed]
@@ -208,17 +191,15 @@ new class extends Component {
 
     /**
      * Aceptar una cotización pasa en su propio panel, pero lo que provoca se
-     * ve aquí: el proyecto que abre entra a la tabla de proyectos, y si quien
-     * aceptó era un prospecto queda ganado y la ficha cambia de URL. Sin este
-     * aviso había que recargar para enterarse.
+     * ve aquí: si quien aceptó era un prospecto queda ganado y la ficha cambia
+     * de URL. Sin este aviso había que recargar para enterarse. El proyecto que
+     * abre lo recoge la tarjeta de proyectos, que escucha el mismo evento.
      */
     #[On('quote-accepted')]
     public function refreshAfterQuoteAccepted(): void
     {
         $this->client->refresh();
         $this->status = $this->client->status->value;
-
-        unset($this->projects);
 
         $this->redirectToCanonicalRoute();
     }
@@ -433,49 +414,7 @@ new class extends Component {
                     <livewire:quotes-panel :client="$client" :key="'quotes-panel-client-'.$client->id" />
                 @endif
 
-                <flux:card class="flex flex-col gap-4">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                        <flux:heading size="lg">{{ __('Proyectos') }}</flux:heading>
-
-                        @can('viewAny', \App\Models\Project::class)
-                            <flux:button size="sm" variant="ghost" icon="plus" :href="route('projects.index')" wire:navigate>
-                                {{ __('Nuevo proyecto') }}
-                            </flux:button>
-                        @endcan
-                    </div>
-
-                    <flux:table>
-                        <flux:table.columns>
-                            <flux:table.column>{{ __('Nombre') }}</flux:table.column>
-                            <flux:table.column>{{ __('Tipo') }}</flux:table.column>
-                            <flux:table.column>{{ __('Servicios') }}</flux:table.column>
-                            <flux:table.column>{{ __('Dominios') }}</flux:table.column>
-                            <flux:table.column>{{ __('Estatus') }}</flux:table.column>
-                        </flux:table.columns>
-
-                        <flux:table.rows>
-                            @forelse ($this->projects as $project)
-                                <flux:table.row wire:key="client-project-{{ $project->id }}">
-                                    <flux:table.cell>
-                                        <flux:link :href="route('projects.show', $project)" wire:navigate>{{ $project->name }}</flux:link>
-                                    </flux:table.cell>
-                                    <flux:table.cell>{{ $project->type->label() }}</flux:table.cell>
-                                    <flux:table.cell>{{ $project->services_count }}</flux:table.cell>
-                                    <flux:table.cell>{{ $project->domains_count }}</flux:table.cell>
-                                    <flux:table.cell>
-                                        <flux:badge size="sm">{{ $project->status->label() }}</flux:badge>
-                                    </flux:table.cell>
-                                </flux:table.row>
-                            @empty
-                                <flux:table.row>
-                                    <flux:table.cell colspan="5" class="text-center text-zinc-400">
-                                        {{ __('Sin proyectos. No todos los clientes necesitan uno: los de puro hosting viven de sus dominios y servicios.') }}
-                                    </flux:table.cell>
-                                </flux:table.row>
-                            @endforelse
-                        </flux:table.rows>
-                    </flux:table>
-                </flux:card>
+                <livewire:projects-panel :client="$client" :key="'projects-panel-client-'.$client->id" />
 
                 @if ($staffCanSeePanels)
                     <livewire:services-panel :client="$client" :key="'services-panel-client-'.$client->id" />
