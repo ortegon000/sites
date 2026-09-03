@@ -34,7 +34,7 @@ test('client users are redirected to the portal after login', function () {
 
     $response
         ->assertSessionHasNoErrors()
-        ->assertRedirect(route('portal.projects.index', absolute: false));
+        ->assertRedirect(route('portal.services.index', absolute: false));
 
     $this->assertAuthenticated();
 });

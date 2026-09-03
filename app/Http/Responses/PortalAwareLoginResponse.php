@@ -12,7 +12,7 @@ class PortalAwareLoginResponse implements LoginResponseContract
     {
         /** @var Request $request */
         if ($request->user()?->isClient()) {
-            return redirect()->intended(route('portal.projects.index'));
+            return redirect()->intended(route('portal.services.index'));
         }
 
         return redirect()->intended(config('fortify.home'));

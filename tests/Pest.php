@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Client;
+use App\Models\Contact;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -47,4 +49,19 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * Un contacto ligado a las empresas que se le pasen, que es lo que da acceso al
+ * portal: la persona entra una vez y ve todas sus empresas.
+ */
+function portalContactFor(Client ...$clients): Contact
+{
+    $contact = Contact::factory()->create();
+
+    foreach ($clients as $client) {
+        $contact->clients()->attach($client, ['is_primary' => true]);
+    }
+
+    return $contact;
 }

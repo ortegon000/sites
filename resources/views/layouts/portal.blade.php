@@ -5,11 +5,14 @@
     </head>
     <body class="min-h-screen bg-white dark:bg-zinc-800">
         <flux:header container class="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
-            <x-app-logo href="{{ route('portal.projects.index') }}" wire:navigate />
+            <x-app-logo href="{{ route('portal.services.index') }}" wire:navigate />
 
             <flux:navbar class="-mb-px">
-                <flux:navbar.item icon="briefcase" :href="route('portal.projects.index')" :current="request()->routeIs('portal.projects.*')" wire:navigate>
-                    {{ __('Proyectos') }}
+                <flux:navbar.item icon="briefcase" :href="route('portal.services.index')" :current="request()->routeIs('portal.services.*') || request()->routeIs('portal.projects.*')" wire:navigate>
+                    {{ __('Servicios') }}
+                </flux:navbar.item>
+                <flux:navbar.item icon="banknotes" :href="route('portal.charges.index')" :current="request()->routeIs('portal.charges.*')" wire:navigate>
+                    {{ __('Cobros') }}
                 </flux:navbar.item>
                 <flux:navbar.item icon="at-symbol" :href="route('portal.email-accounts.index')" :current="request()->routeIs('portal.email-accounts.*')" wire:navigate>
                     {{ __('Correo') }}

@@ -32,7 +32,7 @@ test('client users are redirected to the portal instead of the dashboard', funct
     $this->actingAs($clientUser);
 
     $response = $this->get(route('dashboard'));
-    $response->assertRedirect(route('portal.projects.index'));
+    $response->assertRedirect(route('portal.services.index'));
 });
 
 test('admin sees financial KPIs, upcoming charges and recent activity', function () {

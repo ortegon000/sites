@@ -19,7 +19,7 @@ new class extends Component
     public function mount(): void
     {
         if (auth()->user()->isClient()) {
-            $this->redirect(route('portal.projects.index'), navigate: true);
+            $this->redirect(route('portal.services.index'), navigate: true);
         }
     }
 
