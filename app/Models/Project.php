@@ -59,6 +59,17 @@ class Project extends Model
     }
 
     /**
+     * El trabajo del proyecto, que no es lo que se le cobra. Solo las tareas
+     * madre; las subtareas cuelgan de cada una.
+     *
+     * @return HasMany<ProjectTask, $this>
+     */
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(ProjectTask::class)->whereNull('parent_id');
+    }
+
+    /**
      * @return HasMany<Service, $this>
      */
     public function services(): HasMany

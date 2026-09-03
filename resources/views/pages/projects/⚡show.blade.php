@@ -131,6 +131,8 @@ new class extends Component {
         </div>
 
         <div class="flex flex-col gap-6 md:col-span-2">
+            <livewire:tasks-panel :project="$project" :key="'tasks-panel-'.$project->id" />
+
             @if (auth()->user()->isAdmin() || auth()->user()->isStaff())
                 <livewire:services-panel :client="$project->client" :project="$project" :key="'services-panel-'.$project->id" />
 

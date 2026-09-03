@@ -92,6 +92,28 @@ class ProjectSeeder extends Seeder
 
         $project->users()->attach(array_filter([$this->staff->id, $this->collaborator?->id]));
 
+        $maquetacion = $project->tasks()->create([
+            'title' => 'Maquetar las secciones internas',
+            'assigned_to_user_id' => $this->collaborator?->id ?? $this->staff->id,
+            'due_date' => now()->addDays(6)->toDateString(),
+        ]);
+        $maquetacion->subtasks()->createMany([
+            ['project_id' => $project->id, 'title' => 'Nosotros', 'completed_at' => now()->subDays(2)],
+            ['project_id' => $project->id, 'title' => 'Servicios'],
+            ['project_id' => $project->id, 'title' => 'Contacto'],
+        ]);
+
+        $project->tasks()->create([
+            'title' => 'Cargar los textos que mandó el cliente',
+            'assigned_to_user_id' => $this->staff->id,
+            'due_date' => now()->subDays(3)->toDateString(),
+        ]);
+
+        $project->tasks()->create([
+            'title' => 'Configurar el formulario de contacto',
+            'completed_at' => now()->subWeek(),
+        ]);
+
         /** El trabajo llegó por esta agencia: la relación es del cliente, y el proyecto la hereda. */
         $client->update(['agency_id' => Agency::where('name', 'Pixel Forge Studio')->firstOrFail()->id]);
 
