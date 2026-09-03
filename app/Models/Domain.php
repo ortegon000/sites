@@ -69,19 +69,19 @@ class Domain extends Model
     }
 
     /**
-     * Email can only be turned on for a domain that is tied to a project which
-     * includes email — either a dedicated email project or a web project that
-     * bundles it. A domain with no project has nothing to bill the mailboxes
-     * against, so it stays off.
+     * Que administremos el correo es propiedad del dominio y de nadie más.
+     *
+     * Antes esto exigía además un proyecto con `includes_email`, que tenía
+     * sentido cuando se asumía que todo cliente tenía proyecto. Los datos
+     * reales dijeron lo contrario: la mayoría de los dominios con buzones son
+     * de clientes que solo tienen hosting y renovación, sin proyecto abierto,
+     * y esa regla los dejaba con sus buzones invisibles. El `includes_email`
+     * del proyecto pasó de ser candado a ser el valor que se propone al dar de
+     * alta un dominio desde un proyecto.
      */
-    public function canManageEmail(): bool
-    {
-        return $this->project?->includes_email === true;
-    }
-
     public function managesEmail(): bool
     {
-        return $this->email_management === DomainEmailManagement::Managed && $this->canManageEmail();
+        return $this->email_management === DomainEmailManagement::Managed;
     }
 
     /**

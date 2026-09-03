@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\DomainEmailManagement;
 use App\Enums\UserRole;
 use App\Models\Client;
 use App\Models\Contact;
@@ -58,8 +59,10 @@ test('a domain whose email we do not manage is not listed in the portal', functi
     $client = Client::factory()->client()->create();
     $clientUser = User::factory()->client(portalEmailContactFor($client))->create();
 
-    $project = Project::factory()->for($client)->create(['includes_email' => false]);
-    $domain = Domain::factory()->for($client)->for($project)->withManagedEmail()->create();
+    $domain = Domain::factory()->for($client)->create([
+        'email_management' => DomainEmailManagement::NotManaged,
+        'email_notes' => 'Google Workspace del cliente',
+    ]);
 
     $this->actingAs($clientUser);
 

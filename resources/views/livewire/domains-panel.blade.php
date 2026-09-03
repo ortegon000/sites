@@ -5,12 +5,6 @@
         <flux:button size="sm" icon="plus" wire:click="openDomainModal">{{ __('Agregar dominio') }}</flux:button>
     </div>
 
-    @if ($project && ! $project->includes_email)
-        <flux:text class="text-xs text-zinc-400">
-            {{ __('Este proyecto no incluye correo, así que sus dominios solo se registran para seguimiento. Activa "Incluye correo" en el proyecto para poder administrar buzones.') }}
-        </flux:text>
-    @endif
-
     <div class="flex flex-col gap-4">
         @forelse ($this->domains as $domain)
             <div wire:key="domain-{{ $domain->id }}" class="flex flex-col gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">

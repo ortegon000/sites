@@ -27,27 +27,18 @@ test('the same domain name can be registered for two different clients', functio
         ->and(Domain::where('name', 'gmail.com')->count())->toBe(2);
 });
 
-test('email can only be managed on a domain whose project includes email', function () {
+test('managing email depends on the domain alone, with or without a project', function () {
     $client = Client::factory()->client()->create();
-    $webProject = Project::factory()->for($client)->create([
-        'type' => ProjectType::Web,
-        'includes_email' => true,
-    ]);
     $adsProject = Project::factory()->for($client)->create([
         'type' => ProjectType::Ads,
         'includes_email' => false,
     ]);
 
-    $withEmail = Domain::factory()->for($client)->for($webProject)->withManagedEmail()->create();
-    $withoutEmail = Domain::factory()->for($client)->for($adsProject)->withManagedEmail()->create();
     $orphan = Domain::factory()->for($client)->withManagedEmail()->create();
+    $onAdsProject = Domain::factory()->for($client)->for($adsProject)->withManagedEmail()->create();
 
-    expect($withEmail->canManageEmail())->toBeTrue()
-        ->and($withEmail->managesEmail())->toBeTrue()
-        ->and($withoutEmail->canManageEmail())->toBeFalse()
-        ->and($withoutEmail->managesEmail())->toBeFalse()
-        ->and($orphan->canManageEmail())->toBeFalse()
-        ->and($orphan->managesEmail())->toBeFalse();
+    expect($orphan->managesEmail())->toBeTrue()
+        ->and($onAdsProject->managesEmail())->toBeTrue();
 });
 
 test('a domain that is not set to managed email never manages email', function () {
@@ -62,8 +53,7 @@ test('a domain that is not set to managed email never manages email', function (
         'email_notes' => 'Google Workspace del cliente',
     ]);
 
-    expect($domain->canManageEmail())->toBeTrue()
-        ->and($domain->managesEmail())->toBeFalse();
+    expect($domain->managesEmail())->toBeFalse();
 });
 
 test('project types seed the includes_email flag', function () {

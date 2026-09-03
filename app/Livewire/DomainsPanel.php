@@ -6,11 +6,11 @@ use App\Actions\EmailAccounts\ChangeEmailAccountPassword;
 use App\Actions\EmailAccounts\DeleteEmailAccount;
 use App\Actions\EmailAccounts\ImportEmailAccounts;
 use App\Actions\EmailAccounts\ProvisionEmailAccount;
+use App\Enums\DomainCredentialKind;
 use App\Enums\DomainEmailManagement;
 use App\Enums\DomainManagement;
 use App\Enums\DomainStatus;
 use App\Enums\EmailProviderStatus;
-use App\Enums\DomainCredentialKind;
 use App\Models\Client;
 use App\Models\Domain;
 use App\Models\DomainCredential;
@@ -221,7 +221,10 @@ class DomainsPanel extends Component
             $this->registeredAt = null;
             $this->expiresAt = null;
             $this->autoRenew = true;
-            $this->emailManagement = DomainEmailManagement::NotManaged->value;
+            /** Un proyecto que incluye correo propone administrarlo; es una propuesta, no un candado. */
+            $this->emailManagement = $this->project?->includes_email
+                ? DomainEmailManagement::Managed->value
+                : DomainEmailManagement::NotManaged->value;
             $this->emailNotes = null;
             $this->domainStatus = DomainStatus::Activo->value;
         } else {
@@ -273,12 +276,6 @@ class DomainsPanel extends Component
         $linkedProject = $validated['domainProjectId'] === null
             ? null
             : $this->client->projects()->find((int) $validated['domainProjectId']);
-
-        if ($validated['emailManagement'] === DomainEmailManagement::Managed->value && $linkedProject?->includes_email !== true) {
-            $this->addError('emailManagement', __('El correo requiere un proyecto que lo incluya. Elige uno arriba, o activa "Incluye correo" en el proyecto.'));
-
-            return;
-        }
 
         $attributes = [
             'client_id' => $this->client->id,

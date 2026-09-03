@@ -486,6 +486,12 @@ Mata el libro del VPS. **Implementada.**
 - El libro **no trae el nombre de la empresa**, así que se deriva del dominio (`momat.com.mx` → "Momat"). Es una conjetura deliberada: es más rápido renombrar unos cuantos clientes después que capturar diecinueve a mano antes. Los nombres derivados tampoco coinciden con los del CSV de cobrables ("Geeaguasresiduales" contra "Gee"), así que al importar ese CSV habrá que unificar.
 - **Ninguno de los 19 dominios traía fecha de renovación**, aunque 14 sí tenían plan y 11 fecha de alta en el VPS. Eso explica por qué el archivo se revisaba a mano: no había dato del cual disparar un aviso. Hasta que esas fechas se capturen, el tablero de la Fase 12 no tendrá nada que avisar.
 
+**Una regla de la Fase 7 que los datos reales tumbaron**
+
+Se había definido que administrar el correo de un dominio exigía además un proyecto con `includes_email`. Tenía sentido cuando se asumía que todo cliente tenía proyecto. Al importar el libro real quedó claro que no: **once de los trece dominios con correo no tienen proyecto**, y la regla dejaba sus 59 buzones invisibles en la interfaz.
+
+Es el mismo argumento que ya había decidido dónde viven los accesos. Administrar el correo pasó a ser propiedad del dominio y de nadie más; el `includes_email` del proyecto dejó de ser candado y quedó como el valor que se **propone** al dar de alta un dominio desde un proyecto.
+
 ### Fase 10 — Abonos, cobros editables y agencias
 
 Desbloquea mover el CSV de cobrables.

@@ -46,20 +46,50 @@ test('staff can add a domain to a project', function () {
         ->and($project->domains()->first()->client_id)->toBe($project->client_id);
 });
 
-test('a domain cannot manage email when its project does not include email', function () {
+test('a project that includes email proposes managing it, without forcing the choice', function () {
     $staff = User::factory()->staff()->create();
-    $project = Project::factory()->create(['includes_email' => false]);
+    $withEmail = Project::factory()->create(['includes_email' => true]);
+    $withoutEmail = Project::factory()->for($withEmail->client)->create(['includes_email' => false]);
 
     $this->actingAs($staff);
 
-    Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
+    Livewire::test(DomainsPanel::class, ['client' => $withEmail->client, 'project' => $withEmail])
         ->call('openDomainModal')
-        ->set('domainName', 'acme.com')
+        ->assertSet('emailManagement', DomainEmailManagement::Managed->value);
+
+    Livewire::test(DomainsPanel::class, ['client' => $withoutEmail->client, 'project' => $withoutEmail])
+        ->call('openDomainModal')
+        ->assertSet('emailManagement', DomainEmailManagement::NotManaged->value);
+});
+
+test('a hosting-only domain with no project can still manage its mailboxes', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $provider = EmailProvider::factory()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test(DomainsPanel::class, ['client' => $client])
+        ->call('openDomainModal')
+        ->set('domainName', 'solo-hosting.test')
         ->set('emailManagement', DomainEmailManagement::Managed->value)
         ->call('saveDomain')
-        ->assertHasErrors('emailManagement');
+        ->assertHasNoErrors();
 
-    expect($project->domains()->count())->toBe(0);
+    $domain = $client->domains()->firstOrFail();
+
+    expect($domain->project_id)->toBeNull()
+        ->and($domain->managesEmail())->toBeTrue();
+
+    Livewire::test(DomainsPanel::class, ['client' => $client])
+        ->call('openEmailModal', $domain->id)
+        ->set('emailProviderIdToAssign', $provider->id)
+        ->set('newEmailAddress', 'hola@solo-hosting.test')
+        ->set('newEmailPassword', 'password123')
+        ->call('provisionEmailAccount')
+        ->assertHasNoErrors();
+
+    expect($domain->emailAccounts()->count())->toBe(1);
 });
 
 test('staff can provision an email account on a domain', function () {
