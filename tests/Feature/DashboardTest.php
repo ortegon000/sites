@@ -7,7 +7,9 @@ use App\Enums\ProjectStatus;
 use App\Models\Charge;
 use App\Models\Client;
 use App\Models\ClientNote;
+use App\Models\Domain;
 use App\Models\Project;
+use App\Models\Renewal;
 use App\Models\Service;
 use App\Models\User;
 use Livewire\Livewire;
@@ -132,4 +134,49 @@ test('el dashboard lista el cobro de una línea suelta, que no tiene proyecto', 
         ->assertOk()
         ->assertSee('Cliente Suelto')
         ->assertSee('Renovación anual');
+});
+
+test('el dashboard muestra lo que caduca en el próximo mes', function () {
+    $admin = User::factory()->admin()->create();
+    $client = Client::factory()->client()->create(['name' => 'Clínica Sur']);
+
+    $domain = Domain::factory()->for($client)->create(['name' => 'clinica-sur.test']);
+
+    Renewal::factory()->create([
+        'client_id' => $client->id,
+        'renewable_type' => Domain::class,
+        'renewable_id' => $domain->id,
+        'due_date' => today()->addDays(12)->toDateString(),
+    ]);
+
+    /** Fuera de la ventana del mes: existe, pero todavía no es asunto de hoy. */
+    $farDomain = Domain::factory()->for($client)->create(['name' => 'lejano.test']);
+
+    Renewal::factory()->create([
+        'client_id' => $client->id,
+        'renewable_type' => Domain::class,
+        'renewable_id' => $farDomain->id,
+        'due_date' => today()->addDays(120)->toDateString(),
+    ]);
+
+    $this->actingAs($admin);
+
+    $this->get(route('dashboard'))
+        ->assertOk()
+        ->assertSee('Caduca pronto (30 días)')
+        ->assertSee('clinica-sur.test')
+        ->assertDontSee('lejano.test');
+});
+
+test('la actividad reciente de un prospecto enlaza a su propia URL', function () {
+    $admin = User::factory()->admin()->create();
+    $prospect = Client::factory()->prospect()->create(['name' => 'Prospecto Nuevo']);
+
+    ClientNote::factory()->for($prospect)->create(['user_id' => $admin->id, 'body' => 'Primera llamada.']);
+
+    $this->actingAs($admin);
+
+    $this->get(route('dashboard'))
+        ->assertOk()
+        ->assertSee(route('prospects.show', $prospect), escape: false);
 });

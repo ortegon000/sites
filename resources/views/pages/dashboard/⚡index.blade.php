@@ -4,10 +4,12 @@ use App\Enums\ChargeStatus;
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
 use App\Enums\ProjectStatus;
+use App\Enums\RenewalStatus;
 use App\Models\Charge;
 use App\Models\Client;
 use App\Models\ClientNote;
 use App\Models\Project;
+use App\Models\Renewal;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
@@ -64,11 +66,41 @@ new class extends Component
     public function upcomingCharges()
     {
         return Charge::query()
-            ->whereIn('status', ChargeStatus::open())
+            /** Vencido no cabe en esta ventana: un cobro se marca vencido cuando
+             *  su fecha ya pasó, y aquí solo entran las que están por venir. */
+            ->whereIn('status', [ChargeStatus::Pendiente, ChargeStatus::Parcial])
             ->whereBetween('due_date', [today(), today()->addDays(7)])
             ->with(['service.client', 'service.project', 'payments'])
             ->orderBy('due_date')
             ->get();
+    }
+
+    /**
+     * Lo que caduca pronto. Un dominio o una licencia no generan cobro hasta
+     * que alguien decide renovarlos, así que sin esta tarjeta lo que vence no
+     * aparecía en ningún lado del dashboard.
+     *
+     * @return Collection<int, Renewal>
+     */
+    #[Computed]
+    public function upcomingRenewals()
+    {
+        return Renewal::query()
+            ->whereIn('status', RenewalStatus::open())
+            ->whereDate('due_date', '<=', today()->addDays(30))
+            ->with(['client', 'renewable'])
+            ->orderBy('due_date')
+            ->limit(6)
+            ->get();
+    }
+
+    #[Computed]
+    public function openRenewalsCount(): int
+    {
+        return Renewal::query()
+            ->whereIn('status', RenewalStatus::open())
+            ->whereDate('due_date', '<=', today()->addDays(30))
+            ->count();
     }
 
     /**
@@ -190,26 +222,64 @@ new class extends Component
                 </flux:table>
             </flux:card>
 
-            <flux:card class="flex flex-col gap-4">
-                <flux:heading size="lg">{{ __('Actividad reciente') }}</flux:heading>
+            <div class="flex flex-col gap-6">
+                <flux:card class="flex flex-col gap-4">
+                    <div class="flex items-center justify-between gap-4">
+                        <flux:heading size="lg">{{ __('Caduca pronto (30 días)') }}</flux:heading>
 
-                <div class="flex flex-col gap-3">
-                    @forelse ($this->recentActivity as $note)
-                        <div wire:key="activity-{{ $note->id }}" class="flex flex-col gap-1 border-b border-zinc-100 pb-3 text-sm last:border-0 dark:border-zinc-700">
-                            <div class="flex items-center justify-between">
-                                <flux:link :href="route('clients.show', $note->client)" wire:navigate>
-                                    {{ $note->client->name }}
-                                </flux:link>
-                                <span class="text-xs text-zinc-400">{{ $note->created_at->diffForHumans() }}</span>
+                        @if ($this->openRenewalsCount > 0)
+                            <flux:link class="text-sm" :href="route('renewals.index')" wire:navigate>
+                                {{ __('Ver las :count', ['count' => $this->openRenewalsCount]) }}
+                            </flux:link>
+                        @endif
+                    </div>
+
+                    <div class="flex flex-col gap-3">
+                        @forelse ($this->upcomingRenewals as $renewal)
+                            <div wire:key="upcoming-renewal-{{ $renewal->id }}" class="flex items-start justify-between gap-4 border-b border-zinc-100 pb-3 text-sm last:border-0 dark:border-zinc-700">
+                                <div class="flex flex-col">
+                                    <span>{{ $renewal->subject() }}</span>
+                                    <span class="text-xs text-zinc-400">
+                                        {{ $renewal->kindLabel() }} · {{ $renewal->client->name }}
+                                    </span>
+                                </div>
+
+                                <div class="flex shrink-0 flex-col items-end gap-1">
+                                    <flux:badge size="sm" :color="$renewal->status->color()">{{ $renewal->status->label() }}</flux:badge>
+                                    <span class="text-xs {{ $renewal->daysLeft() < 0 ? 'text-red-500' : 'text-zinc-400' }}">
+                                        {{ $renewal->daysLeft() < 0
+                                            ? __('venció hace :days días', ['days' => abs($renewal->daysLeft())])
+                                            : __('en :days días', ['days' => $renewal->daysLeft()]) }}
+                                    </span>
+                                </div>
                             </div>
-                            <span class="text-zinc-400">{{ $note->author?->name ?? __('Sistema') }} · {{ $note->type->label() }}</span>
-                            <span>{{ \Illuminate\Support\Str::limit($note->body, 120) }}</span>
-                        </div>
-                    @empty
-                        <flux:text class="text-zinc-400">{{ __('Sin actividad reciente.') }}</flux:text>
-                    @endforelse
-                </div>
-            </flux:card>
+                        @empty
+                            <flux:text class="text-zinc-400">{{ __('Nada por renovar en el próximo mes.') }}</flux:text>
+                        @endforelse
+                    </div>
+                </flux:card>
+
+                <flux:card class="flex flex-col gap-4">
+                    <flux:heading size="lg">{{ __('Actividad reciente') }}</flux:heading>
+
+                    <div class="flex flex-col gap-3">
+                        @forelse ($this->recentActivity as $note)
+                            <div wire:key="activity-{{ $note->id }}" class="flex flex-col gap-1 border-b border-zinc-100 pb-3 text-sm last:border-0 dark:border-zinc-700">
+                                <div class="flex items-center justify-between">
+                                    <flux:link :href="route($note->client->type === ClientType::Prospect ? 'prospects.show' : 'clients.show', $note->client)" wire:navigate>
+                                        {{ $note->client->name }}
+                                    </flux:link>
+                                    <span class="text-xs text-zinc-400">{{ $note->created_at->diffForHumans() }}</span>
+                                </div>
+                                <span class="text-zinc-400">{{ $note->author?->name ?? __('Sistema') }} · {{ $note->type->label() }}</span>
+                                <span>{{ \Illuminate\Support\Str::limit($note->body, 120) }}</span>
+                            </div>
+                        @empty
+                            <flux:text class="text-zinc-400">{{ __('Sin actividad reciente.') }}</flux:text>
+                        @endforelse
+                    </div>
+                </flux:card>
+            </div>
         </div>
     @else
         <div class="grid gap-4 sm:grid-cols-2">
