@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ContractPrintController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'verified', 'role:admin,staff'])->group(function () {
@@ -12,6 +13,8 @@ Route::middleware(['auth', 'verified', 'role:admin,staff'])->group(function () {
     Route::livewire('trabajos', 'pages::billables.index')->name('billables.index');
     Route::livewire('renovaciones', 'pages::renewals.index')->name('renewals.index');
     Route::livewire('cotizaciones', 'pages::quotes.index')->name('quotes.index');
+    Route::livewire('contratos', 'pages::contracts.index')->name('contracts.index');
+    Route::get('contratos/{contract}/imprimir', ContractPrintController::class)->name('contracts.print');
 });
 
 Route::middleware(['auth', 'verified', 'role:admin,staff,collaborator'])->group(function () {

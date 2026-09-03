@@ -42,6 +42,9 @@
                         <flux:sidebar.item icon="arrow-path" :href="route('renewals.index')" :current="request()->routeIs('renewals.*')" wire:navigate>
                             {{ __('Renovaciones') }}
                         </flux:sidebar.item>
+                        <flux:sidebar.item icon="document-check" :href="route('contracts.index')" :current="request()->routeIs('contracts.*')" wire:navigate>
+                            {{ __('Contratos') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="briefcase" :href="route('projects.index')" :current="request()->routeIs('projects.*')" wire:navigate>
                             {{ __('Proyectos') }}
                         </flux:sidebar.item>

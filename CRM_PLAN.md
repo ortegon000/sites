@@ -4,15 +4,15 @@
 
 ## Para retomar en otra conversación
 
-**Dónde estamos.** Fases 0 a 13 implementadas (la 5 sigue a medias: falta un driver de correo real). El modelo cubre clientes y contactos, dominios con buzones y accesos, licencias, campañas, líneas cobrables con o sin proyecto, cobros con abonos, agencias, portal y notificaciones. El libro de hosting del dueño ya está importado: 19 clientes, 19 dominios, 59 buzones, 23 accesos.
+**Dónde estamos.** Fases 0 a 14 implementadas (la 5 sigue a medias: falta un driver de correo real). El modelo cubre clientes y contactos, dominios con buzones y accesos, licencias, campañas, líneas cobrables con o sin proyecto, cobros con abonos, agencias, portal y notificaciones. El libro de hosting del dueño ya está importado: 19 clientes, 19 dominios, 59 buzones, 23 accesos.
 
-**Qué sigue.** La **Fase 14 (contratos)**, la última planeada: con activos, servicios, montos, vigencias y entregas ya en el sistema, el contrato es un documento generable. Ojo con el pendiente del dueño: el tablero de renovaciones ya existe, pero sin fechas de renovación capturadas no tiene nada que avisar.
+**Qué sigue.** La hoja de ruta original está terminada. Lo que queda son dos cosas: **cerrar la Fase 5** conectando un driver de correo real (MXroute primero) cuando haya credenciales de su API, y los **pendientes del dueño**, que no son de código. El más importante: sin fechas de renovación capturadas, el tablero de la Fase 12 no tiene nada que avisar.
 
 **Antes de empezar, leer** la sección "Modelo objetivo y hoja de ruta (Fases 9+)": explica la distinción entre activo, trabajo y servicio recurrente, y por qué el modelo actual hay que aflojarlo en dos puntos —el proyecto obligatorio en los servicios y el cobro binario— en vez de rehacerlo.
 
 **Pendientes del dueño, no de código**: renombrar los 19 clientes importados (quedaron derivados del dominio, como "Geeaguasresiduales"), capturar las fechas de renovación que su hoja no traía en ninguna fila, y rotar las contraseñas que estuvieron en texto plano en el archivo.
 
-**Verificación en cada fase**: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`, y revisión en `https://sites.test`. Al cierre de la Fase 13: 224 tests, 222 pasan, 2 se saltan.
+**Verificación en cada fase**: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`, y revisión en `https://sites.test`. Al cierre de la Fase 14: 233 tests, 231 pasan, 2 se saltan.
 
 ## Estado actual
 
@@ -29,7 +29,8 @@
 - ✅ **Fase 11 — Líneas sueltas, subtareas y campañas del cliente**: completa. El proyecto deja de ser obligatorio para cobrar, la ficha del cliente gana captura rápida, los servicios llevan subtareas, aparece la frecuencia quincenal y el menú de Proyectos cede el paso a "Trabajos y cobros".
 - ✅ **Fase 12 — Renovaciones**: completa. Tablero unificado de caducidades, ciclo explícito con su historial por vencimiento, y aviso automático al cliente con enlace al portal.
 - ✅ **Fase 13 — Cotizaciones**: completa. El trabajo ofrecido tiene entidad y estatus propios, no genera cobros mientras nadie lo acepta, y al aceptarse genera su línea cobrable y gana al prospecto.
-- 🔶 **Fases 9–14 — Centralizar los tres Excel**: de la 9 a la 13 completas, la 14 planeada. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
+- ✅ **Fase 14 — Contratos**: completa. El contrato se genera con lo que ya está capturado, se edita mientras es borrador, se congela al firmarse y se imprime.
+- ✅ **Fases 9–14 — Centralizar los tres Excel**: completas. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
 
@@ -595,9 +596,19 @@ Su CSV tiene filas en estatus *Pendiente* sin costo, con el precio escrito en No
 
 **Un fallo que esta fase destapó en el dashboard**: la tabla de próximos cobros enlazaba al proyecto del servicio, que desde la Fase 11 puede no existir, así que el dashboard devolvía 500 en cuanto una línea suelta entraba a la ventana de siete días. Ahora ancla en el cliente y muestra el proyecto solo cuando lo hay. Es la tercera aparición del mismo descuido —notificaciones, corrida diaria y dashboard—: cualquier código que toque `service->project` tiene que asumir que puede ser nulo.
 
-### Fase 14 — Contratos
+### Fase 14 — Contratos ✅
 
-Con activos, servicios, montos, vigencias y entregas ya en el sistema, el contrato es un documento generable. No antes: sin las fases anteriores no hay de dónde sacarlo.
+Con activos, servicios, montos, vigencias y entregas ya en el sistema, el contrato es un documento generable. No antes: sin las fases anteriores no hay de dónde sacarlo. **Implementada.**
+
+**Lo que se construyó**
+
+- **`contracts`** con folio consecutivo por año (`CT-2026-0001`), vigencia, estatus y el pivote de los servicios que ampara. El contrato **guarda su texto completo**, no solo sus datos: si el servicio sube de precio el mes que entra, lo firmado tiene que seguir diciendo lo que se firmó.
+- **`DraftContract`** arma el borrador desde la plantilla `resources/views/contracts/default.blade.php` con los servicios elegidos, sus montos separados en recurrentes y de pago único, las subtareas como entregables y el contacto principal como representante. A partir de ahí el texto se edita en el contrato, no en la plantilla.
+- **Firmar congela**: un contrato firmado deja de ser editable y su modal pasa a solo lectura, porque el documento que se firmó es el que vale.
+- **Versión imprimible** en `/contratos/{id}/imprimir`: una hoja limpia con su propio layout, sin la barra lateral, que el navegador guarda como PDF. Los borradores llevan un aviso —que no se imprime— de que la plantilla es un punto de partida y conviene revisarla con un abogado.
+- **Listado `/contratos`** con lo vigente, lo que espera firma y lo que termina en 60 días.
+
+**Dos decisiones que se tomaron por defecto**, por si el dueño las quiere distintas: se eligió **página imprimible en vez de PDF generado en el servidor**, porque un PDF de verdad exige una dependencia nueva (`dompdf` o similar) y el proyecto no cambia dependencias sin aprobación; y la **plantilla es editable por contrato, no globalmente**: se genera una vez y se ajusta ahí. Una plantilla configurable desde la interfaz sería lo siguiente si acaba escribiendo lo mismo cada vez.
 
 ### Fuera de alcance por ahora
 

@@ -103,6 +103,14 @@ class Client extends Model
     }
 
     /**
+     * @return HasMany<Contract, $this>
+     */
+    public function contracts(): HasMany
+    {
+        return $this->hasMany(Contract::class);
+    }
+
+    /**
      * Lo cotizado y todavía no aceptado: existe antes que cualquier cobro.
      *
      * @return HasMany<Quote, $this>

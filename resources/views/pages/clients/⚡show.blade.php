@@ -371,6 +371,8 @@ new class extends Component {
                 <livewire:campaigns-panel :client="$client" :key="'campaigns-panel-client-'.$client->id" />
 
                 <livewire:client-licenses :client="$client" :key="'client-licenses-'.$client->id" />
+
+                <livewire:contracts-panel :client="$client" :key="'contracts-panel-client-'.$client->id" />
             @endif
         </div>
     </div>

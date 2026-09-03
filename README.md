@@ -22,6 +22,8 @@ El **cobro no es binario**: cada `Charge` lleva sus abonos (`ChargePayment`) y s
 
 La **agencia es de dónde viene el trabajo y quién paga**: cada una declara si se le factura a ella o al cliente final, y el listado reporta por agencia cuánto se cobró y cuánto falta.
 
+El **contrato** se genera, no se captura: sale de los servicios, montos, vigencias y entregables que ya están en el sistema, y guarda su texto completo —no solo sus datos—, porque si el servicio sube de precio el mes que entra, lo firmado tiene que seguir diciendo lo que se firmó. Se edita mientras es borrador y queda congelado al firmarse. La versión imprimible es una página limpia que el navegador guarda como PDF; generar un PDF del lado del servidor necesitaría una dependencia nueva.
+
 Lo **cotizado** existe antes que el cobro: una `Quote` es trabajo ofrecido y sin aceptar, no genera ningún cargo, y al aceptarse nace su línea cobrable —y, si quien aceptó era un prospecto, se marca como ganado—. Una cotización enviada expira sola al pasar su vigencia.
 
 Lo que **caduca** —dominios, licencias y servicios anuales— abre un ciclo de renovación con estado propio: por avisar → avisado → renovó (que genera la línea cobrable y empuja la fecha un año) → no renovó (que da de baja). El aviso sale al cliente por correo con enlace a su portal, nunca con credenciales en el cuerpo.
@@ -44,7 +46,7 @@ El razonamiento completo detrás de estas decisiones está en **[CRM_PLAN.md](CR
 - ✅ Fase 11 — Líneas cobrables sin proyecto, subtareas, cobro quincenal y vista de trabajos y cobros
 - ✅ Fase 12 — Renovaciones: tablero de caducidades, ciclo explícito y aviso automático al cliente
 - ✅ Fase 13 — Cotizaciones: el trabajo ofrecido existe antes del cobro y se vuelve línea cobrable al aceptarse
-- 📋 Fase 14 — Contratos
+- ✅ Fase 14 — Contratos: se generan con los servicios y montos ya capturados, se editan y se imprimen
 
 ## Desarrollo local
 
