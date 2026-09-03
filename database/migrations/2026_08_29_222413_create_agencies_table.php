@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('contact_name')->nullable();
             $table->string('email')->nullable();
             $table->string('phone')->nullable();
+            $table->string('billing_target');
             $table->string('status');
             $table->timestamps();
             $table->softDeletes();

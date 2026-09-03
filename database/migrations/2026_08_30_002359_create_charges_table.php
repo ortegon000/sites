@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('service_id')->constrained()->cascadeOnDelete();
             $table->foreignId('service_installment_id')->nullable()->unique()->constrained()->nullOnDelete();
+            $table->string('concept')->nullable();
             $table->decimal('amount', 10, 2);
             $table->char('currency', 3);
             $table->string('status');

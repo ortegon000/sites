@@ -143,8 +143,7 @@ test('assigning an agency to a client links all of its existing projects to that
         ->assertHasNoErrors();
 
     expect($project->fresh()->agencies)->toHaveCount(1)
-        ->and($project->fresh()->agencies->first()->id)->toBe($agency->id)
-        ->and($project->fresh()->agencies->first()->pivot->billing_direction)->toBeNull();
+        ->and($project->fresh()->agencies->first()->id)->toBe($agency->id);
 });
 
 test('admin can add a note and change a prospect status to ganado, converting it to a client', function () {

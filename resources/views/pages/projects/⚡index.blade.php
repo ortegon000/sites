@@ -7,6 +7,7 @@ use App\Enums\ProjectStatus;
 use App\Enums\ProjectType;
 use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceCategory;
+use App\Models\Agency;
 use App\Models\Client;
 use App\Models\Project;
 use Flux\Flux;
@@ -27,6 +28,8 @@ new class extends Component {
     public ?string $statusFilter = null;
 
     public ?string $typeFilter = null;
+
+    public ?int $agencyFilter = null;
 
     public ?int $editingProjectId = null;
 
@@ -115,6 +118,17 @@ new class extends Component {
         ], $type->serviceTemplate());
     }
 
+    /**
+     * La agencia es la primera columna de la hoja del dueño: "en qué anda lo de
+     * AgenciaEfe5" se contesta filtrando aquí. Solo la ven admin y staff, que
+     * son quienes tienen acceso a las agencias.
+     */
+    #[Computed]
+    public function agencyOptions()
+    {
+        return Agency::query()->orderBy('name')->get();
+    }
+
     #[Computed]
     public function clientOptions()
     {
@@ -130,6 +144,7 @@ new class extends Component {
             ->when($this->search, fn ($query) => $query->where('name', 'like', "%{$this->search}%"))
             ->when($this->statusFilter, fn ($query) => $query->where('status', $this->statusFilter))
             ->when($this->typeFilter, fn ($query) => $query->where('type', $this->typeFilter))
+            ->when($this->agencyFilter, fn ($query) => $query->whereHas('agencies', fn ($q) => $q->whereKey($this->agencyFilter)))
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->paginate(15);
@@ -261,6 +276,15 @@ new class extends Component {
                 <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
             @endforeach
         </flux:select>
+
+        @if (auth()->user()->isAdmin() || auth()->user()->isStaff())
+            <flux:select wire:model.live="agencyFilter" :placeholder="__('Todas las agencias')" class="max-w-xs">
+                <flux:select.option value="">{{ __('Todas las agencias') }}</flux:select.option>
+                @foreach ($this->agencyOptions as $agency)
+                    <flux:select.option value="{{ $agency->id }}">{{ $agency->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        @endif
     </div>
 
     <flux:table :paginate="$this->projects">

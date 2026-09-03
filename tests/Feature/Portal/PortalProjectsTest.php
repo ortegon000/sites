@@ -59,7 +59,7 @@ test('client can view their own project detail with services and charges', funct
     Livewire::test('pages::portal.projects.show', ['project' => $project])
         ->assertSee('Sitio propio')
         ->assertSee('Hosting anual')
-        ->assertSee('1234');
+        ->assertSee('1,234.00');
 });
 
 test('client cannot view another client\'s project detail', function () {

@@ -1,8 +1,12 @@
 <?php
 
+use App\Enums\AgencyBillingTarget;
 use App\Enums\AgencyStatus;
+use App\Enums\ChargeStatus;
+use App\Enums\ProjectStatus;
 use App\Models\Agency;
 use Flux\Flux;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
@@ -18,6 +22,8 @@ new class extends Component {
 
     public ?string $statusFilter = null;
 
+    public ?string $billingTargetFilter = null;
+
     public ?int $editingAgencyId = null;
 
     public string $name = '';
@@ -27,6 +33,8 @@ new class extends Component {
     public ?string $email = null;
 
     public ?string $phone = null;
+
+    public string $billing_target = '';
 
     public string $status = '';
 
@@ -44,6 +52,15 @@ new class extends Component {
         return AgencyStatus::cases();
     }
 
+    /**
+     * @return array<int, AgencyBillingTarget>
+     */
+    #[Computed]
+    public function billingTargetOptions(): array
+    {
+        return AgencyBillingTarget::cases();
+    }
+
     #[Computed]
     public function agencies()
     {
@@ -53,9 +70,51 @@ new class extends Component {
                 ->orWhere('contact_name', 'like', "%{$this->search}%")
                 ->orWhere('email', 'like', "%{$this->search}%")))
             ->when($this->statusFilter, fn ($query) => $query->where('status', $this->statusFilter))
+            ->when($this->billingTargetFilter, fn ($query) => $query->where('billing_target', $this->billingTargetFilter))
+            ->withCount([
+                'clients',
+                'projects as active_projects_count' => fn ($query) => $query->where('status', ProjectStatus::Activo),
+            ])
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->paginate(15);
+    }
+
+    /**
+     * Lo cobrado y lo que falta por cobrar de cada agencia de la página, en una
+     * sola consulta. La agencia es la primera columna de la hoja del dueño, así
+     * que el listado tiene que contestar "cuánto me deben por aquí" sin abrir
+     * proyecto por proyecto.
+     *
+     * @return array<int, object{collected: float, pending: float}>
+     */
+    #[Computed]
+    public function chargeTotals(): array
+    {
+        $agencyIds = collect($this->agencies->items())->pluck('id');
+
+        if ($agencyIds->isEmpty()) {
+            return [];
+        }
+
+        $paidPerCharge = DB::table('charge_payments')
+            ->selectRaw('charge_id, sum(amount) as paid')
+            ->groupBy('charge_id');
+
+        return DB::table('agency_project')
+            ->join('projects', 'projects.id', '=', 'agency_project.project_id')
+            ->join('services', 'services.project_id', '=', 'projects.id')
+            ->join('charges', 'charges.service_id', '=', 'services.id')
+            ->leftJoinSub($paidPerCharge, 'payments', 'payments.charge_id', '=', 'charges.id')
+            ->whereIn('agency_project.agency_id', $agencyIds)
+            ->whereNull('projects.deleted_at')
+            ->groupBy('agency_project.agency_id')
+            ->selectRaw('agency_project.agency_id')
+            ->selectRaw('coalesce(sum(payments.paid), 0) as collected')
+            ->selectRaw('coalesce(sum(case when charges.status = ? then 0 else charges.amount - coalesce(payments.paid, 0) end), 0) as pending', [ChargeStatus::Pagado->value])
+            ->get()
+            ->keyBy('agency_id')
+            ->all();
     }
 
     public function openCreateModal(): void
@@ -63,6 +122,7 @@ new class extends Component {
         Gate::authorize('create', Agency::class);
 
         $this->reset(['editingAgencyId', 'name', 'contact_name', 'email', 'phone']);
+        $this->billing_target = AgencyBillingTarget::Client->value;
         $this->status = AgencyStatus::Activa->value;
         $this->resetValidation();
 
@@ -80,6 +140,7 @@ new class extends Component {
         $this->contact_name = $agency->contact_name;
         $this->email = $agency->email;
         $this->phone = $agency->phone;
+        $this->billing_target = $agency->billing_target->value;
         $this->status = $agency->status->value;
         $this->resetValidation();
 
@@ -97,6 +158,7 @@ new class extends Component {
             'contact_name' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
+            'billing_target' => ['required', Rule::enum(AgencyBillingTarget::class)],
             'status' => ['required', Rule::enum(AgencyStatus::class)],
         ]);
 
@@ -151,12 +213,22 @@ new class extends Component {
                 <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
             @endforeach
         </flux:select>
+
+        <flux:select wire:model.live="billingTargetFilter" :placeholder="__('Se factura a cualquiera')" class="max-w-xs">
+            <flux:select.option value="">{{ __('Se factura a cualquiera') }}</flux:select.option>
+            @foreach ($this->billingTargetOptions as $option)
+                <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
+            @endforeach
+        </flux:select>
     </div>
 
     <flux:table :paginate="$this->agencies">
         <flux:table.columns>
             <flux:table.column>{{ __('Nombre') }}</flux:table.column>
             <flux:table.column>{{ __('Contacto') }}</flux:table.column>
+            <flux:table.column>{{ __('Se factura') }}</flux:table.column>
+            <flux:table.column>{{ __('Clientes / proyectos') }}</flux:table.column>
+            <flux:table.column>{{ __('Cobrado / por cobrar') }}</flux:table.column>
             <flux:table.column>{{ __('Estatus') }}</flux:table.column>
             <flux:table.column></flux:table.column>
         </flux:table.columns>
@@ -169,6 +241,23 @@ new class extends Component {
                         <div class="flex flex-col">
                             <span>{{ $agency->contact_name ?? '—' }}</span>
                             <span class="text-zinc-400">{{ $agency->email ?? $agency->phone }}</span>
+                        </div>
+                    </flux:table.cell>
+                    <flux:table.cell>
+                        <flux:badge size="sm" :color="$agency->billing_target === \App\Enums\AgencyBillingTarget::Agency ? 'blue' : 'zinc'">
+                            {{ $agency->billing_target->label() }}
+                        </flux:badge>
+                    </flux:table.cell>
+                    <flux:table.cell>
+                        {{ $agency->clients_count }} / {{ $agency->active_projects_count }}
+                    </flux:table.cell>
+                    <flux:table.cell>
+                        @php ($totals = $this->chargeTotals[$agency->id] ?? null)
+                        <div class="flex flex-col">
+                            <span>{{ number_format((float) ($totals->collected ?? 0), 2) }}</span>
+                            <span class="text-xs {{ ($totals->pending ?? 0) > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-zinc-400' }}">
+                                {{ __('por cobrar :amount', ['amount' => number_format((float) ($totals->pending ?? 0), 2)]) }}
+                            </span>
                         </div>
                     </flux:table.cell>
                     <flux:table.cell>
@@ -185,7 +274,7 @@ new class extends Component {
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="4" class="text-center text-zinc-400">
+                    <flux:table.cell colspan="7" class="text-center text-zinc-400">
                         {{ __('Sin resultados.') }}
                     </flux:table.cell>
                 </flux:table.row>
@@ -203,6 +292,13 @@ new class extends Component {
             <flux:input wire:model="contact_name" :label="__('Persona de contacto')" />
             <flux:input wire:model="email" type="email" :label="__('Correo')" />
             <flux:input wire:model="phone" :label="__('Teléfono')" />
+
+            <flux:select wire:model="billing_target" :label="__('Se factura a')"
+                :description="__('De dónde viene el trabajo y a quién se le cobra.')">
+                @foreach ($this->billingTargetOptions as $option)
+                    <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
+                @endforeach
+            </flux:select>
 
             <flux:select wire:model="status" :label="__('Estatus')">
                 @foreach ($this->statusOptions as $option)

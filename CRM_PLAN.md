@@ -4,15 +4,15 @@
 
 ## Para retomar en otra conversación
 
-**Dónde estamos.** Fases 0 a 9 implementadas (la 5 sigue a medias: falta un driver de correo real). El modelo cubre clientes y contactos, dominios con buzones y accesos, licencias, proyectos → servicios → cobros, agencias, portal y notificaciones. El libro de hosting del dueño ya está importado: 19 clientes, 19 dominios, 59 buzones, 23 accesos.
+**Dónde estamos.** Fases 0 a 10 implementadas (la 5 sigue a medias: falta un driver de correo real). El modelo cubre clientes y contactos, dominios con buzones y accesos, licencias, proyectos → servicios → cobros con abonos, agencias, portal y notificaciones. El libro de hosting del dueño ya está importado: 19 clientes, 19 dominios, 59 buzones, 23 accesos.
 
-**Qué sigue.** La **Fase 10 (abonos y pagos parciales)**, descrita más abajo. Es la que desbloquea todo lo demás: sin poder registrar "$12,914 de $24,000" no se puede mover el CSV de líneas cobrables, que es el archivo que el dueño usa a diario.
+**Qué sigue.** La **Fase 11 (líneas sueltas y subtareas)**, descrita más abajo. Con los abonos ya en su lugar, es lo que falta para mover el CSV de líneas cobrables: aflojar el proyecto obligatorio en los servicios, la captura rápida en la ficha del cliente y las subtareas.
 
 **Antes de empezar, leer** la sección "Modelo objetivo y hoja de ruta (Fases 9+)": explica la distinción entre activo, trabajo y servicio recurrente, y por qué el modelo actual hay que aflojarlo en dos puntos —el proyecto obligatorio en los servicios y el cobro binario— en vez de rehacerlo.
 
 **Pendientes del dueño, no de código**: renombrar los 19 clientes importados (quedaron derivados del dominio, como "Geeaguasresiduales"), capturar las fechas de renovación que su hoja no traía en ninguna fila, y rotar las contraseñas que estuvieron en texto plano en el archivo.
 
-**Verificación en cada fase**: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`, y revisión en `https://sites.test`. Al cierre de la Fase 9: 178 tests, 176 pasan, 2 se saltan.
+**Verificación en cada fase**: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`, y revisión en `https://sites.test`. Al cierre de la Fase 10: 190 tests, 188 pasan, 2 se saltan.
 
 ## Estado actual
 
@@ -25,7 +25,8 @@
 - ✅ **Fase 6 — Dashboard interno**: completa (KPIs financieros y próximos cobros/actividad reciente para admin/staff, resumen de proyectos asignados sin datos financieros para collaborator).
 - ✅ **Fase 7 — Dominios, tipos de proyecto y campañas de ads**: completa. Introduce la tabla `domains` (dueño: el cliente), mueve las cuentas de correo de `clients` a `domains`, agrega `ProjectType` como plantilla, `ServiceCategory`, frecuencias trimestral/semestral, proveedor de correo `manual` con contraseñas cifradas, importación de buzones existentes y campañas de ads.
 - ✅ **Fase 8 — Contactos como entidad propia**: completa. Separa a la persona de la empresa: `contacts` con pivot `client_contact`, para que un dueño de varias empresas se escriba una sola vez y entre al portal con un solo acceso.
-- 🔶 **Fases 9–14 — Centralizar los tres Excel**: la 9 completa, el resto planeadas. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
+- ✅ **Fase 10 — Abonos, cobros editables y agencias**: completa. El cobro deja de ser binario (abonos, estatus derivado y restante), se pueden editar monto, fecha y concepto, y la agencia pasa a declarar a quién se le factura, con filtros y reporte de cobrado/por cobrar.
+- 🔶 **Fases 9–14 — Centralizar los tres Excel**: la 9 y la 10 completas, el resto planeadas. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
 
@@ -517,13 +518,26 @@ Resolución en dos tiempos:
 
 El problema no es que Proyectos tenga menú: es que es el menú equivocado.
 
-### Fase 10 — Abonos, cobros editables y agencias
+### Fase 10 — Abonos, cobros editables y agencias ✅
 
-Desbloquea mover el CSV de cobrables.
+Desbloquea mover el CSV de cobrables. **Implementada.**
 
 - **`charge_payments`**: `charge_id`, `amount`, `paid_on`, `method`, `account`, `reference` (comprobante), `invoice_reference` (folio). El estatus del cobro se deriva: pendiente / parcial / pagado / vencido, y aparece el restante.
 - **Cobros editables**: monto, fecha y concepto. Hoy solo se puede marcar pagado, y los montos cambian entre periodos (B2B pasó de $5,500 a $9,500; CMCP de $3,000 a $5,000 al subir de 12 a 20 horas).
 - **Agencias reorientadas.** `Agency` está mal modelado: se construyó como "agencia colaboradora con facturación bidireccional" y en realidad es **de dónde viene el trabajo y quién paga**. AgenciaEfe5 es una agencia para la que trabaja como freelancer y cuyos clientes atiende (le factura a la agencia); IECA es una empresa cuyos temas internos atiende (cliente y pagador son la misma entidad); ControlMas es su propio negocio (le factura al cliente final). Se agrega a la agencia **a quién se le factura** (agencia o cliente final), se quita la bidireccionalidad —nadie le factura a él— y se agregan filtros y reportes por agencia, que es la primera columna de su hoja.
+
+**Lo que se construyó**
+
+- **`charge_payments`** con `amount`, `paid_on`, `method`, `account`, `reference` e `invoice_reference`. `Charge::syncStatusFromPayments()` deriva el estatus y la fecha de pago de los abonos; `paidAmount()` y `remainingAmount()` dan las dos columnas que el dueño mira.
+- **`ChargeStatus` gana `Parcial`**, y con él un `color()` compartido para que el semáforo del cobro sea el mismo en el panel, el dashboard y el portal.
+- **El estatus nunca se escribe a mano.** "Marcar pagado" dejó de tocar el campo: ahora registra el restante como un abono de hoy. Si no, un cobro podía verse pagado con el restante completo al lado, contradiciéndose solo.
+- **Un cobro parcial vencido se muestra vencido**, no parcial: lo que falta sigue debiéndose y esa es la lista que hay que perseguir. El desglose "abonado X · restan Y" queda a la vista para no perder el matiz. `charges:process` y los recordatorios ahora incluyen los parciales.
+- **Cobros editables**: concepto (que cae al nombre del servicio si se deja vacío), monto y vencimiento, con el estatus recalculado al guardar —bajar el monto por debajo de lo abonado deja el cobro pagado.
+- **Un servicio ya no se puede borrar si alguno de sus cobros tiene abonos** (antes era "si tiene cobros pagados"): basta un abono parcial para que exista constancia de pago que no debe desaparecer.
+- **Agencias**: `billing_target` (a la agencia / al cliente final) sustituye a la bidireccionalidad, que se eliminó del pivote `agency_project`. El listado filtra por ese campo y reporta, en una sola consulta por página, clientes, proyectos activos, cobrado y por cobrar de cada agencia. El listado de proyectos gana filtro por agencia.
+- **El dashboard suma saldos, no montos**: "por cobrar" descuenta los abonos, que era la única forma de que el KPI no mintiera en cuanto hubiera un pago parcial.
+
+**Lo que queda para la Fase 11**: la vista transversal de "Trabajos y cobros" que sustituye al menú de Proyectos. El filtro por agencia en el listado de proyectos es el puente mientras tanto.
 
 ### Fase 11 — Líneas sueltas, subtareas y campañas al cliente
 

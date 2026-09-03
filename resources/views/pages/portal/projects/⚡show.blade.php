@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\ChargeStatus;
 use App\Models\Charge;
 use App\Models\Project;
 use Illuminate\Support\Facades\Gate;
@@ -23,7 +22,7 @@ new #[Layout('layouts::portal')] class extends Component {
     {
         return Charge::query()
             ->whereHas('service', fn ($query) => $query->where('project_id', $this->project->id))
-            ->with('service')
+            ->with(['service', 'payments'])
             ->orderBy('due_date')
             ->get();
     }
@@ -91,27 +90,29 @@ new #[Layout('layouts::portal')] class extends Component {
 
         <flux:table>
             <flux:table.columns>
-                <flux:table.column>{{ __('Servicio') }}</flux:table.column>
+                <flux:table.column>{{ __('Concepto') }}</flux:table.column>
                 <flux:table.column>{{ __('Vencimiento') }}</flux:table.column>
                 <flux:table.column>{{ __('Monto') }}</flux:table.column>
+                <flux:table.column>{{ __('Restante') }}</flux:table.column>
                 <flux:table.column>{{ __('Estatus') }}</flux:table.column>
             </flux:table.columns>
 
             <flux:table.rows>
                 @forelse ($this->charges as $charge)
                     <flux:table.row wire:key="portal-charge-{{ $charge->id }}">
-                        <flux:table.cell>{{ $charge->service->name }}</flux:table.cell>
+                        <flux:table.cell>{{ $charge->conceptLabel() }}</flux:table.cell>
                         <flux:table.cell>{{ $charge->due_date->format('d/m/Y') }}</flux:table.cell>
-                        <flux:table.cell>{{ $charge->amount }} {{ $charge->currency }}</flux:table.cell>
+                        <flux:table.cell>{{ number_format((float) $charge->amount, 2) }} {{ $charge->currency }}</flux:table.cell>
+                        <flux:table.cell>{{ number_format($charge->remainingAmount(), 2) }}</flux:table.cell>
                         <flux:table.cell>
-                            <flux:badge size="sm" :color="$charge->status === ChargeStatus::Vencido ? 'red' : ($charge->status === ChargeStatus::Pagado ? 'green' : 'zinc')">
+                            <flux:badge size="sm" :color="$charge->status->color()">
                                 {{ $charge->status->label() }}
                             </flux:badge>
                         </flux:table.cell>
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="4" class="text-center text-zinc-400">
+                        <flux:table.cell colspan="5" class="text-center text-zinc-400">
                             {{ __('Sin cobros todavía.') }}
                         </flux:table.cell>
                     </flux:table.row>

@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\AgencyBillingDirection;
 use App\Enums\ChargeStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\ServiceBillingFrequency;
@@ -190,7 +189,7 @@ test('admin can assign and unassign a user from a project team', function () {
     expect($project->users()->whereKey($staff->id)->exists())->toBeFalse();
 });
 
-test('staff can associate and remove a collaborator agency with a billing direction', function () {
+test('staff can associate and remove an agency', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
     $project = Project::factory()->for($client)->create();
@@ -200,7 +199,6 @@ test('staff can associate and remove a collaborator agency with a billing direct
 
     Livewire::test('pages::projects.show', ['project' => $project])
         ->set('agencyIdToAssign', $agency->id)
-        ->set('agencyBillingDirection', AgencyBillingDirection::TheyInvoiceUs->value)
         ->set('agencyNotes', 'Nos subcontrataron el hosting.')
         ->call('assignAgency')
         ->assertHasNoErrors();
@@ -208,11 +206,28 @@ test('staff can associate and remove a collaborator agency with a billing direct
     $pivot = $project->agencies()->whereKey($agency->id)->first()?->pivot;
 
     expect($pivot)->not->toBeNull()
-        ->and($pivot->billing_direction)->toBe(AgencyBillingDirection::TheyInvoiceUs->value)
         ->and($pivot->notes)->toBe('Nos subcontrataron el hosting.');
 
     Livewire::test('pages::projects.show', ['project' => $project])
         ->call('unassignAgency', $agency->id);
 
     expect($project->agencies()->whereKey($agency->id)->exists())->toBeFalse();
+});
+
+test('el listado de proyectos se puede filtrar por agencia', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $agency = Agency::factory()->create();
+
+    $byAgency = Project::factory()->for($client)->create(['name' => 'Sitio de AgenciaEfe5']);
+    $byAgency->agencies()->attach($agency);
+
+    Project::factory()->for($client)->create(['name' => 'Sitio propio']);
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::projects.index')
+        ->set('agencyFilter', $agency->id)
+        ->assertSee('Sitio de AgenciaEfe5')
+        ->assertDontSee('Sitio propio');
 });

@@ -16,6 +16,10 @@ Tres familias, con una regla clara para elegir entre ellas:
 
 El **cliente es la empresa** y el centro de todo: de él cuelgan contactos, dominios, licencias, proyectos y bitácora. El **contacto es la persona**, guardada una sola vez y ligada a todas sus empresas, así que un dueño de tres negocios se escribe una vez y entra al portal con un solo acceso. El **proyecto es el trabajo que se hace**, no el expediente del cliente: por eso los accesos y los activos no cuelgan de él, que termina, sino del cliente y del dominio, que perduran.
 
+El **cobro no es binario**: cada `Charge` lleva sus abonos (`ChargePayment`) y su estatus —pendiente, parcial, pagado, vencido— se deriva de ellos, porque los pagos en dos o tres exhibiciones están por todas partes en los datos reales y el restante es la columna que más se mira. Marcar un cobro como pagado registra el restante como un abono, no toca el estatus a mano.
+
+La **agencia es de dónde viene el trabajo y quién paga**: cada una declara si se le factura a ella o al cliente final, y el listado reporta por agencia cuánto se cobró y cuánto falta.
+
 El razonamiento completo detrás de estas decisiones está en **[CRM_PLAN.md](CRM_PLAN.md)**.
 
 ## Estado del proyecto
@@ -30,7 +34,8 @@ El razonamiento completo detrás de estas decisiones está en **[CRM_PLAN.md](CR
 - ✅ Fase 7 — Dominios, tipos de proyecto y campañas de ads
 - ✅ Fase 8 — Contactos como entidad propia
 - ✅ Fase 9 — Accesos de servidor, licencias e importación del libro de hosting
-- 📋 Fases 10–14 — Abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos
+- ✅ Fase 10 — Abonos y pagos parciales, cobros editables y agencias reorientadas
+- 📋 Fases 11–14 — Líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos
 
 ## Desarrollo local
 
@@ -62,7 +67,7 @@ php artisan migrate:fresh --seed
 
 Las migraciones se **reescriben en su lugar** en vez de acumular migraciones de `add_x_to_y`: el proyecto todavía no tiene producción ni datos que preservar, así que el esquema de cada tabla se lee entero en el archivo que la crea. Esto deja de aplicar en cuanto haya un despliegue real.
 
-El seeder construye seis escenarios con nombre en vez de repetir el mismo proyecto genérico, para que abrir la app muestre el sistema completo: un proyecto web con dominio, buzones y accesos; un mantenimiento trimestral con un dominio de solo seguimiento; campañas de ads con las dos formas de facturar el presupuesto; un proyecto solo de correo; un rediseño a plazos en dólares; y un proyecto cancelado con agencia heredada. Entre todos cubren las seis frecuencias de cobro, las nueve categorías de servicio y los tres estatus de cobro.
+El seeder construye seis escenarios con nombre en vez de repetir el mismo proyecto genérico, para que abrir la app muestre el sistema completo: un proyecto web con dominio, buzones y accesos; un mantenimiento trimestral con un dominio de solo seguimiento; campañas de ads con las dos formas de facturar el presupuesto; un proyecto solo de correo; un rediseño a plazos en dólares; y un proyecto cancelado con agencia heredada. Entre todos cubren las seis frecuencias de cobro, las nueve categorías de servicio y los cuatro estatus de cobro, incluido uno abonado a la mitad.
 
 La cuenta de administrador real se siembra aparte y necesita `ADMIN_SEED_PASSWORD` en el `.env`:
 

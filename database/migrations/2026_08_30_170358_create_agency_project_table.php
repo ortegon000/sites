@@ -14,7 +14,6 @@ return new class extends Migration
         Schema::create('agency_project', function (Blueprint $table) {
             $table->foreignId('agency_id')->constrained()->cascadeOnDelete();
             $table->foreignId('project_id')->constrained()->cascadeOnDelete();
-            $table->string('billing_direction')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
 

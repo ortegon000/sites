@@ -6,7 +6,6 @@ use App\Actions\Clients\SyncClientAgencyToProjects;
 use App\Enums\AdBudgetBilling;
 use App\Enums\AdCampaignStatus;
 use App\Enums\AdPlatform;
-use App\Enums\AgencyBillingDirection;
 use App\Enums\ChargeStatus;
 use App\Enums\DomainEmailManagement;
 use App\Enums\DomainManagement;
@@ -94,8 +93,7 @@ class ProjectSeeder extends Seeder
         $project->users()->attach(array_filter([$this->staff->id, $this->collaborator?->id]));
 
         $project->agencies()->attach(Agency::where('name', 'Pixel Forge Studio')->firstOrFail(), [
-            'billing_direction' => AgencyBillingDirection::WeInvoiceThem,
-            'notes' => 'Subcontratamos el diseño de este sitio.',
+            'notes' => 'El trabajo llegó por ellos y la factura va a la agencia.',
         ]);
 
         $domain = Domain::create([
@@ -241,7 +239,8 @@ class ProjectSeeder extends Seeder
 
         $fee = $this->service($project, 'Gestión de campañas', ServiceCategory::AdsManagement, ServiceBillingFrequency::Monthly, '12000.00');
         Charge::factory()->for($fee)->paid()->create(['amount' => '12000.00']);
-        Charge::factory()->for($fee)->pending()->create(['amount' => '12000.00']);
+        /** Con un abono a la mitad: el caso de "$12,914 de $24,000" del archivo real. */
+        Charge::factory()->for($fee)->partiallyPaid()->create(['amount' => '12000.00']);
 
         $budget = $this->service($project, 'Inversión publicitaria · Meta — remarketing', ServiceCategory::AdsBudget, ServiceBillingFrequency::Monthly, '18000.00', [
             'ad_campaign_id' => $meta->id,
@@ -308,8 +307,7 @@ class ProjectSeeder extends Seeder
         ]);
 
         $project->agencies()->attach(Agency::where('name', 'Northwind Digital')->firstOrFail(), [
-            'billing_direction' => AgencyBillingDirection::TheyInvoiceUs,
-            'notes' => 'Ellos nos subcontrataron para este rediseño.',
+            'notes' => 'Ellos presentaron al cliente; el rediseño se le factura a él.',
         ]);
 
         $redesign = $this->service($project, 'Rediseño', ServiceCategory::Website, ServiceBillingFrequency::Installment, '1500.00', [
@@ -335,7 +333,7 @@ class ProjectSeeder extends Seeder
                 default => ChargeStatus::Pendiente,
             };
 
-            Charge::factory()->for($redesign)->create([
+            $charge = Charge::factory()->for($redesign)->create([
                 'service_installment_id' => $installment->id,
                 'amount' => '1500.00',
                 'currency' => 'USD',
@@ -343,6 +341,14 @@ class ProjectSeeder extends Seeder
                 'due_date' => $installment->due_date,
                 'paid_at' => $status === ChargeStatus::Pagado ? $installment->due_date : null,
             ]);
+
+            if ($status === ChargeStatus::Pagado) {
+                $charge->payments()->create([
+                    'amount' => '1500.00',
+                    'paid_on' => $installment->due_date->toDateString(),
+                    'method' => 'Transferencia',
+                ]);
+            }
         }
 
         $this->service($project, 'Hosting', ServiceCategory::Hosting, ServiceBillingFrequency::Annual, '95.00', [

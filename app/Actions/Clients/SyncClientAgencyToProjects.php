@@ -7,12 +7,11 @@ use App\Models\Client;
 class SyncClientAgencyToProjects
 {
     /**
-     * Attach the client's assigned agency to each of its projects that
-     * isn't already linked to it. The billing direction is left unset so
-     * staff can define it from the project's own "Agencias colaboradoras"
-     * card; existing associations (and their billing direction) are never
-     * touched, so a client's agency change never overwrites prior billing
-     * history on its projects.
+     * Attach the client's assigned agency to each of its projects that isn't
+     * already linked to it. Who gets invoiced is a property of the agency
+     * itself, so the association only carries notes; existing ones are never
+     * touched, so a client's agency change never overwrites what staff wrote
+     * on its projects.
      */
     public function handle(Client $client): void
     {
@@ -25,10 +24,7 @@ class SyncClientAgencyToProjects
                 continue;
             }
 
-            $project->agencies()->attach($client->agency_id, [
-                'billing_direction' => null,
-                'notes' => null,
-            ]);
+            $project->agencies()->attach($client->agency_id, ['notes' => null]);
         }
     }
 }

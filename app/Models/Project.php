@@ -90,7 +90,7 @@ class Project extends Model
     public function agencies(): BelongsToMany
     {
         return $this->belongsToMany(Agency::class)
-            ->withPivot(['billing_direction', 'notes'])
+            ->withPivot(['notes'])
             ->withTimestamps();
     }
 }

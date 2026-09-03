@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AgencyBillingTarget;
 use App\Enums\AgencyStatus;
 use Carbon\CarbonImmutable;
 use Database\Factories\AgencyFactory;
@@ -18,11 +19,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $contact_name
  * @property string|null $email
  * @property string|null $phone
+ * @property AgencyBillingTarget $billing_target
  * @property AgencyStatus $status
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['name', 'contact_name', 'email', 'phone', 'status'])]
+#[Fillable(['name', 'contact_name', 'email', 'phone', 'billing_target', 'status'])]
 class Agency extends Model
 {
     /** @use HasFactory<AgencyFactory> */
@@ -31,6 +33,7 @@ class Agency extends Model
     protected function casts(): array
     {
         return [
+            'billing_target' => AgencyBillingTarget::class,
             'status' => AgencyStatus::class,
         ];
     }
@@ -41,7 +44,7 @@ class Agency extends Model
     public function projects(): BelongsToMany
     {
         return $this->belongsToMany(Project::class)
-            ->withPivot(['billing_direction', 'notes'])
+            ->withPivot(['notes'])
             ->withTimestamps();
     }
 

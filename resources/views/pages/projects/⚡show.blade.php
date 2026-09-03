@@ -1,10 +1,12 @@
 <?php
 
+use App\Actions\Charges\DeleteChargePayment;
 use App\Actions\Charges\MarkChargeAsPaid;
+use App\Actions\Charges\RecordChargePayment;
+use App\Actions\Charges\UpdateCharge;
 use App\Actions\Services\CancelService;
 use App\Actions\Services\CreateServiceWithSchedule;
 use App\Actions\Services\DeleteService;
-use App\Enums\AgencyBillingDirection;
 use App\Enums\AgencyStatus;
 use App\Enums\ChargeStatus;
 use App\Enums\ServiceBillingFrequency;
@@ -13,6 +15,7 @@ use App\Enums\ServiceStatus;
 use App\Enums\UserRole;
 use App\Models\Agency;
 use App\Models\Charge;
+use App\Models\ChargePayment;
 use App\Models\Project;
 use App\Models\User;
 use Flux\Flux;
@@ -48,9 +51,29 @@ new class extends Component {
 
     public ?int $agencyIdToAssign = null;
 
-    public string $agencyBillingDirection = '';
-
     public ?string $agencyNotes = null;
+
+    public ?int $editingChargeId = null;
+
+    public ?string $chargeConcept = null;
+
+    public string $chargeAmount = '';
+
+    public string $chargeDueDate = '';
+
+    public ?int $payingChargeId = null;
+
+    public string $paymentAmount = '';
+
+    public string $paymentPaidOn = '';
+
+    public ?string $paymentMethod = null;
+
+    public ?string $paymentAccount = null;
+
+    public ?string $paymentReference = null;
+
+    public ?string $paymentInvoiceReference = null;
 
     public function mount(Project $project): void
     {
@@ -106,15 +129,6 @@ new class extends Component {
             ->get();
     }
 
-    /**
-     * @return array<int, AgencyBillingDirection>
-     */
-    #[Computed]
-    public function billingDirectionOptions(): array
-    {
-        return AgencyBillingDirection::cases();
-    }
-
     #[Computed]
     public function assignableAgencies()
     {
@@ -130,9 +144,21 @@ new class extends Component {
     {
         return Charge::query()
             ->whereHas('service', fn ($query) => $query->where('project_id', $this->project->id))
-            ->with('service')
+            ->with(['service', 'payments'])
             ->orderBy('due_date')
             ->get();
+    }
+
+    #[Computed]
+    public function payingCharge(): ?Charge
+    {
+        if ($this->payingChargeId === null) {
+            return null;
+        }
+
+        return Charge::with('service')
+            ->with(['payments' => fn ($query) => $query->orderBy('paid_on')->orderBy('id')])
+            ->find($this->payingChargeId);
     }
 
     public function openServiceModal(): void
@@ -247,18 +273,14 @@ new class extends Component {
 
         $validated = $this->validate([
             'agencyIdToAssign' => ['required', 'exists:agencies,id'],
-            'agencyBillingDirection' => ['required', Rule::enum(AgencyBillingDirection::class)],
             'agencyNotes' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $this->project->agencies()->syncWithoutDetaching([
-            $validated['agencyIdToAssign'] => [
-                'billing_direction' => $validated['agencyBillingDirection'],
-                'notes' => $validated['agencyNotes'],
-            ],
+            $validated['agencyIdToAssign'] => ['notes' => $validated['agencyNotes']],
         ]);
 
-        $this->reset(['agencyIdToAssign', 'agencyBillingDirection', 'agencyNotes']);
+        $this->reset(['agencyIdToAssign', 'agencyNotes']);
 
         Flux::toast(variant: 'success', text: __('Agencia asociada.'));
     }
@@ -276,11 +298,140 @@ new class extends Component {
     {
         Gate::authorize('update', $this->project);
 
-        $charge = Charge::findOrFail($chargeId);
-
-        $action->handle($charge);
+        $action->handle($this->findCharge($chargeId));
 
         Flux::toast(variant: 'success', text: __('Cobro marcado como pagado.'));
+    }
+
+    public function openChargeModal(int $chargeId): void
+    {
+        Gate::authorize('update', $this->project);
+
+        $charge = $this->findCharge($chargeId);
+
+        $this->editingChargeId = $charge->id;
+        $this->chargeConcept = $charge->concept;
+        $this->chargeAmount = $charge->amount;
+        $this->chargeDueDate = $charge->due_date->toDateString();
+        $this->resetValidation();
+
+        $this->modal('charge-form')->show();
+    }
+
+    public function saveCharge(UpdateCharge $action): void
+    {
+        Gate::authorize('update', $this->project);
+
+        $charge = $this->findCharge($this->editingChargeId ?? 0);
+
+        $validated = $this->validate([
+            'chargeConcept' => ['nullable', 'string', 'max:255'],
+            'chargeAmount' => ['required', 'numeric', 'min:0'],
+            'chargeDueDate' => ['required', 'date'],
+        ]);
+
+        $action->handle($charge, [
+            'concept' => $validated['chargeConcept'],
+            'amount' => $validated['chargeAmount'],
+            'due_date' => $validated['chargeDueDate'],
+        ]);
+
+        unset($this->charges);
+
+        $this->modal('charge-form')->close();
+
+        Flux::toast(variant: 'success', text: __('Cobro actualizado.'));
+    }
+
+    public function closeChargeModal(): void
+    {
+        $this->modal('charge-form')->close();
+    }
+
+    public function openPaymentsModal(int $chargeId): void
+    {
+        Gate::authorize('update', $this->project);
+
+        $charge = $this->findCharge($chargeId);
+
+        $this->payingChargeId = $charge->id;
+        $this->resetPaymentForm($charge);
+        $this->resetValidation();
+
+        $this->modal('charge-payments')->show();
+    }
+
+    public function savePayment(RecordChargePayment $action): void
+    {
+        Gate::authorize('update', $this->project);
+
+        $charge = $this->findCharge($this->payingChargeId ?? 0);
+
+        $validated = $this->validate([
+            'paymentAmount' => ['required', 'numeric', 'min:0.01'],
+            'paymentPaidOn' => ['required', 'date'],
+            'paymentMethod' => ['nullable', 'string', 'max:255'],
+            'paymentAccount' => ['nullable', 'string', 'max:255'],
+            'paymentReference' => ['nullable', 'string', 'max:255'],
+            'paymentInvoiceReference' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $action->handle($charge, [
+            'amount' => $validated['paymentAmount'],
+            'paid_on' => $validated['paymentPaidOn'],
+            'method' => $validated['paymentMethod'],
+            'account' => $validated['paymentAccount'],
+            'reference' => $validated['paymentReference'],
+            'invoice_reference' => $validated['paymentInvoiceReference'],
+        ]);
+
+        unset($this->charges, $this->payingCharge);
+
+        $this->resetPaymentForm($charge->refresh());
+
+        Flux::toast(variant: 'success', text: __('Abono registrado.'));
+    }
+
+    public function deletePayment(int $paymentId, DeleteChargePayment $action): void
+    {
+        Gate::authorize('update', $this->project);
+
+        $charge = $this->findCharge($this->payingChargeId ?? 0);
+
+        $action->handle(ChargePayment::where('charge_id', $charge->id)->findOrFail($paymentId));
+
+        unset($this->charges, $this->payingCharge);
+
+        $this->resetPaymentForm($charge->refresh());
+
+        Flux::toast(variant: 'success', text: __('Abono eliminado.'));
+    }
+
+    public function closePaymentsModal(): void
+    {
+        $this->payingChargeId = null;
+
+        $this->modal('charge-payments')->close();
+    }
+
+    /**
+     * Los cobros se buscan siempre dentro del proyecto abierto: el id llega del
+     * navegador y sin este filtro se podría editar el cobro de otro cliente.
+     */
+    private function findCharge(int $chargeId): Charge
+    {
+        return Charge::whereHas('service', fn ($query) => $query->where('project_id', $this->project->id))
+            ->findOrFail($chargeId);
+    }
+
+    private function resetPaymentForm(Charge $charge): void
+    {
+        $this->paymentAmount = (string) $charge->remainingAmount();
+        $this->paymentPaidOn = today()->toDateString();
+        $this->paymentMethod = null;
+        $this->paymentAccount = null;
+        $this->paymentReference = null;
+        $this->paymentInvoiceReference = null;
     }
 
     public function render()
@@ -367,13 +518,6 @@ new class extends Component {
                                 @endforeach
                             </flux:select>
 
-                            <flux:select wire:model="agencyBillingDirection">
-                                <flux:select.option value="">{{ __('Selecciona la dirección de facturación') }}</flux:select.option>
-                                @foreach ($this->billingDirectionOptions as $option)
-                                    <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
-                                @endforeach
-                            </flux:select>
-
                             <flux:textarea wire:model="agencyNotes" :placeholder="__('Notas (opcional)')" rows="2" />
 
                             <div class="flex justify-end">
@@ -393,11 +537,9 @@ new class extends Component {
                                         <flux:button size="xs" variant="ghost" icon="x-mark" wire:click="unassignAgency({{ $agency->id }})" />
                                     @endcan
                                 </div>
-                                @if ($agency->pivot->billing_direction)
-                                    <flux:badge size="sm">{{ \App\Enums\AgencyBillingDirection::from($agency->pivot->billing_direction)->label() }}</flux:badge>
-                                @else
-                                    <flux:badge size="sm" color="zinc">{{ __('Heredada del cliente · falta definir facturación') }}</flux:badge>
-                                @endif
+                                <flux:badge size="sm" :color="$agency->billing_target === \App\Enums\AgencyBillingTarget::Agency ? 'blue' : 'zinc'">
+                                    {{ __('Se factura :target', ['target' => mb_strtolower($agency->billing_target->label())]) }}
+                                </flux:badge>
                                 @if ($agency->pivot->notes)
                                     <span class="text-xs text-zinc-400">{{ $agency->pivot->notes }}</span>
                                 @endif
@@ -482,9 +624,10 @@ new class extends Component {
 
                     <flux:table>
                         <flux:table.columns>
-                            <flux:table.column>{{ __('Servicio') }}</flux:table.column>
+                            <flux:table.column>{{ __('Concepto') }}</flux:table.column>
                             <flux:table.column>{{ __('Vencimiento') }}</flux:table.column>
                             <flux:table.column>{{ __('Monto') }}</flux:table.column>
+                            <flux:table.column>{{ __('Restante') }}</flux:table.column>
                             <flux:table.column>{{ __('Estatus') }}</flux:table.column>
                             <flux:table.column></flux:table.column>
                         </flux:table.columns>
@@ -492,27 +635,54 @@ new class extends Component {
                         <flux:table.rows>
                             @forelse ($this->charges as $charge)
                                 <flux:table.row wire:key="charge-{{ $charge->id }}">
-                                    <flux:table.cell>{{ $charge->service->name }}</flux:table.cell>
-                                    <flux:table.cell>{{ $charge->due_date->format('d/m/Y') }}</flux:table.cell>
-                                    <flux:table.cell>{{ $charge->amount }} {{ $charge->currency }}</flux:table.cell>
                                     <flux:table.cell>
-                                        <flux:badge size="sm" :color="$charge->status === \App\Enums\ChargeStatus::Vencido ? 'red' : ($charge->status === \App\Enums\ChargeStatus::Pagado ? 'green' : 'zinc')">
+                                        <div class="flex flex-col">
+                                            <span>{{ $charge->conceptLabel() }}</span>
+                                            @if ($charge->concept)
+                                                <span class="text-xs text-zinc-400">{{ $charge->service->name }}</span>
+                                            @endif
+                                        </div>
+                                    </flux:table.cell>
+                                    <flux:table.cell>{{ $charge->due_date->format('d/m/Y') }}</flux:table.cell>
+                                    <flux:table.cell>{{ number_format((float) $charge->amount, 2) }} {{ $charge->currency }}</flux:table.cell>
+                                    <flux:table.cell>
+                                        <div class="flex flex-col">
+                                            <span>{{ number_format($charge->remainingAmount(), 2) }}</span>
+                                            @if ($charge->payments->isNotEmpty())
+                                                <span class="text-xs text-zinc-400">
+                                                    {{ __('abonado :amount', ['amount' => number_format($charge->paidAmount(), 2)]) }}
+                                                </span>
+                                            @endif
+                                        </div>
+                                    </flux:table.cell>
+                                    <flux:table.cell>
+                                        <flux:badge size="sm" :color="$charge->status->color()">
                                             {{ $charge->status->label() }}
                                         </flux:badge>
                                     </flux:table.cell>
                                     <flux:table.cell>
                                         @can('update', $project)
-                                            @if ($charge->status !== \App\Enums\ChargeStatus::Pagado)
-                                                <flux:button size="sm" variant="ghost" icon="check" wire:click="markChargeAsPaid({{ $charge->id }})">
-                                                    {{ __('Marcar pagado') }}
-                                                </flux:button>
-                                            @endif
+                                            <div class="flex justify-end gap-2">
+                                                <flux:button size="xs" variant="ghost" icon="pencil"
+                                                    :tooltip="__('Editar cobro')"
+                                                    wire:click="openChargeModal({{ $charge->id }})" />
+
+                                                <flux:button size="xs" variant="ghost" icon="banknotes"
+                                                    :tooltip="__('Abonos')"
+                                                    wire:click="openPaymentsModal({{ $charge->id }})" />
+
+                                                @if ($charge->status !== \App\Enums\ChargeStatus::Pagado)
+                                                    <flux:button size="xs" variant="ghost" icon="check"
+                                                        :tooltip="__('Marcar pagado')"
+                                                        wire:click="markChargeAsPaid({{ $charge->id }})" />
+                                                @endif
+                                            </div>
                                         @endcan
                                     </flux:table.cell>
                                 </flux:table.row>
                             @empty
                                 <flux:table.row>
-                                    <flux:table.cell colspan="5" class="text-center text-zinc-400">
+                                    <flux:table.cell colspan="6" class="text-center text-zinc-400">
                                         {{ __('Sin cobros todavía.') }}
                                     </flux:table.cell>
                                 </flux:table.row>
@@ -527,6 +697,104 @@ new class extends Component {
             @endif
         </div>
     </div>
+
+    <flux:modal name="charge-form" class="md:w-96">
+        <form wire:submit="saveCharge" class="flex flex-col gap-6">
+            <flux:heading size="lg">{{ __('Editar cobro') }}</flux:heading>
+
+            <flux:input wire:model="chargeConcept" :label="__('Concepto')"
+                :description="__('Si lo dejas vacío se usa el nombre del servicio.')" />
+
+            <div class="grid grid-cols-2 gap-4">
+                <flux:input wire:model="chargeAmount" type="number" step="0.01" :label="__('Monto')" required />
+                <flux:input wire:model="chargeDueDate" type="date" :label="__('Vencimiento')" required />
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <flux:button variant="ghost" wire:click="closeChargeModal">{{ __('Cancelar') }}</flux:button>
+                <flux:button type="submit" variant="primary">{{ __('Guardar') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    <flux:modal name="charge-payments" class="md:w-[36rem]" wire:close="closePaymentsModal">
+        @if ($this->payingCharge)
+            <div class="flex flex-col gap-6">
+                <div class="flex flex-col gap-1">
+                    <flux:heading size="lg">{{ __('Abonos') }}</flux:heading>
+                    <flux:text class="text-zinc-400">{{ $this->payingCharge->conceptLabel() }}</flux:text>
+                </div>
+
+                <div class="grid grid-cols-3 gap-4 text-sm">
+                    <div class="flex flex-col">
+                        <span class="text-zinc-400">{{ __('Monto') }}</span>
+                        <span>{{ number_format((float) $this->payingCharge->amount, 2) }} {{ $this->payingCharge->currency }}</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-zinc-400">{{ __('Abonado') }}</span>
+                        <span>{{ number_format($this->payingCharge->paidAmount(), 2) }}</span>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-zinc-400">{{ __('Restante') }}</span>
+                        <span>{{ number_format($this->payingCharge->remainingAmount(), 2) }}</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    @forelse ($this->payingCharge->payments as $payment)
+                        <div wire:key="payment-{{ $payment->id }}" class="flex items-start justify-between gap-4 border-b border-zinc-100 pb-2 text-sm last:border-0 dark:border-zinc-700">
+                            <div class="flex flex-col">
+                                <span>{{ number_format((float) $payment->amount, 2) }} · {{ $payment->paid_on->format('d/m/Y') }}</span>
+                                <span class="text-xs text-zinc-400">
+                                    {{ collect([$payment->method, $payment->account, $payment->reference, $payment->invoice_reference ? __('Folio :folio', ['folio' => $payment->invoice_reference]) : null])->filter()->join(' · ') ?: '—' }}
+                                </span>
+                            </div>
+                            @can('update', $project)
+                                <flux:button size="xs" variant="ghost" icon="trash"
+                                    wire:click="deletePayment({{ $payment->id }})"
+                                    wire:confirm="{{ __('¿Eliminar este abono?') }}" />
+                            @endcan
+                        </div>
+                    @empty
+                        <flux:text class="text-zinc-400">{{ __('Sin abonos todavía.') }}</flux:text>
+                    @endforelse
+                </div>
+
+                @can('update', $project)
+                    <flux:separator />
+
+                    @if ($this->payingCharge->remainingAmount() <= 0)
+                        <div class="flex items-center justify-between">
+                            <flux:text class="text-zinc-400">{{ __('Este cobro ya está cubierto.') }}</flux:text>
+                            <flux:button variant="ghost" wire:click="closePaymentsModal">{{ __('Cerrar') }}</flux:button>
+                        </div>
+                    @else
+                    <form wire:submit="savePayment" class="flex flex-col gap-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <flux:input wire:model="paymentAmount" type="number" step="0.01" :label="__('Monto del abono')" required />
+                            <flux:input wire:model="paymentPaidOn" type="date" :label="__('Fecha de pago')" required />
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <flux:input wire:model="paymentMethod" :label="__('Método')" :placeholder="__('Transferencia, efectivo...')" />
+                            <flux:input wire:model="paymentAccount" :label="__('Cuenta')" :placeholder="__('Banco o cuenta que recibió')" />
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <flux:input wire:model="paymentReference" :label="__('Comprobante')" />
+                            <flux:input wire:model="paymentInvoiceReference" :label="__('Folio de factura')" />
+                        </div>
+
+                        <div class="flex justify-end gap-2">
+                            <flux:button variant="ghost" wire:click="closePaymentsModal">{{ __('Cerrar') }}</flux:button>
+                            <flux:button type="submit" variant="primary">{{ __('Registrar abono') }}</flux:button>
+                        </div>
+                    </form>
+                    @endif
+                @endcan
+            </div>
+        @endif
+    </flux:modal>
 
     <flux:modal name="service-form" class="md:w-96">
         <form wire:submit="saveService" class="flex flex-col gap-6">

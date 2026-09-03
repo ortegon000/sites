@@ -25,8 +25,8 @@ new class extends Component
     public function pendingCharges(): object
     {
         return Charge::query()
-            ->where('status', ChargeStatus::Pendiente)
-            ->selectRaw('count(*) as count, coalesce(sum(amount), 0) as total')
+            ->whereIn('status', [ChargeStatus::Pendiente, ChargeStatus::Parcial])
+            ->selectRemainingTotals()
             ->first();
     }
 
@@ -35,7 +35,7 @@ new class extends Component
     {
         return Charge::query()
             ->where('status', ChargeStatus::Vencido)
-            ->selectRaw('count(*) as count, coalesce(sum(amount), 0) as total')
+            ->selectRemainingTotals()
             ->first();
     }
 
@@ -64,9 +64,9 @@ new class extends Component
     public function upcomingCharges()
     {
         return Charge::query()
-            ->whereIn('status', [ChargeStatus::Pendiente, ChargeStatus::Vencido])
+            ->whereIn('status', ChargeStatus::open())
             ->whereBetween('due_date', [today(), today()->addDays(7)])
-            ->with('service.project.client')
+            ->with(['service.project.client', 'payments'])
             ->orderBy('due_date')
             ->get();
     }
@@ -112,13 +112,13 @@ new class extends Component
             <flux:card class="flex flex-col gap-1">
                 <flux:text class="text-zinc-400">{{ __('Cobros pendientes') }}</flux:text>
                 <flux:heading size="lg">{{ $this->pendingCharges->count }}</flux:heading>
-                <flux:text class="text-sm text-zinc-400">{{ number_format((float) $this->pendingCharges->total, 2) }}</flux:text>
+                <flux:text class="text-sm text-zinc-400">{{ __('Por cobrar: :amount', ['amount' => number_format((float) $this->pendingCharges->total, 2)]) }}</flux:text>
             </flux:card>
 
             <flux:card class="flex flex-col gap-1">
                 <flux:text class="text-zinc-400">{{ __('Cobros vencidos') }}</flux:text>
                 <flux:heading size="lg" class="text-red-500">{{ $this->overdueCharges->count }}</flux:heading>
-                <flux:text class="text-sm text-zinc-400">{{ number_format((float) $this->overdueCharges->total, 2) }}</flux:text>
+                <flux:text class="text-sm text-zinc-400">{{ __('Por cobrar: :amount', ['amount' => number_format((float) $this->overdueCharges->total, 2)]) }}</flux:text>
             </flux:card>
 
             <flux:card class="flex flex-col gap-1">
@@ -139,7 +139,7 @@ new class extends Component
                 <flux:table>
                     <flux:table.columns>
                         <flux:table.column>{{ __('Cliente') }}</flux:table.column>
-                        <flux:table.column>{{ __('Servicio') }}</flux:table.column>
+                        <flux:table.column>{{ __('Concepto') }}</flux:table.column>
                         <flux:table.column>{{ __('Vencimiento') }}</flux:table.column>
                         <flux:table.column>{{ __('Monto') }}</flux:table.column>
                         <flux:table.column>{{ __('Estatus') }}</flux:table.column>
@@ -153,11 +153,20 @@ new class extends Component
                                         {{ $charge->service->project->client->name }}
                                     </flux:link>
                                 </flux:table.cell>
-                                <flux:table.cell>{{ $charge->service->name }}</flux:table.cell>
+                                <flux:table.cell>{{ $charge->conceptLabel() }}</flux:table.cell>
                                 <flux:table.cell>{{ $charge->due_date->format('d/m/Y') }}</flux:table.cell>
-                                <flux:table.cell>{{ $charge->amount }} {{ $charge->currency }}</flux:table.cell>
                                 <flux:table.cell>
-                                    <flux:badge size="sm" :color="$charge->status === ChargeStatus::Vencido ? 'red' : 'zinc'">
+                                    <div class="flex flex-col">
+                                        <span>{{ number_format((float) $charge->amount, 2) }} {{ $charge->currency }}</span>
+                                        @if ($charge->payments->isNotEmpty())
+                                            <span class="text-xs text-zinc-400">
+                                                {{ __('restan :amount', ['amount' => number_format($charge->remainingAmount(), 2)]) }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                </flux:table.cell>
+                                <flux:table.cell>
+                                    <flux:badge size="sm" :color="$charge->status->color()">
                                         {{ $charge->status->label() }}
                                     </flux:badge>
                                 </flux:table.cell>

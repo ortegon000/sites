@@ -23,7 +23,7 @@ class SendChargeReminders
     private function sendDueSoon(): void
     {
         Charge::query()
-            ->where('status', ChargeStatus::Pendiente)
+            ->whereIn('status', [ChargeStatus::Pendiente, ChargeStatus::Parcial])
             ->whereNull('due_soon_notified_at')
             ->whereBetween('due_date', [today(), today()->addDays(self::DUE_SOON_DAYS)])
             ->with('service.project')

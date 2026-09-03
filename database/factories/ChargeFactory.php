@@ -36,13 +36,38 @@ class ChargeFactory extends Factory
         ]);
     }
 
+    /**
+     * Cobro con un abono que no lo cubre: el caso de "$12,914 de $24,000".
+     */
+    public function partiallyPaid(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => ChargeStatus::Parcial,
+            'due_date' => now()->addDays(fake()->numberBetween(1, 15))->toDateString(),
+        ])->afterCreating(function (Charge $charge): void {
+            $charge->payments()->create([
+                'amount' => round((float) $charge->amount / 2, 2),
+                'paid_on' => now()->subDay()->toDateString(),
+                'method' => 'Transferencia',
+            ]);
+
+            $charge->syncStatusFromPayments();
+        });
+    }
+
     public function paid(): static
     {
         return $this->state(fn (array $attributes) => [
             'status' => ChargeStatus::Pagado,
             'due_date' => now()->subDays(fake()->numberBetween(1, 30))->toDateString(),
             'paid_at' => now()->subDays(fake()->numberBetween(0, 5)),
-        ]);
+        ])->afterCreating(function (Charge $charge): void {
+            $charge->payments()->create([
+                'amount' => $charge->amount,
+                'paid_on' => $charge->paid_at?->toDateString() ?? today()->toDateString(),
+                'method' => 'Transferencia',
+            ]);
+        });
     }
 
     /**
