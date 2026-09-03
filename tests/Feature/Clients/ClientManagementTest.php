@@ -182,6 +182,8 @@ test('the client detail opens on the log tab and shows each panel in its own tab
         ->set('tab', 'dominios')
         ->assertSee('Dominios y correo')
         ->assertSee('Licencias y suscripciones')
+        ->set('tab', 'renovaciones')
+        ->assertSee('servicios anuales que caducan', escape: false)
         ->set('tab', 'campanas')
         ->assertSee('Campañas de ads')
         ->assertDontSee('Contratos');

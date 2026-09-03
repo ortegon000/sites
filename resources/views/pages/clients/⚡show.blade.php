@@ -105,6 +105,7 @@ new class extends Component {
             'bitacora' => ['label' => __('Bitácora'), 'icon' => 'clipboard-document-list'],
             'trabajo' => ['label' => __('Trabajo'), 'icon' => 'briefcase'],
             'dominios' => ['label' => __('Dominios y licencias'), 'icon' => 'globe-alt'],
+            'renovaciones' => ['label' => __('Renovaciones'), 'icon' => 'arrow-path'],
             'campanas' => ['label' => __('Campañas'), 'icon' => 'megaphone'],
         ];
     }
@@ -426,6 +427,10 @@ new class extends Component {
                     <livewire:domains-panel :client="$client" :key="'domains-panel-client-'.$client->id" />
 
                     <livewire:client-licenses :client="$client" :key="'client-licenses-'.$client->id" />
+                @endif
+            @elseif ($this->activeTab === 'renovaciones')
+                @if ($staffCanSeePanels)
+                    <livewire:renewals-panel :client="$client" :key="'renewals-panel-client-'.$client->id" />
                 @endif
             @elseif ($this->activeTab === 'campanas')
                 @if ($staffCanSeePanels)
