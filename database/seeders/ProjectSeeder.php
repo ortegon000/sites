@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Actions\Clients\SyncClientAgencyToProjects;
 use App\Enums\AdBudgetBilling;
 use App\Enums\AdCampaignStatus;
 use App\Enums\AdPlatform;
@@ -87,20 +86,17 @@ class ProjectSeeder extends Seeder
             'name' => 'Sitio web Cliente Demo',
             'description' => 'Sitio institucional con blog y formulario de contacto.',
             'type' => ProjectType::Web,
-            'includes_email' => true,
             'status' => ProjectStatus::Activo,
             'started_at' => now()->subMonths(14)->toDateString(),
         ]);
 
         $project->users()->attach(array_filter([$this->staff->id, $this->collaborator?->id]));
 
-        $project->agencies()->attach(Agency::where('name', 'Pixel Forge Studio')->firstOrFail(), [
-            'notes' => 'El trabajo llegó por ellos y la factura va a la agencia.',
-        ]);
+        /** El trabajo llegó por esta agencia: la relación es del cliente, y el proyecto la hereda. */
+        $client->update(['agency_id' => Agency::where('name', 'Pixel Forge Studio')->firstOrFail()->id]);
 
         $domain = Domain::create([
             'client_id' => $client->id,
-            'project_id' => $project->id,
             'name' => 'cliente-demo.test',
             'management' => DomainManagement::Managed,
             'registrar' => 'Namecheap',
@@ -297,15 +293,12 @@ class ProjectSeeder extends Seeder
             'name' => 'Rediseño en pagos',
             'description' => 'Rediseño completo cobrado en cuatro exhibiciones.',
             'type' => ProjectType::Web,
-            'includes_email' => false,
             'status' => ProjectStatus::Completado,
             'started_at' => now()->subMonths(7)->toDateString(),
             'ended_at' => now()->subMonth()->toDateString(),
         ]);
 
-        $project->agencies()->attach(Agency::where('name', 'Northwind Digital')->firstOrFail(), [
-            'notes' => 'Ellos presentaron al cliente; el rediseño se le factura a él.',
-        ]);
+        $client->update(['agency_id' => Agency::where('name', 'Northwind Digital')->firstOrFail()->id]);
 
         $redesign = $this->service($project, 'Rediseño', ServiceCategory::Website, ServiceBillingFrequency::Installment, '1500.00', [
             'currency' => 'USD',
@@ -394,18 +387,16 @@ class ProjectSeeder extends Seeder
         Charge::factory()->for($service)->paid()->create(['amount' => '18000.00']);
 
         $client->update(['agency_id' => Agency::where('name', 'Northwind Digital')->firstOrFail()->id]);
-        app(SyncClientAgencyToProjects::class)->handle($client);
     }
 
     /**
-     * Un dominio del cliente que no está ligado a ningún proyecto nuestro. Al
-     * expirar solo alerta a los admins, porque no tiene equipo asignado.
+     * Un dominio de un cliente sin ningún trabajo abierto. Al expirar solo
+     * alerta a los admins, porque no hay equipo a quién avisarle.
      */
     private function seedDomainWithoutProject(): void
     {
         Domain::create([
             'client_id' => Client::where('name', 'Clínica Sur')->firstOrFail()->id,
-            'project_id' => null,
             'name' => 'clinica-sur.test',
             'management' => DomainManagement::Tracked,
             'expires_at' => now()->addDays(12)->toDateString(),

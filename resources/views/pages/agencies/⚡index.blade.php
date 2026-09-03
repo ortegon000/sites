@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\AgencyBillingTarget;
 use App\Enums\AgencyStatus;
 use App\Enums\ChargeStatus;
 use App\Enums\ProjectStatus;
@@ -22,8 +21,6 @@ new class extends Component {
 
     public ?string $statusFilter = null;
 
-    public ?string $billingTargetFilter = null;
-
     public ?int $editingAgencyId = null;
 
     public string $name = '';
@@ -33,8 +30,6 @@ new class extends Component {
     public ?string $email = null;
 
     public ?string $phone = null;
-
-    public string $billing_target = '';
 
     public string $status = '';
 
@@ -52,15 +47,6 @@ new class extends Component {
         return AgencyStatus::cases();
     }
 
-    /**
-     * @return array<int, AgencyBillingTarget>
-     */
-    #[Computed]
-    public function billingTargetOptions(): array
-    {
-        return AgencyBillingTarget::cases();
-    }
-
     #[Computed]
     public function agencies()
     {
@@ -70,10 +56,10 @@ new class extends Component {
                 ->orWhere('contact_name', 'like', "%{$this->search}%")
                 ->orWhere('email', 'like', "%{$this->search}%")))
             ->when($this->statusFilter, fn ($query) => $query->where('status', $this->statusFilter))
-            ->when($this->billingTargetFilter, fn ($query) => $query->where('billing_target', $this->billingTargetFilter))
             ->withCount([
                 'clients',
-                'projects as active_projects_count' => fn ($query) => $query->where('status', ProjectStatus::Activo),
+                /** La cuenta pasa por clientes, que también tiene `status`: hay que decir de quién es. */
+                'projects as active_projects_count' => fn ($query) => $query->where('projects.status', ProjectStatus::Activo),
             ])
             ->orderByDesc('created_at')
             ->orderByDesc('id')
@@ -101,15 +87,14 @@ new class extends Component {
             ->selectRaw('charge_id, sum(amount) as paid')
             ->groupBy('charge_id');
 
-        return DB::table('agency_project')
-            ->join('projects', 'projects.id', '=', 'agency_project.project_id')
-            ->join('services', 'services.project_id', '=', 'projects.id')
+        return DB::table('clients')
+            ->join('services', 'services.client_id', '=', 'clients.id')
             ->join('charges', 'charges.service_id', '=', 'services.id')
             ->leftJoinSub($paidPerCharge, 'payments', 'payments.charge_id', '=', 'charges.id')
-            ->whereIn('agency_project.agency_id', $agencyIds)
-            ->whereNull('projects.deleted_at')
-            ->groupBy('agency_project.agency_id')
-            ->selectRaw('agency_project.agency_id')
+            ->whereIn('clients.agency_id', $agencyIds)
+            ->whereNull('clients.deleted_at')
+            ->groupBy('clients.agency_id')
+            ->selectRaw('clients.agency_id as agency_id')
             ->selectRaw('coalesce(sum(payments.paid), 0) as collected')
             ->selectRaw('coalesce(sum(case when charges.status = ? then 0 else charges.amount - coalesce(payments.paid, 0) end), 0) as pending', [ChargeStatus::Pagado->value])
             ->get()
@@ -122,7 +107,6 @@ new class extends Component {
         Gate::authorize('create', Agency::class);
 
         $this->reset(['editingAgencyId', 'name', 'contact_name', 'email', 'phone']);
-        $this->billing_target = AgencyBillingTarget::Client->value;
         $this->status = AgencyStatus::Activa->value;
         $this->resetValidation();
 
@@ -140,7 +124,6 @@ new class extends Component {
         $this->contact_name = $agency->contact_name;
         $this->email = $agency->email;
         $this->phone = $agency->phone;
-        $this->billing_target = $agency->billing_target->value;
         $this->status = $agency->status->value;
         $this->resetValidation();
 
@@ -158,7 +141,6 @@ new class extends Component {
             'contact_name' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
-            'billing_target' => ['required', Rule::enum(AgencyBillingTarget::class)],
             'status' => ['required', Rule::enum(AgencyStatus::class)],
         ]);
 
@@ -214,19 +196,12 @@ new class extends Component {
             @endforeach
         </flux:select>
 
-        <flux:select wire:model.live="billingTargetFilter" :placeholder="__('Se factura a cualquiera')" class="max-w-xs">
-            <flux:select.option value="">{{ __('Se factura a cualquiera') }}</flux:select.option>
-            @foreach ($this->billingTargetOptions as $option)
-                <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
-            @endforeach
-        </flux:select>
     </div>
 
     <flux:table :paginate="$this->agencies">
         <flux:table.columns>
             <flux:table.column>{{ __('Nombre') }}</flux:table.column>
             <flux:table.column>{{ __('Contacto') }}</flux:table.column>
-            <flux:table.column>{{ __('Se factura') }}</flux:table.column>
             <flux:table.column>{{ __('Clientes / proyectos') }}</flux:table.column>
             <flux:table.column>{{ __('Cobrado / por cobrar') }}</flux:table.column>
             <flux:table.column>{{ __('Estatus') }}</flux:table.column>
@@ -244,12 +219,10 @@ new class extends Component {
                         </div>
                     </flux:table.cell>
                     <flux:table.cell>
-                        <flux:badge size="sm" :color="$agency->billing_target === \App\Enums\AgencyBillingTarget::Agency ? 'blue' : 'zinc'">
-                            {{ $agency->billing_target->label() }}
-                        </flux:badge>
-                    </flux:table.cell>
-                    <flux:table.cell>
-                        {{ $agency->clients_count }} / {{ $agency->active_projects_count }}
+                        {{ $agency->clients_count }} /
+                        <flux:link :href="route('projects.index', ['agencia' => $agency->id])" wire:navigate>
+                            {{ $agency->active_projects_count }}
+                        </flux:link>
                     </flux:table.cell>
                     <flux:table.cell>
                         @php ($totals = $this->chargeTotals[$agency->id] ?? null)
@@ -292,13 +265,6 @@ new class extends Component {
             <flux:input wire:model="contact_name" :label="__('Persona de contacto')" />
             <flux:input wire:model="email" type="email" :label="__('Correo')" />
             <flux:input wire:model="phone" :label="__('Teléfono')" />
-
-            <flux:select wire:model="billing_target" :label="__('Se factura a')"
-                :description="__('De dónde viene el trabajo y a quién se le cobra.')">
-                @foreach ($this->billingTargetOptions as $option)
-                    <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
-                @endforeach
-            </flux:select>
 
             <flux:select wire:model="status" :label="__('Estatus')">
                 @foreach ($this->statusOptions as $option)

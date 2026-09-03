@@ -65,30 +65,4 @@ class Project extends Model
     {
         return $this->hasMany(Service::class);
     }
-
-    /**
-     * @return HasMany<AdCampaign, $this>
-     */
-    public function adCampaigns(): HasMany
-    {
-        return $this->hasMany(AdCampaign::class);
-    }
-
-    /**
-     * @return HasMany<Domain, $this>
-     */
-    public function domains(): HasMany
-    {
-        return $this->hasMany(Domain::class);
-    }
-
-    /**
-     * @return BelongsToMany<Agency, $this>
-     */
-    public function agencies(): BelongsToMany
-    {
-        return $this->belongsToMany(Agency::class)
-            ->withPivot(['notes'])
-            ->withTimestamps();
-    }
 }

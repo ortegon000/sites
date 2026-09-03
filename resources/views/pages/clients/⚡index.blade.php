@@ -1,7 +1,6 @@
 <?php
 
 use App\Actions\Clients\ChangeClientStatus;
-use App\Actions\Clients\SyncClientAgencyToProjects;
 use App\Actions\Clients\LinkContactToClient;
 use App\Enums\AgencyStatus;
 use App\Enums\ClientStatus;
@@ -146,7 +145,7 @@ new class extends Component {
         $this->modal('client-form')->show();
     }
 
-    public function save(ChangeClientStatus $changeClientStatus, SyncClientAgencyToProjects $syncClientAgencyToProjects, LinkContactToClient $linkContactToClient): void
+    public function save(ChangeClientStatus $changeClientStatus, LinkContactToClient $linkContactToClient): void
     {
         $client = $this->editingClientId ? Client::findOrFail($this->editingClientId) : null;
 
@@ -188,7 +187,6 @@ new class extends Component {
         }
 
         $linkContactToClient->handle($client, $contactAttributes);
-        $syncClientAgencyToProjects->handle($client);
 
         $this->modal('client-form')->close();
 

@@ -1,11 +1,9 @@
 <?php
 
-use App\Enums\AgencyBillingTarget;
 use App\Enums\AgencyStatus;
 use App\Models\Agency;
 use App\Models\Charge;
 use App\Models\Client;
-use App\Models\Project;
 use App\Models\Service;
 use App\Models\User;
 use Livewire\Livewire;
@@ -32,12 +30,11 @@ test('staff can create an agency', function () {
     Livewire::test('pages::agencies.index')
         ->set('name', 'Pixel Forge Studio')
         ->set('email', 'hola@pixelforge.test')
-        ->set('billing_target', AgencyBillingTarget::Agency->value)
         ->set('status', AgencyStatus::Activa->value)
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(Agency::where('name', 'Pixel Forge Studio')->first()?->billing_target)->toBe(AgencyBillingTarget::Agency);
+    expect(Agency::where('name', 'Pixel Forge Studio')->first()?->email)->toBe('hola@pixelforge.test');
 });
 
 test('staff can edit an agency but cannot delete it', function () {
@@ -90,27 +87,12 @@ test('collaborator cannot access the agency policy', function () {
     expect($collaborator->can('viewAny', Agency::class))->toBeFalse();
 });
 
-test('el listado filtra por a quién se factura', function () {
-    $admin = User::factory()->admin()->create();
-    Agency::factory()->create(['name' => 'AgenciaEfe5', 'billing_target' => AgencyBillingTarget::Agency]);
-    Agency::factory()->create(['name' => 'Casa Bruma', 'billing_target' => AgencyBillingTarget::Client]);
-
-    $this->actingAs($admin);
-
-    Livewire::test('pages::agencies.index')
-        ->set('billingTargetFilter', AgencyBillingTarget::Agency->value)
-        ->assertSee('AgenciaEfe5')
-        ->assertDontSee('Casa Bruma');
-});
-
 test('el listado reporta lo cobrado y lo que falta por cobrar de cada agencia', function () {
     $admin = User::factory()->admin()->create();
     $agency = Agency::factory()->create(['name' => 'AgenciaEfe5']);
 
-    $project = Project::factory()->for(Client::factory()->client())->create();
-    $project->agencies()->attach($agency);
-
-    $service = Service::factory()->monthly()->for($project)->create();
+    $client = Client::factory()->client()->create(['agency_id' => $agency->id]);
+    $service = Service::factory()->monthly()->for($client)->standalone()->create();
     $charge = Charge::factory()->for($service)->pending()->create(['amount' => '24000.00']);
     $charge->payments()->create(['amount' => '12914.00', 'paid_on' => today()->toDateString()]);
     $charge->syncStatusFromPayments();

@@ -2,15 +2,14 @@
 
 namespace App\Models;
 
-use App\Enums\AgencyBillingTarget;
 use App\Enums\AgencyStatus;
 use Carbon\CarbonImmutable;
 use Database\Factories\AgencyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -19,12 +18,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $contact_name
  * @property string|null $email
  * @property string|null $phone
- * @property AgencyBillingTarget $billing_target
  * @property AgencyStatus $status
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['name', 'contact_name', 'email', 'phone', 'billing_target', 'status'])]
+#[Fillable(['name', 'contact_name', 'email', 'phone', 'status'])]
 class Agency extends Model
 {
     /** @use HasFactory<AgencyFactory> */
@@ -33,19 +31,19 @@ class Agency extends Model
     protected function casts(): array
     {
         return [
-            'billing_target' => AgencyBillingTarget::class,
             'status' => AgencyStatus::class,
         ];
     }
 
     /**
-     * @return BelongsToMany<Project, $this>
+     * Los proyectos de la agencia son los de sus clientes: un proyecto
+     * pertenece a la agencia a la que pertenece su cliente, y a ninguna otra.
+     *
+     * @return HasManyThrough<Project, Client, $this>
      */
-    public function projects(): BelongsToMany
+    public function projects(): HasManyThrough
     {
-        return $this->belongsToMany(Project::class)
-            ->withPivot(['notes'])
-            ->withTimestamps();
+        return $this->hasManyThrough(Project::class, Client::class);
     }
 
     /**

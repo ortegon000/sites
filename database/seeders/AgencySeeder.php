@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Enums\AgencyBillingTarget;
 use App\Models\Agency;
 use Illuminate\Database\Seeder;
 
@@ -18,21 +17,18 @@ class AgencySeeder extends Seeder
             'name' => 'Pixel Forge Studio',
             'contact_name' => 'Ana Gómez',
             'email' => 'ana@pixelforge.test',
-            /** Sus clientes los atendemos nosotros, pero la factura va a ellos. */
-            'billing_target' => AgencyBillingTarget::Agency,
+        /** Sus clientes los atendemos nosotros, pero la factura va a ellos. */
         ]);
 
         Agency::factory()->create([
             'name' => 'Northwind Digital',
             'contact_name' => 'Luis Ruiz',
             'email' => 'luis@northwind.test',
-            /** Nos presentan al cliente y le facturamos directo a él. */
-            'billing_target' => AgencyBillingTarget::Client,
+        /** Nos presentan al cliente y le facturamos directo a él. */
         ]);
 
         Agency::factory()->create([
             'name' => 'Casa Bruma',
-            'billing_target' => AgencyBillingTarget::Client,
         ]);
     }
 }

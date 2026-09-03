@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Enums\AgencyBillingTarget;
 use App\Enums\AgencyStatus;
 use App\Models\Agency;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -24,7 +23,6 @@ class AgencyFactory extends Factory
             'contact_name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'phone' => fake()->phoneNumber(),
-            'billing_target' => AgencyBillingTarget::Client,
             'status' => AgencyStatus::Activa,
         ];
     }
