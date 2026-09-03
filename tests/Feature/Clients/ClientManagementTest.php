@@ -188,6 +188,19 @@ test('the client detail opens on the log tab and shows each panel in its own tab
         ->assertDontSee('Contratos');
 });
 
+test('winning a prospect keeps the open tab when the ficha moves to the client url', function () {
+    $admin = User::factory()->admin()->create();
+    $prospect = Client::factory()->prospect()->create();
+
+    $this->actingAs($admin);
+
+    Livewire::test('pages::clients.show', ['client' => $prospect])
+        ->set('routeName', 'prospects.show')
+        ->set('tab', 'trabajo')
+        ->set('status', ClientStatus::Ganado->value)
+        ->assertRedirect(route('clients.show', ['client' => $prospect, 'seccion' => 'trabajo']));
+});
+
 test('a hand-typed section in the url falls back to the first tab', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();

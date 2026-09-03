@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 /**
@@ -157,6 +158,15 @@ class ServicesPanel extends Component
      * Captura rápida: fecha, concepto y monto, con la frecuencia en pago único
      * salvo que se cambie. Todo lo demás toma su valor por omisión.
      */
+    /**
+     * La cotización que se acaba de aceptar dejó su línea cobrable aquí.
+     */
+    #[On('quote-accepted')]
+    public function refreshServices(): void
+    {
+        unset($this->services);
+    }
+
     public function quickCapture(CreateServiceWithSchedule $action): void
     {
         Gate::authorize('update', $this->client);

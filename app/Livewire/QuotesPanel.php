@@ -206,6 +206,13 @@ class QuotesPanel extends Component
 
         unset($this->quotes);
 
+        /**
+         * Aceptar crea cosas que se pintan fuera de este panel —el proyecto, la
+         * línea cobrable, sus cobros—, y esos componentes no se enteran solos:
+         * sin el aviso había que recargar la ficha para verlas.
+         */
+        $this->dispatch('quote-accepted');
+
         Flux::toast(variant: 'success', text: __('Cotización aceptada: ya existe su línea cobrable.'));
     }
 

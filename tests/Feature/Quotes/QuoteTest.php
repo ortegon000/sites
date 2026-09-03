@@ -10,6 +10,7 @@ use App\Enums\ProjectType;
 use App\Enums\QuoteStatus;
 use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceCategory;
+use App\Livewire\ChargesPanel;
 use App\Livewire\QuotesPanel;
 use App\Models\Client;
 use App\Models\Quote;
@@ -114,6 +115,36 @@ test('el switch del formulario es lo que deja la cotización marcada como proyec
         ->assertHasNoErrors();
 
     expect($client->quotes()->firstOrFail()->is_project)->toBeTrue();
+});
+
+test('lo que crea una cotización aceptada aparece sin recargar la ficha', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $quote = Quote::factory()->for($client)->sent()->asProject()->create([
+        'name' => 'Sitio web institucional',
+    ]);
+
+    $this->actingAs($staff);
+
+    /** La ficha renderiza el panel de cotizaciones dentro, así que el nombre ya se ve: lo que todavía no existe es el proyecto. */
+    $ficha = Livewire::test('pages::clients.show', ['client' => $client])
+        ->set('tab', 'trabajo')
+        ->assertSee('No todos los clientes necesitan uno', escape: false);
+
+    $cobros = Livewire::test(ChargesPanel::class, ['client' => $client])
+        ->assertDontSee('Sitio web institucional');
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->call('accept', $quote->id)
+        ->assertDispatched('quote-accepted');
+
+    $ficha->dispatch('quote-accepted')
+        ->assertDontSee('No todos los clientes necesitan uno', escape: false)
+        ->assertSee('Sitio web institucional');
+
+    $cobros->dispatch('quote-accepted')
+        ->assertSee('Sitio web institucional');
 });
 
 test('aceptar la cotización de un prospecto lo gana y lo convierte en cliente', function () {

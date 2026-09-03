@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 /**
@@ -84,6 +85,15 @@ class ChargesPanel extends Component
         return $this->chargesQuery()
             ->with(['service', 'payments' => fn ($query) => $query->orderBy('paid_on')->orderBy('id')])
             ->find($this->payingChargeId);
+    }
+
+    /**
+     * La línea que nació de la cotización aceptada ya trae sus cobros.
+     */
+    #[On('quote-accepted')]
+    public function refreshCharges(): void
+    {
+        unset($this->charges);
     }
 
     public function markChargeAsPaid(int $chargeId, MarkChargeAsPaid $action): void

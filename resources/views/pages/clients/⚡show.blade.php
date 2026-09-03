@@ -9,6 +9,7 @@ use App\Models\Client;
 use Flux\Flux;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
@@ -77,7 +78,11 @@ new class extends Component {
         if ($this->routeName !== $correctRoute) {
             $this->routeName = $correctRoute;
 
-            $this->redirect(route($correctRoute, $this->client), navigate: true);
+            /** La pestaña abierta se lleva al otro URL: quien acaba de ganar un prospecto desde "Trabajo" quiere ver ahí lo que se creó. */
+            $this->redirect(route($correctRoute, [
+                'client' => $this->client,
+                ...($this->tab === array_key_first($this->tabs) ? [] : ['seccion' => $this->tab]),
+            ]), navigate: true);
         }
     }
 
@@ -199,6 +204,23 @@ new class extends Component {
         unset($this->contacts);
 
         Flux::toast(variant: 'success', text: __('Contacto desvinculado de esta empresa.'));
+    }
+
+    /**
+     * Aceptar una cotización pasa en su propio panel, pero lo que provoca se
+     * ve aquí: el proyecto que abre entra a la tabla de proyectos, y si quien
+     * aceptó era un prospecto queda ganado y la ficha cambia de URL. Sin este
+     * aviso había que recargar para enterarse.
+     */
+    #[On('quote-accepted')]
+    public function refreshAfterQuoteAccepted(): void
+    {
+        $this->client->refresh();
+        $this->status = $this->client->status->value;
+
+        unset($this->projects);
+
+        $this->redirectToCanonicalRoute();
     }
 
     public function addNote(): void
