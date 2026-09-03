@@ -151,6 +151,12 @@ Importa dominios, buzones y accesos desde el libro de hosting en Excel. Es idemp
 php artisan import:hosting archivo.xlsx --dry-run
 ```
 
+Rellena con fechas de prueba las renovaciones que el libro de hosting no traía —ninguno de sus dominios tenía fecha—, para que el tablero de renovaciones tenga algo que mostrar en desarrollo. Solo toca lo que está en nulo, así que no pisa nada capturado a mano, y las fechas reales deben sustituirlas en cuanto existan.
+
+```bash
+php artisan demo:fill-dates
+```
+
 ## Documentación del proyecto
 
 - [CRM_PLAN.md](CRM_PLAN.md) — historial de fases, decisiones de producto con su razonamiento, modelo objetivo y hoja de ruta.
