@@ -146,7 +146,7 @@ test('assigning an agency to a client links all of its existing projects to that
         ->and($project->fresh()->agencies->first()->id)->toBe($agency->id);
 });
 
-test('admin can add a note and change a prospect status to ganado, converting it to a client', function () {
+test('moving the status switch on the client detail applies the change without a save button', function () {
     $admin = User::factory()->admin()->create();
     $client = Client::factory()->prospect()->create();
 
@@ -157,7 +157,6 @@ test('admin can add a note and change a prospect status to ganado, converting it
         ->call('addNote')
         ->assertHasNoErrors()
         ->set('status', ClientStatus::Ganado->value)
-        ->call('changeStatus')
         ->assertHasNoErrors();
 
     $client->refresh();
@@ -165,6 +164,39 @@ test('admin can add a note and change a prospect status to ganado, converting it
     expect($client->status)->toBe(ClientStatus::Ganado)
         ->and($client->type)->toBe(ClientType::Client)
         ->and($client->notes)->toHaveCount(2);
+});
+
+test('the client detail opens on the log tab and shows each panel in its own tab', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::clients.show', ['client' => $client])
+        ->assertSet('tab', 'bitacora')
+        ->assertSee('Bitácora')
+        ->assertDontSee('Proyectos')
+        ->set('tab', 'trabajo')
+        ->assertSee('Proyectos')
+        ->assertSee('Cotizaciones')
+        ->assertDontSee('Campañas de ads')
+        ->set('tab', 'dominios')
+        ->assertSee('Dominios y correo')
+        ->assertSee('Licencias y suscripciones')
+        ->set('tab', 'campanas')
+        ->assertSee('Campañas de ads')
+        ->assertDontSee('Contratos');
+});
+
+test('a hand-typed section in the url falls back to the first tab', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::clients.show', ['client' => $client])
+        ->set('tab', 'inventada')
+        ->assertSee('Bitácora');
 });
 
 test('the client detail lists the projects of that client only', function () {
@@ -177,6 +209,7 @@ test('the client detail lists the projects of that client only', function () {
     $this->actingAs($staff);
 
     Livewire::test('pages::clients.show', ['client' => $client])
+        ->set('tab', 'trabajo')
         ->assertSee('Sitio propio')
         ->assertDontSee('Proyecto ajeno');
 });
@@ -188,5 +221,6 @@ test('a client with no projects says so instead of looking broken', function () 
     $this->actingAs($staff);
 
     Livewire::test('pages::clients.show', ['client' => $client])
+        ->set('tab', 'trabajo')
         ->assertSee('No todos los clientes necesitan uno', escape: false);
 });

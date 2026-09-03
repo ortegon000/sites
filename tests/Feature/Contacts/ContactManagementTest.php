@@ -67,6 +67,25 @@ test('the client form loads and updates its primary contact', function () {
         ->and($client->contacts()->count())->toBe(1);
 });
 
+test('the contact form on a company stays hidden until it is asked for', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::clients.show', ['client' => $client])
+        ->assertSet('addingContact', false)
+        ->assertDontSee('Cargo (opcional)')
+        ->call('startAddingContact')
+        ->assertSee('Cargo (opcional)')
+        ->set('newContactName', 'Ana Gómez')
+        ->call('addContact')
+        ->assertHasNoErrors()
+        ->assertSet('addingContact', false);
+
+    expect($client->contacts()->count())->toBe(1);
+});
+
 test('a company can hold several contacts and only one is primary', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
