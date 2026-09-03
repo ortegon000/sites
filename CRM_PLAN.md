@@ -2,6 +2,18 @@
 
 > Copia de trabajo dentro del repo del plan original (`~/.claude/plans/linked-fluttering-shamir.md`), para que cualquier sesión de Claude Code que abras en este proyecto pueda encontrarlo y continuar. Si retomas esto en una conversación nueva, dile a Claude: **"Continúa con el plan en CRM_PLAN.md"**.
 
+## Para retomar en otra conversación
+
+**Dónde estamos.** Fases 0 a 9 implementadas (la 5 sigue a medias: falta un driver de correo real). El modelo cubre clientes y contactos, dominios con buzones y accesos, licencias, proyectos → servicios → cobros, agencias, portal y notificaciones. El libro de hosting del dueño ya está importado: 19 clientes, 19 dominios, 59 buzones, 23 accesos.
+
+**Qué sigue.** La **Fase 10 (abonos y pagos parciales)**, descrita más abajo. Es la que desbloquea todo lo demás: sin poder registrar "$12,914 de $24,000" no se puede mover el CSV de líneas cobrables, que es el archivo que el dueño usa a diario.
+
+**Antes de empezar, leer** la sección "Modelo objetivo y hoja de ruta (Fases 9+)": explica la distinción entre activo, trabajo y servicio recurrente, y por qué el modelo actual hay que aflojarlo en dos puntos —el proyecto obligatorio en los servicios y el cobro binario— en vez de rehacerlo.
+
+**Pendientes del dueño, no de código**: renombrar los 19 clientes importados (quedaron derivados del dominio, como "Geeaguasresiduales"), capturar las fechas de renovación que su hoja no traía en ninguna fila, y rotar las contraseñas que estuvieron en texto plano en el archivo.
+
+**Verificación en cada fase**: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`, y revisión en `https://sites.test`. Al cierre de la Fase 9: 178 tests, 176 pasan, 2 se saltan.
+
 ## Estado actual
 
 - ✅ **Fase 0 — Roles y fundamento de auth**: completa.
@@ -491,6 +503,19 @@ Mata el libro del VPS. **Implementada.**
 Se había definido que administrar el correo de un dominio exigía además un proyecto con `includes_email`. Tenía sentido cuando se asumía que todo cliente tenía proyecto. Al importar el libro real quedó claro que no: **once de los trece dominios con correo no tienen proyecto**, y la regla dejaba sus 59 buzones invisibles en la interfaz.
 
 Es el mismo argumento que ya había decidido dónde viven los accesos. Administrar el correo pasó a ser propiedad del dominio y de nadie más; el `includes_email` del proyecto dejó de ser candado y quedó como el valor que se **propone** al dar de alta un dominio desde un proyecto.
+
+### Navegación: los proyectos dejan de ser el centro
+
+El dueño observó que los proyectos no son ni lo más importante ni lo más frecuente —de unas 70 líneas cobrables al año, las que son proyectos de verdad son cinco o seis— y preguntó si debían perder su menú propio y vivir dentro del detalle del cliente.
+
+Tiene razón en el diagnóstico, pero quitar el menú hoy deja dos huecos: **un colaborador no puede abrir un cliente** (`ClientPolicy` es solo admin y staff), así que el listado de proyectos es su única puerta de entrada al sistema; y se pierde la vista transversal ("qué proyectos están activos", "en qué anda cada colaborador"), que no se contesta entrando cliente por cliente.
+
+Resolución en dos tiempos:
+
+1. **Hecho**: el detalle de cliente tiene ahora una tarjeta "Proyectos" con sus proyectos, tipo, conteo de servicios y dominios, y estatus. Antes había que ir al listado y filtrar para ver los de un cliente. El alta sigue en el listado, para no duplicar el formulario con su maquinaria de plantillas de servicios.
+2. **En la Fase 11**: el menú "Proyectos" se reemplaza por uno de **"Trabajos y cobros"**, que lista todo lo cobrable con filtros por tipo, estatus, cliente y agencia, y donde el proyecto es una columna más. Así el menú desaparece sustituido por algo más útil, en vez de recortado dejando huecos. Al colaborador se le resuelve la entrada convirtiendo su dashboard en su lista completa de proyectos asignados, que ya está a medio camino.
+
+El problema no es que Proyectos tenga menú: es que es el menú equivocado.
 
 ### Fase 10 — Abonos, cobros editables y agencias
 

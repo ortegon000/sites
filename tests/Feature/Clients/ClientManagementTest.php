@@ -167,3 +167,27 @@ test('admin can add a note and change a prospect status to ganado, converting it
         ->and($client->type)->toBe(ClientType::Client)
         ->and($client->notes)->toHaveCount(2);
 });
+
+test('the client detail lists the projects of that client only', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    Project::factory()->for($client)->create(['name' => 'Sitio propio']);
+    Project::factory()->create(['name' => 'Proyecto ajeno']);
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::clients.show', ['client' => $client])
+        ->assertSee('Sitio propio')
+        ->assertDontSee('Proyecto ajeno');
+});
+
+test('a client with no projects says so instead of looking broken', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::clients.show', ['client' => $client])
+        ->assertSee('No todos los clientes necesitan uno', escape: false);
+});
