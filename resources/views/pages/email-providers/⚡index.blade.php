@@ -151,6 +151,8 @@ new class extends Component {
 }; ?>
 
 <div class="flex w-full flex-col gap-6">
+    <x-breadcrumbs :items="[['label' => __('Proveedores de correo')]]" />
+
     <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
             <flux:heading size="xl">{{ __('Proveedores de correo') }}</flux:heading>

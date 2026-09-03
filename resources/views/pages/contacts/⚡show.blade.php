@@ -87,6 +87,8 @@ new class extends Component {
 }; ?>
 
 <div class="flex w-full flex-col gap-6">
+    <x-breadcrumbs :items="[['label' => __('Clientes'), 'href' => route('clients.index')], ['label' => $contact->name]]" />
+
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <flux:heading size="xl">{{ $contact->name }}</flux:heading>

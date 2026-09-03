@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ClientType;
 use App\Enums\UserRole;
 use App\Models\Project;
 use App\Models\User;
@@ -18,6 +19,35 @@ new class extends Component {
         Gate::authorize('view', $project);
 
         $this->project = $project;
+    }
+
+    /**
+     * El proyecto cuelga de su cliente, pero el colaborador no entra a la
+     * ficha: para él la vuelta es el listado de proyectos, que es lo único
+     * suyo que puede abrir.
+     *
+     * @return array<int, array{label: string, href?: string}>
+     */
+    #[Computed]
+    public function breadcrumbs(): array
+    {
+        if (auth()->user()->isCollaborator()) {
+            return [
+                ['label' => __('Proyectos'), 'href' => route('projects.index')],
+                ['label' => $this->project->name],
+            ];
+        }
+
+        $client = $this->project->client;
+        $isProspect = $client->type === ClientType::Prospect;
+
+        return [
+            $isProspect
+                ? ['label' => __('Prospectos'), 'href' => route('prospects.index')]
+                : ['label' => __('Clientes'), 'href' => route('clients.index')],
+            ['label' => $client->name, 'href' => route($isProspect ? 'prospects.show' : 'clients.show', $client)],
+            ['label' => $this->project->name],
+        ];
     }
 
     #[Computed]
@@ -61,6 +91,8 @@ new class extends Component {
 }; ?>
 
 <div class="flex w-full flex-col gap-6">
+    <x-breadcrumbs :items="$this->breadcrumbs" />
+
     <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
             <flux:heading size="xl">{{ $project->name }}</flux:heading>

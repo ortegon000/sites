@@ -216,6 +216,8 @@ new class extends Component {
 }; ?>
 
 <div class="flex w-full flex-col gap-6">
+    <x-breadcrumbs :items="[['label' => $this->type === \App\Enums\ClientType::Prospect ? __('Prospectos') : __('Clientes')]]" />
+
     <div class="flex flex-wrap items-center justify-between gap-4">
         <flux:heading size="xl">
             {{ $this->type->value === 'prospect' ? __('Prospectos') : __('Clientes') }}

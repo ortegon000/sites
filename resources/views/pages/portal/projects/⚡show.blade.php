@@ -34,6 +34,8 @@ new #[Layout('layouts::portal')] class extends Component {
 }; ?>
 
 <div class="flex w-full flex-col gap-6">
+    <x-breadcrumbs :home="route('portal.services.index')" :items="[['label' => $project->name]]" />
+
     <div class="flex flex-wrap items-center justify-between gap-4">
         <flux:heading size="xl">{{ $project->name }}</flux:heading>
 

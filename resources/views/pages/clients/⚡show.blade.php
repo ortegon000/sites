@@ -93,6 +93,25 @@ new class extends Component {
     }
 
     /**
+     * El camino de vuelta: un prospecto y un cliente comparten pantalla pero
+     * cuelgan de listados distintos.
+     *
+     * @return array<int, array{label: string, href?: string}>
+     */
+    #[Computed]
+    public function breadcrumbs(): array
+    {
+        $isProspect = $this->client->type === ClientType::Prospect;
+
+        return [
+            $isProspect
+                ? ['label' => __('Prospectos'), 'href' => route('prospects.index')]
+                : ['label' => __('Clientes'), 'href' => route('clients.index')],
+            ['label' => $this->client->name],
+        ];
+    }
+
+    /**
      * Las secciones del expediente, en el orden en que se muestran, con el
      * icono que las acompaña en la barra de pestañas.
      *
@@ -255,6 +274,8 @@ new class extends Component {
 }; ?>
 
 <div class="flex w-full flex-col gap-6">
+    <x-breadcrumbs :items="$this->breadcrumbs" />
+
     <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
             <flux:heading size="xl">{{ $client->name }}</flux:heading>
