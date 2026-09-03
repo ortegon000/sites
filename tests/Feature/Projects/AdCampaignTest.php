@@ -6,8 +6,9 @@ use App\Enums\AdPlatform;
 use App\Enums\ProjectType;
 use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceCategory;
-use App\Livewire\ProjectCampaigns;
+use App\Livewire\CampaignsPanel;
 use App\Models\AdCampaign;
+use App\Models\Client;
 use App\Models\Project;
 use App\Models\User;
 use Livewire\Livewire;
@@ -18,7 +19,7 @@ test('staff can add a campaign the client pays directly, and it generates no cha
 
     $this->actingAs($staff);
 
-    Livewire::test(ProjectCampaigns::class, ['project' => $project])
+    Livewire::test(CampaignsPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openCampaignModal')
         ->set('campaignName', 'Meta — temporada alta')
         ->set('platform', AdPlatform::Meta->value)
@@ -40,7 +41,7 @@ test('a pass-through campaign creates its own monthly ad spend service', functio
 
     $this->actingAs($staff);
 
-    Livewire::test(ProjectCampaigns::class, ['project' => $project])
+    Livewire::test(CampaignsPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openCampaignModal')
         ->set('campaignName', 'Google — siempre activa')
         ->set('platform', AdPlatform::Google->value)
@@ -65,7 +66,7 @@ test('a pass-through campaign can skip the ad spend service', function () {
 
     $this->actingAs($staff);
 
-    Livewire::test(ProjectCampaigns::class, ['project' => $project])
+    Livewire::test(CampaignsPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openCampaignModal')
         ->set('campaignName', 'Meta — facturada aparte')
         ->set('monthlyBudget', '5000')
@@ -83,7 +84,7 @@ test('a campaign cannot end before it starts', function () {
 
     $this->actingAs($staff);
 
-    Livewire::test(ProjectCampaigns::class, ['project' => $project])
+    Livewire::test(CampaignsPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openCampaignModal')
         ->set('campaignName', 'Campaña inválida')
         ->set('monthlyBudget', '1000')
@@ -102,7 +103,7 @@ test('editing a campaign does not create another ad spend service', function () 
 
     $this->actingAs($staff);
 
-    Livewire::test(ProjectCampaigns::class, ['project' => $project])
+    Livewire::test(CampaignsPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openCampaignModal', $campaign->id)
         ->set('campaignStatus', AdCampaignStatus::Pausada->value)
         ->call('saveCampaign')
@@ -124,4 +125,41 @@ test('collaborator does not see the campaigns card on a project', function () {
         ->assertOk()
         ->assertDontSee('Campañas de ads')
         ->assertDontSee('Campaña reservada');
+});
+
+test('una campaña puede colgar solo del cliente, sin proyecto', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test(CampaignsPanel::class, ['client' => $client])
+        ->call('openCampaignModal')
+        ->set('campaignName', 'Google — marca')
+        ->set('platform', AdPlatform::Google->value)
+        ->set('monthlyBudget', '6000')
+        ->set('budgetBilling', AdBudgetBilling::ClientDirect->value)
+        ->set('campaignStartsOn', today()->toDateString())
+        ->call('saveCampaign')
+        ->assertHasNoErrors();
+
+    $campaign = $client->adCampaigns()->firstOrFail();
+
+    expect($campaign->project_id)->toBeNull()
+        ->and($campaign->services()->count())->toBe(0);
+});
+
+test('el panel del cliente lista las campañas de sus proyectos y las sueltas', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $project = Project::factory()->for($client)->create();
+
+    AdCampaign::factory()->for($project)->create(['name' => 'Meta — remarketing']);
+    AdCampaign::factory()->standalone()->for($client)->create(['name' => 'Google — marca']);
+
+    $this->actingAs($staff);
+
+    Livewire::test(CampaignsPanel::class, ['client' => $client])
+        ->assertSee('Meta — remarketing')
+        ->assertSee('Google — marca');
 });

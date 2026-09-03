@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ChargeStatus;
+use App\Livewire\ChargesPanel;
 use App\Models\Charge;
 use App\Models\Client;
 use App\Models\Project;
@@ -23,7 +24,7 @@ test('un abono parcial deja el cobro en parcial y muestra el restante', function
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
+    Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openPaymentsModal', $charge->id)
         ->set('paymentAmount', '12914.00')
         ->set('paymentPaidOn', today()->toDateString())
@@ -48,7 +49,7 @@ test('abonar el resto deja el cobro pagado con la fecha del último abono', func
 
     $this->actingAs($staff);
 
-    $component = Livewire::test('pages::projects.show', ['project' => $project])
+    $component = Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openPaymentsModal', $charge->id)
         ->set('paymentAmount', '1000.00')
         ->set('paymentPaidOn', today()->subDays(10)->toDateString())
@@ -75,7 +76,7 @@ test('eliminar un abono devuelve el cobro a pendiente', function () {
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
+    Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openPaymentsModal', $charge->id)
         ->set('paymentAmount', '5000.00')
         ->set('paymentPaidOn', today()->toDateString())
@@ -99,7 +100,7 @@ test('marcar pagado registra el restante como un abono', function () {
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
+    Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('markChargeAsPaid', $charge->id)
         ->assertHasNoErrors();
 
@@ -140,7 +141,7 @@ test('staff puede editar el concepto, el monto y la fecha de un cobro', function
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
+    Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openChargeModal', $charge->id)
         ->set('chargeConcept', 'Mantenimiento — 20 horas')
         ->set('chargeAmount', '9500.00')
@@ -165,7 +166,7 @@ test('bajar el monto de un cobro por debajo de lo abonado lo deja pagado', funct
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
+    Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openChargeModal', $charge->id)
         ->set('chargeAmount', '3000.00')
         ->call('saveCharge')
@@ -181,11 +182,11 @@ test('no se puede abonar a un cobro de otro proyecto', function () {
 
     $this->actingAs($staff);
 
-    expect(fn () => Livewire::test('pages::projects.show', ['project' => $project])->call('openPaymentsModal', $otherCharge->id))
+    expect(fn () => Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])->call('openPaymentsModal', $otherCharge->id))
         ->toThrow(ModelNotFoundException::class);
 });
 
-test('un colaborador no puede registrar abonos', function () {
+test('un colaborador no puede ver ni registrar abonos', function () {
     $collaborator = User::factory()->collaborator()->create();
     $project = Project::factory()->for(Client::factory()->client())->create();
     $project->users()->attach($collaborator);
@@ -193,8 +194,7 @@ test('un colaborador no puede registrar abonos', function () {
 
     $this->actingAs($collaborator);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
-        ->call('openPaymentsModal', $charge->id)
+    Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])
         ->assertForbidden();
 
     expect($charge->payments()->count())->toBe(0);

@@ -3,6 +3,7 @@
 use App\Enums\ChargeStatus;
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
+use App\Enums\ProjectStatus;
 use App\Models\Charge;
 use App\Models\Client;
 use App\Models\ClientNote;
@@ -63,7 +64,7 @@ test('staff sees the same dashboard as admin', function () {
         ->assertSee(__('Prospectos abiertos'));
 });
 
-test('collaborator does not see financial data, only assigned active projects', function () {
+test('collaborator does not see financial data, only their assigned projects', function () {
     $collaborator = User::factory()->collaborator()->create();
     $client = Client::factory()->client()->create();
     $assignedProject = Project::factory()->for($client)->create(['name' => 'Proyecto asignado']);
@@ -93,4 +94,23 @@ test('open prospects count only includes prospects in an open pipeline status', 
     $count = Livewire::test('pages::dashboard.index')->instance()->openProspectsCount();
 
     expect($count)->toBe(1);
+});
+
+test('el dashboard del colaborador lista todos sus proyectos asignados, no solo los activos', function () {
+    $collaborator = User::factory()->collaborator()->create();
+    $client = Client::factory()->client()->create();
+
+    $active = Project::factory()->for($client)->create(['name' => 'Proyecto en curso', 'status' => ProjectStatus::Activo]);
+    $finished = Project::factory()->for($client)->create(['name' => 'Proyecto terminado', 'status' => ProjectStatus::Completado]);
+
+    $active->users()->attach($collaborator);
+    $finished->users()->attach($collaborator);
+
+    $this->actingAs($collaborator);
+
+    /** Es su única entrada al sistema: sin menú de proyectos, lo que no salga aquí no existe para él. */
+    $this->get(route('dashboard'))
+        ->assertOk()
+        ->assertSee('Proyecto en curso')
+        ->assertSee('Proyecto terminado');
 });

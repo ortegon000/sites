@@ -4,6 +4,7 @@ namespace App\Actions\Services;
 
 use App\Actions\Charges\GenerateScheduledCharges;
 use App\Enums\ServiceBillingFrequency;
+use App\Models\Client;
 use App\Models\Project;
 use App\Models\Service;
 
@@ -12,11 +13,18 @@ class CreateServiceWithSchedule
     public function __construct(private GenerateScheduledCharges $generateScheduledCharges) {}
 
     /**
+     * Crea una línea cobrable del cliente y le arma su calendario. El proyecto
+     * es opcional: agrupa las líneas de un trabajo grande, pero una renovación
+     * anual de $4,000 no necesita uno.
+     *
      * @param  array<string, mixed>  $attributes
      */
-    public function handle(Project $project, array $attributes): Service
+    public function handle(Client $client, array $attributes, ?Project $project = null): Service
     {
-        $service = $project->services()->create($attributes);
+        $service = $client->services()->create([
+            ...$attributes,
+            'project_id' => $project?->id,
+        ]);
 
         if ($service->billing_frequency === ServiceBillingFrequency::Installment) {
             $this->createInstallments($service);

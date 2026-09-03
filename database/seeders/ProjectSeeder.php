@@ -28,6 +28,7 @@ use App\Models\EmailProvider;
 use App\Models\Project;
 use App\Models\Service;
 use App\Models\ServiceInstallment;
+use App\Models\ServiceItem;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -69,6 +70,7 @@ class ProjectSeeder extends Seeder
         $this->seedCompletedInstallmentProject();
         $this->seedCancelledProject();
         $this->seedDomainWithoutProject();
+        $this->seedStandaloneLines();
     }
 
     /**
@@ -418,6 +420,74 @@ class ProjectSeeder extends Seeder
             'email_management' => DomainEmailManagement::NotManaged,
             'email_notes' => 'El correo lo lleva su proveedor de sistemas.',
             'status' => DomainStatus::Activo,
+        ]);
+    }
+
+    /**
+     * El cliente que solo tiene líneas sueltas: ningún proyecto, una renovación
+     * anual y un mantenimiento con sus tres visitas: un cobro al año que cubre
+     * las tres, no un cobro por visita. Es la forma de la mayoría de las líneas
+     * cobrables reales, y la razón de que el proyecto sea opcional.
+     */
+    private function seedStandaloneLines(): void
+    {
+        $client = Client::where('name', 'Clínica Sur')->firstOrFail();
+
+        $renewal = Service::factory()->standalone()->for($client)->annual()->create([
+            'name' => 'Renovación anual de hosting y dominio',
+            'category' => ServiceCategory::Hosting,
+            'amount' => '4000.00',
+            'currency' => $client->currency,
+            'status' => ServiceStatus::Activo,
+            'starts_on' => now()->subMonths(10)->toDateString(),
+            'next_charge_date' => now()->addMonths(2)->toDateString(),
+        ]);
+
+        Charge::factory()->for($renewal)->paid()->create(['amount' => '4000.00']);
+
+        $maintenance = Service::factory()->standalone()->for($client)->annual()->create([
+            'name' => 'Mantenimiento — tres visitas al año',
+            'category' => ServiceCategory::Maintenance,
+            'amount' => '1000.00',
+            'currency' => $client->currency,
+            'status' => ServiceStatus::Activo,
+            'starts_on' => now()->subMonths(4)->toDateString(),
+            'next_charge_date' => now()->addMonths(8)->toDateString(),
+        ]);
+
+        Charge::factory()->for($maintenance)->partiallyPaid()->create(['amount' => '1000.00']);
+
+        foreach ([[-4, true], [0, true], [4, false]] as [$monthOffset, $done]) {
+            ServiceItem::factory()->for($maintenance)->create([
+                'description' => 'Visita de mantenimiento',
+                'due_date' => now()->addMonths($monthOffset)->toDateString(),
+                'completed_at' => $done ? now()->addMonths($monthOffset) : null,
+            ]);
+        }
+
+        /** Quincenal: hay clientes que cobran dos veces al mes. */
+        $support = Service::factory()->standalone()->for($client)->biweekly()->create([
+            'name' => 'Soporte quincenal',
+            'category' => ServiceCategory::Other,
+            'amount' => '2500.00',
+            'currency' => $client->currency,
+            'status' => ServiceStatus::Activo,
+            'starts_on' => now()->subMonth()->toDateString(),
+            'next_charge_date' => now()->addDays(10)->toDateString(),
+        ]);
+
+        Charge::factory()->for($support)->paid()->create(['amount' => '2500.00']);
+        Charge::factory()->for($support)->pending()->create(['amount' => '2500.00']);
+
+        /** Una campaña que no nació de ningún proyecto: es un activo del cliente. */
+        AdCampaign::factory()->standalone()->for($client)->create([
+            'name' => 'Google — marca',
+            'platform' => AdPlatform::Google,
+            'objective' => 'Tráfico',
+            'monthly_budget' => '6000.00',
+            'currency' => $client->currency,
+            'budget_billing' => AdBudgetBilling::ClientDirect,
+            'starts_on' => now()->subMonths(3)->toDateString(),
         ]);
     }
 

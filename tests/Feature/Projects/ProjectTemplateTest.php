@@ -3,6 +3,7 @@
 use App\Enums\ProjectType;
 use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceCategory;
+use App\Livewire\ServicesPanel;
 use App\Models\Client;
 use App\Models\Domain;
 use App\Models\Project;
@@ -109,7 +110,7 @@ test('a service can be tied to a domain of its project', function () {
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
+    Livewire::test(ServicesPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openServiceModal')
         ->set('serviceName', 'Renovación de dominio')
         ->set('serviceCategory', ServiceCategory::Domain->value)
@@ -133,7 +134,7 @@ test('a service cannot be tied to a domain of another project', function () {
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
+    Livewire::test(ServicesPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openServiceModal')
         ->set('serviceName', 'Renovación de dominio')
         ->set('serviceCategory', ServiceCategory::Domain->value)

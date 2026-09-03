@@ -31,8 +31,11 @@
                     </flux:sidebar.group>
                 @endif
 
-                @if (auth()->user()->isAdmin() || auth()->user()->isStaff() || auth()->user()->isCollaborator())
-                    <flux:sidebar.group :heading="__('Proyectos')" class="grid">
+                @if (auth()->user()->isAdmin() || auth()->user()->isStaff())
+                    <flux:sidebar.group :heading="__('Trabajo')" class="grid">
+                        <flux:sidebar.item icon="banknotes" :href="route('billables.index')" :current="request()->routeIs('billables.*')" wire:navigate>
+                            {{ __('Trabajos y cobros') }}
+                        </flux:sidebar.item>
                         <flux:sidebar.item icon="briefcase" :href="route('projects.index')" :current="request()->routeIs('projects.*')" wire:navigate>
                             {{ __('Proyectos') }}
                         </flux:sidebar.item>

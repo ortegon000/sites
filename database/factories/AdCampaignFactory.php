@@ -6,6 +6,7 @@ use App\Enums\AdBudgetBilling;
 use App\Enums\AdCampaignStatus;
 use App\Enums\AdPlatform;
 use App\Models\AdCampaign;
+use App\Models\Client;
 use App\Models\Project;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -23,6 +24,9 @@ class AdCampaignFactory extends Factory
     {
         return [
             'project_id' => Project::factory(),
+            'client_id' => fn (array $attributes) => isset($attributes['project_id'])
+                ? Project::query()->whereKey($attributes['project_id'])->value('client_id')
+                : Client::factory(),
             'name' => 'Campaña '.fake()->word().' '.fake()->word(),
             'platform' => AdPlatform::Meta,
             'ad_account_id' => (string) fake()->randomNumber(9, true),
@@ -34,6 +38,16 @@ class AdCampaignFactory extends Factory
             'ends_on' => null,
             'status' => AdCampaignStatus::Activa,
         ];
+    }
+
+    /**
+     * Una campaña que no nació de ningún proyecto: cuelga solo del cliente.
+     */
+    public function standalone(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'project_id' => null,
+        ]);
     }
 
     public function passThrough(): static

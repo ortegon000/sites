@@ -10,9 +10,11 @@ use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceCategory;
 use App\Enums\ServiceStatus;
 use App\Models\AdCampaign;
+use App\Models\Client;
 use App\Models\Project;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -20,13 +22,19 @@ use Livewire\Attributes\Computed;
 use Livewire\Component;
 
 /**
- * Ad campaigns of a project. A project can run several at once (Meta and
- * Google side by side), and each decides on its own whether the ad spend is
- * billed through us or paid by the client straight to the platform.
+ * Las campañas de ads de un cliente. Un cliente puede correr varias a la vez
+ * (Meta y Google en paralelo), y cada una decide por su cuenta si la inversión
+ * se factura a través nuestro o la paga el cliente directo a la plataforma.
+ *
+ * La campaña es un activo del cliente, no del proyecto: el montaje inicial fue
+ * un trabajo que terminó, y la campaña le sobrevive. Por eso el panel recibe
+ * siempre el cliente y opcionalmente el proyecto que la montó.
  */
-class ProjectCampaigns extends Component
+class CampaignsPanel extends Component
 {
-    public Project $project;
+    public Client $client;
+
+    public ?Project $project = null;
 
     public ?int $editingCampaignId = null;
 
@@ -57,12 +65,13 @@ class ProjectCampaigns extends Component
      */
     public bool $createBudgetService = true;
 
-    public function mount(Project $project): void
+    public function mount(Client $client, ?Project $project = null): void
     {
-        Gate::authorize('view', $project);
+        Gate::authorize('view', $client);
 
+        $this->client = $client;
         $this->project = $project;
-        $this->currency = $project->client->currency;
+        $this->currency = $client->currency;
     }
 
     /**
@@ -71,8 +80,8 @@ class ProjectCampaigns extends Component
     #[Computed]
     public function campaigns(): Collection
     {
-        return $this->project->adCampaigns()
-            ->with('services')
+        return $this->campaignsQuery()
+            ->with(['services', 'project'])
             ->orderByDesc('starts_on')
             ->get();
     }
@@ -106,7 +115,7 @@ class ProjectCampaigns extends Component
 
     public function openCampaignModal(?int $campaignId = null): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
         $this->resetValidation();
         $this->editingCampaignId = $campaignId;
@@ -118,13 +127,13 @@ class ProjectCampaigns extends Component
             $this->adAccountId = null;
             $this->objective = null;
             $this->monthlyBudget = '';
-            $this->currency = $this->project->client->currency;
+            $this->currency = $this->client->currency;
             $this->budgetBilling = AdBudgetBilling::ClientDirect->value;
             $this->campaignStartsOn = today()->toDateString();
             $this->campaignEndsOn = null;
             $this->campaignStatus = AdCampaignStatus::Activa->value;
         } else {
-            $campaign = $this->project->adCampaigns()->findOrFail($campaignId);
+            $campaign = $this->findCampaign($campaignId);
 
             $this->campaignName = $campaign->name;
             $this->platform = $campaign->platform->value;
@@ -143,7 +152,7 @@ class ProjectCampaigns extends Component
 
     public function saveCampaign(CreateServiceWithSchedule $createServiceWithSchedule): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
         $validated = $this->validate([
             'campaignName' => ['required', 'string', 'max:255'],
@@ -174,10 +183,13 @@ class ProjectCampaigns extends Component
         ];
 
         if ($this->editingCampaignId === null) {
-            $campaign = $this->project->adCampaigns()->create($attributes);
+            $campaign = $this->client->adCampaigns()->create([
+                ...$attributes,
+                'project_id' => $this->project?->id,
+            ]);
 
             if ($budgetBilling->isBilledByUs() && $this->createBudgetService) {
-                $createServiceWithSchedule->handle($this->project, [
+                $createServiceWithSchedule->handle($this->client, [
                     'ad_campaign_id' => $campaign->id,
                     'name' => __('Inversión publicitaria').' · '.$campaign->name,
                     'description' => null,
@@ -188,10 +200,10 @@ class ProjectCampaigns extends Component
                     'status' => ServiceStatus::Activo,
                     'starts_on' => $campaign->starts_on->toDateString(),
                     'installments_count' => null,
-                ]);
+                ], $this->project);
             }
         } else {
-            $this->project->adCampaigns()->findOrFail($this->editingCampaignId)->update($attributes);
+            $this->findCampaign($this->editingCampaignId)->update($attributes);
         }
 
         unset($this->campaigns);
@@ -208,17 +220,32 @@ class ProjectCampaigns extends Component
 
     public function deleteCampaign(int $campaignId): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
-        $this->project->adCampaigns()->findOrFail($campaignId)->delete();
+        $this->findCampaign($campaignId)->delete();
 
         unset($this->campaigns);
 
         Flux::toast(variant: 'success', text: __('Campaña eliminada.'));
     }
 
+    /**
+     * @return Builder<AdCampaign>
+     */
+    private function campaignsQuery(): Builder
+    {
+        return AdCampaign::query()
+            ->where('client_id', $this->client->id)
+            ->when($this->project, fn ($query) => $query->where('project_id', $this->project->id));
+    }
+
+    private function findCampaign(int $campaignId): AdCampaign
+    {
+        return $this->campaignsQuery()->findOrFail($campaignId);
+    }
+
     public function render(): View
     {
-        return view('livewire.project-campaigns');
+        return view('livewire.campaigns-panel');
     }
 }

@@ -24,7 +24,7 @@ class CreateProjectFromTemplate
         $startsOn = $project->started_at?->toDateString() ?? today()->toDateString();
 
         foreach ($services as $service) {
-            $this->createServiceWithSchedule->handle($project, [
+            $this->createServiceWithSchedule->handle($project->client, [
                 'name' => $service['name'],
                 'description' => null,
                 'category' => ServiceCategory::from($service['category']),
@@ -34,7 +34,7 @@ class CreateProjectFromTemplate
                 'status' => ServiceStatus::Activo,
                 'starts_on' => $startsOn,
                 'installments_count' => null,
-            ]);
+            ], $project);
         }
     }
 }

@@ -2,6 +2,7 @@
 
 use App\Actions\Charges\GenerateScheduledCharges;
 use App\Enums\ServiceStatus;
+use App\Livewire\ServicesPanel;
 use App\Models\Charge;
 use App\Models\Project;
 use App\Models\Service;
@@ -17,7 +18,7 @@ test('staff can delete a service that has no paid charges', function () {
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
+    Livewire::test(ServicesPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('deleteService', $service->id);
 
     expect(Service::find($service->id))->toBeNull()
@@ -32,7 +33,7 @@ test('a service with a paid charge is not deleted, so the payment record survive
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
+    Livewire::test(ServicesPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('deleteService', $service->id);
 
     expect(Service::find($service->id))->not->toBeNull()
@@ -47,7 +48,7 @@ test('cancelling a service keeps its charges and stops the schedule', function (
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
+    Livewire::test(ServicesPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('cancelService', $service->id);
 
     $service->refresh();
@@ -75,7 +76,7 @@ test('only active services generate charges', function () {
         ->and($installment->charges()->count())->toBe(0);
 });
 
-test('a collaborator cannot delete a service', function () {
+test('a collaborator cannot reach the services panel of a project', function () {
     $collaborator = User::factory()->collaborator()->create();
     $project = Project::factory()->create();
     $project->users()->attach($collaborator);
@@ -83,8 +84,7 @@ test('a collaborator cannot delete a service', function () {
 
     $this->actingAs($collaborator);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
-        ->call('deleteService', $service->id)
+    Livewire::test(ServicesPanel::class, ['client' => $project->client, 'project' => $project])
         ->assertForbidden();
 
     expect(Service::find($service->id))->not->toBeNull();

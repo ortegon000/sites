@@ -16,7 +16,7 @@ function createProjectForScheduling(): Project
 test('creating an installment service generates equal monthly installments and a charge for the first one', function () {
     $project = createProjectForScheduling();
 
-    $service = app(CreateServiceWithSchedule::class)->handle($project, [
+    $service = app(CreateServiceWithSchedule::class)->handle($project->client, [
         'name' => 'Rediseño en 3 pagos',
         'description' => null,
         'billing_frequency' => ServiceBillingFrequency::Installment,
@@ -25,7 +25,7 @@ test('creating an installment service generates equal monthly installments and a
         'status' => ServiceStatus::Activo,
         'starts_on' => now()->toDateString(),
         'installments_count' => 3,
-    ]);
+    ], $project);
 
     expect($service->installments)->toHaveCount(3)
         ->and($service->installments->pluck('amount')->unique())->toHaveCount(1)
@@ -37,7 +37,7 @@ test('creating an installment service generates equal monthly installments and a
 test('creating a monthly service sets next_charge_date and generates an immediate charge when starting today', function () {
     $project = createProjectForScheduling();
 
-    $service = app(CreateServiceWithSchedule::class)->handle($project, [
+    $service = app(CreateServiceWithSchedule::class)->handle($project->client, [
         'name' => 'Mantenimiento',
         'description' => null,
         'billing_frequency' => ServiceBillingFrequency::Monthly,
@@ -46,7 +46,7 @@ test('creating a monthly service sets next_charge_date and generates an immediat
         'status' => ServiceStatus::Activo,
         'starts_on' => now()->toDateString(),
         'installments_count' => null,
-    ]);
+    ], $project);
 
     $service->refresh();
 
@@ -57,7 +57,7 @@ test('creating a monthly service sets next_charge_date and generates an immediat
 test('creating a one_time service generates a single charge and never recurs', function () {
     $project = createProjectForScheduling();
 
-    $service = app(CreateServiceWithSchedule::class)->handle($project, [
+    $service = app(CreateServiceWithSchedule::class)->handle($project->client, [
         'name' => 'Landing page',
         'description' => null,
         'billing_frequency' => ServiceBillingFrequency::OneTime,
@@ -66,7 +66,7 @@ test('creating a one_time service generates a single charge and never recurs', f
         'status' => ServiceStatus::Activo,
         'starts_on' => now()->toDateString(),
         'installments_count' => null,
-    ]);
+    ], $project);
 
     expect($service->charges)->toHaveCount(1)
         ->and($service->next_charge_date)->toBeNull();
@@ -79,7 +79,7 @@ test('creating a one_time service generates a single charge and never recurs', f
 test('creating a quarterly service advances next_charge_date by three months', function () {
     $project = createProjectForScheduling();
 
-    $service = app(CreateServiceWithSchedule::class)->handle($project, [
+    $service = app(CreateServiceWithSchedule::class)->handle($project->client, [
         'name' => 'Mantenimiento trimestral',
         'description' => null,
         'billing_frequency' => ServiceBillingFrequency::Quarterly,
@@ -88,7 +88,7 @@ test('creating a quarterly service advances next_charge_date by three months', f
         'status' => ServiceStatus::Activo,
         'starts_on' => now()->toDateString(),
         'installments_count' => null,
-    ]);
+    ], $project);
 
     $service->refresh();
 
@@ -99,7 +99,7 @@ test('creating a quarterly service advances next_charge_date by three months', f
 test('creating a semiannual service advances next_charge_date by six months', function () {
     $project = createProjectForScheduling();
 
-    $service = app(CreateServiceWithSchedule::class)->handle($project, [
+    $service = app(CreateServiceWithSchedule::class)->handle($project->client, [
         'name' => 'Mantenimiento semestral',
         'description' => null,
         'billing_frequency' => ServiceBillingFrequency::Semiannual,
@@ -108,7 +108,7 @@ test('creating a semiannual service advances next_charge_date by six months', fu
         'status' => ServiceStatus::Activo,
         'starts_on' => now()->toDateString(),
         'installments_count' => null,
-    ]);
+    ], $project);
 
     $service->refresh();
 

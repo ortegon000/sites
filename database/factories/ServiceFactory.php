@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceCategory;
 use App\Enums\ServiceStatus;
+use App\Models\Client;
 use App\Models\Project;
 use App\Models\Service;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -23,6 +24,11 @@ class ServiceFactory extends Factory
     {
         return [
             'project_id' => Project::factory(),
+            /** El cliente se hereda del proyecto cuando hay uno, para que la
+             *  línea no termine colgando de un cliente distinto al del proyecto. */
+            'client_id' => fn (array $attributes) => isset($attributes['project_id'])
+                ? Project::query()->whereKey($attributes['project_id'])->value('client_id')
+                : Client::factory(),
             'domain_id' => null,
             'ad_campaign_id' => null,
             'name' => fake()->randomElement(['Hosting', 'Dominio', 'Mantenimiento mensual', 'Ads', 'Desarrollo']),
@@ -36,6 +42,16 @@ class ServiceFactory extends Factory
             'next_charge_date' => now()->toDateString(),
             'installments_count' => null,
         ];
+    }
+
+    /**
+     * Una línea suelta: cuelga del cliente sin pasar por ningún proyecto.
+     */
+    public function standalone(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'project_id' => null,
+        ]);
     }
 
     public function oneTime(): static
@@ -74,6 +90,14 @@ class ServiceFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'billing_frequency' => ServiceBillingFrequency::Annual,
+            'next_charge_date' => $attributes['starts_on'] ?? now()->toDateString(),
+        ]);
+    }
+
+    public function biweekly(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'billing_frequency' => ServiceBillingFrequency::Biweekly,
             'next_charge_date' => $attributes['starts_on'] ?? now()->toDateString(),
         ]);
     }

@@ -12,10 +12,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 /**
  * @property int $id
- * @property int $project_id
+ * @property int $client_id
+ * @property int|null $project_id
  * @property int|null $domain_id
  * @property int|null $ad_campaign_id
  * @property string $name
@@ -31,7 +33,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['project_id', 'domain_id', 'ad_campaign_id', 'name', 'description', 'category', 'billing_frequency', 'amount', 'currency', 'status', 'starts_on', 'next_charge_date', 'installments_count'])]
+#[Fillable(['client_id', 'project_id', 'domain_id', 'ad_campaign_id', 'name', 'description', 'category', 'billing_frequency', 'amount', 'currency', 'status', 'starts_on', 'next_charge_date', 'installments_count'])]
 class Service extends Model
 {
     /** @use HasFactory<ServiceFactory> */
@@ -60,11 +62,30 @@ class Service extends Model
     }
 
     /**
+     * @return BelongsTo<Client, $this>
+     */
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    /**
+     * El proyecto es opcional: agrupa los servicios de un trabajo grande, pero
+     * una línea suelta cuelga del cliente sin pasar por él.
+     *
      * @return BelongsTo<Project, $this>
      */
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * @return HasMany<ServiceItem, $this>
+     */
+    public function items(): HasMany
+    {
+        return $this->hasMany(ServiceItem::class);
     }
 
     /**
@@ -97,5 +118,16 @@ class Service extends Model
     public function charges(): HasMany
     {
         return $this->hasMany(Charge::class);
+    }
+
+    /**
+     * Los abonos de todos sus cobros, para poder sumar lo cobrado de una línea
+     * sin recorrer cobro por cobro.
+     *
+     * @return HasManyThrough<ChargePayment, Charge, $this>
+     */
+    public function payments(): HasManyThrough
+    {
+        return $this->hasManyThrough(ChargePayment::class, Charge::class);
     }
 }

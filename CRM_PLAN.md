@@ -4,15 +4,15 @@
 
 ## Para retomar en otra conversación
 
-**Dónde estamos.** Fases 0 a 10 implementadas (la 5 sigue a medias: falta un driver de correo real). El modelo cubre clientes y contactos, dominios con buzones y accesos, licencias, proyectos → servicios → cobros con abonos, agencias, portal y notificaciones. El libro de hosting del dueño ya está importado: 19 clientes, 19 dominios, 59 buzones, 23 accesos.
+**Dónde estamos.** Fases 0 a 11 implementadas (la 5 sigue a medias: falta un driver de correo real). El modelo cubre clientes y contactos, dominios con buzones y accesos, licencias, campañas, líneas cobrables con o sin proyecto, cobros con abonos, agencias, portal y notificaciones. El libro de hosting del dueño ya está importado: 19 clientes, 19 dominios, 59 buzones, 23 accesos.
 
-**Qué sigue.** La **Fase 11 (líneas sueltas y subtareas)**, descrita más abajo. Con los abonos ya en su lugar, es lo que falta para mover el CSV de líneas cobrables: aflojar el proyecto obligatorio en los servicios, la captura rápida en la ficha del cliente y las subtareas.
+**Qué sigue.** La **Fase 12 (renovaciones)**, descrita más abajo: el tablero unificado de caducidades y el aviso al cliente, que es lo que motivó todo esto. Ojo con el pendiente del dueño: sin fechas de renovación capturadas, ese tablero no tendrá nada que avisar.
 
 **Antes de empezar, leer** la sección "Modelo objetivo y hoja de ruta (Fases 9+)": explica la distinción entre activo, trabajo y servicio recurrente, y por qué el modelo actual hay que aflojarlo en dos puntos —el proyecto obligatorio en los servicios y el cobro binario— en vez de rehacerlo.
 
 **Pendientes del dueño, no de código**: renombrar los 19 clientes importados (quedaron derivados del dominio, como "Geeaguasresiduales"), capturar las fechas de renovación que su hoja no traía en ninguna fila, y rotar las contraseñas que estuvieron en texto plano en el archivo.
 
-**Verificación en cada fase**: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`, y revisión en `https://sites.test`. Al cierre de la Fase 10: 190 tests, 188 pasan, 2 se saltan.
+**Verificación en cada fase**: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`, y revisión en `https://sites.test`. Al cierre de la Fase 11: 202 tests, 200 pasan, 2 se saltan.
 
 ## Estado actual
 
@@ -26,7 +26,8 @@
 - ✅ **Fase 7 — Dominios, tipos de proyecto y campañas de ads**: completa. Introduce la tabla `domains` (dueño: el cliente), mueve las cuentas de correo de `clients` a `domains`, agrega `ProjectType` como plantilla, `ServiceCategory`, frecuencias trimestral/semestral, proveedor de correo `manual` con contraseñas cifradas, importación de buzones existentes y campañas de ads.
 - ✅ **Fase 8 — Contactos como entidad propia**: completa. Separa a la persona de la empresa: `contacts` con pivot `client_contact`, para que un dueño de varias empresas se escriba una sola vez y entre al portal con un solo acceso.
 - ✅ **Fase 10 — Abonos, cobros editables y agencias**: completa. El cobro deja de ser binario (abonos, estatus derivado y restante), se pueden editar monto, fecha y concepto, y la agencia pasa a declarar a quién se le factura, con filtros y reporte de cobrado/por cobrar.
-- 🔶 **Fases 9–14 — Centralizar los tres Excel**: la 9 y la 10 completas, el resto planeadas. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
+- ✅ **Fase 11 — Líneas sueltas, subtareas y campañas del cliente**: completa. El proyecto deja de ser obligatorio para cobrar, la ficha del cliente gana captura rápida, los servicios llevan subtareas, aparece la frecuencia quincenal y el menú de Proyectos cede el paso a "Trabajos y cobros".
+- 🔶 **Fases 9–14 — Centralizar los tres Excel**: de la 9 a la 11 completas, el resto planeadas. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
 
@@ -539,15 +540,25 @@ Desbloquea mover el CSV de cobrables. **Implementada.**
 
 **Lo que queda para la Fase 11**: la vista transversal de "Trabajos y cobros" que sustituye al menú de Proyectos. El filtro por agencia en el listado de proyectos es el puente mientras tanto.
 
-### Fase 11 — Líneas sueltas, subtareas y campañas al cliente
+### Fase 11 — Líneas sueltas, subtareas y campañas al cliente ✅
 
-Mata el CSV de cobrables.
+Mata el CSV de cobrables. **Implementada.**
 
 - **`services.project_id` nullable** y `client_id` requerido.
 - **Captura rápida**: un renglón siempre visible en la ficha del cliente —fecha, concepto, monto— sin modal, con fecha en hoy. Si no se captura tan rápido como una fila de Excel, se vuelve al Excel.
 - **`service_items`** (subtareas): descripción, fecha, hecho/no hecho. Cubre las tres visitas del mantenimiento cuatrimestral —**confirmado: un cobro de $1,000 al año que cubre tres visitas, no $1,000 por visita**— y también la lista numerada de cambios que hoy escribe dentro del concepto de "Mejora continua".
 - **Frecuencia quincenal** (IECA cobra dos veces al mes).
 - **`ad_campaigns`** pasa de colgar del proyecto a colgar del cliente, con proyecto opcional: es un activo, no trabajo.
+
+**Lo que se construyó**
+
+- **`services.client_id` requerido y `project_id` nullable**, con lo mismo en `ad_campaigns`. `CreateServiceWithSchedule` recibe ahora el cliente y, opcionalmente, el proyecto.
+- **Captura rápida** en la ficha del cliente: un renglón siempre visible con fecha (hoy), concepto, monto y frecuencia, sin modal. La frecuencia se dejó en el renglón —no solo pago único— porque las líneas sueltas reales del dueño son sobre todo renovaciones anuales, y esconderlas tras el formulario largo habría dejado el caso más común fuera de la vía rápida.
+- **`service_items`**: descripción, fecha opcional y hecho/no hecho, con un contador "2/3" en la lista. Marcarlas no cobra de más: el monto es del servicio, y ese era justo el malentendido que había que evitar.
+- **Frecuencia quincenal** anclada al día de inicio —el 3 y el 18—, en vez de sumar quince días y correrse de mes en mes.
+- **Tres paneles reutilizables** en vez de dos pantallas que se copiaban: `ServicesPanel`, `ChargesPanel` y `CampaignsPanel` reciben el cliente y opcionalmente el proyecto, igual que `DomainsPanel` desde la Fase 9. El detalle de proyecto pasó de casi 600 líneas a poco más de 250, y la ficha del cliente ganó, sin código nuevo, su estado de cuenta completo: los cobros de sus líneas sueltas y los de sus proyectos en una sola tabla.
+- **"Trabajos y cobros"** (`/trabajos`): todo lo cobrable con filtros por cliente, agencia, categoría, frecuencia y estatus, con el proyecto como una columna más y los totales de lo filtrado —no solo de la página— arriba. El menú de Proyectos se conserva debajo: quitarlo hoy dejaría sin puerta de entrada al alta de proyectos, que sigue viviendo en su listado.
+- **El dashboard del colaborador es su lista completa** de proyectos asignados, activos o no, con los activos primero. Es su única entrada al sistema, porque no tiene menú de proyectos ni acceso a la ficha del cliente.
 
 ### Fase 12 — Renovaciones
 

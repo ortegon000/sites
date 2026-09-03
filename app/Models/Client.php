@@ -91,6 +91,26 @@ class Client extends Model
     }
 
     /**
+     * Todo lo cobrable del cliente, con o sin proyecto: una línea suelta cuelga
+     * de aquí y una de un trabajo grande también, solo que además apunta a su
+     * proyecto.
+     *
+     * @return HasMany<Service, $this>
+     */
+    public function services(): HasMany
+    {
+        return $this->hasMany(Service::class);
+    }
+
+    /**
+     * @return HasMany<AdCampaign, $this>
+     */
+    public function adCampaigns(): HasMany
+    {
+        return $this->hasMany(AdCampaign::class);
+    }
+
+    /**
      * @return HasMany<License, $this>
      */
     public function licenses(): HasMany

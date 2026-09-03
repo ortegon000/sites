@@ -9,6 +9,7 @@ Route::middleware(['auth', 'verified', 'role:admin,staff'])->group(function () {
     Route::livewire('clientes/{client}', 'pages::clients.show')->name('clients.show');
     Route::livewire('prospectos/{client}', 'pages::clients.show')->name('prospects.show');
     Route::livewire('agencias', 'pages::agencies.index')->name('agencies.index');
+    Route::livewire('trabajos', 'pages::billables.index')->name('billables.index');
 });
 
 Route::middleware(['auth', 'verified', 'role:admin,staff,collaborator'])->group(function () {

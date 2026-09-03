@@ -10,11 +10,13 @@ Tres familias, con una regla clara para elegir entre ellas:
 
 | Pregunta | Qué es | Dónde vive |
 |---|---|---|
-| ¿El cobro **se repite** en un ciclo? | Servicio recurrente | `Service` con frecuencia |
+| ¿El cobro **se repite** en un ciclo? | Servicio recurrente | `Service` con frecuencia (quincenal a anual) |
 | ¿Se cobra **una vez**? | Trabajo | `Service` de pago único o a plazos |
 | ¿Es algo que el cliente **tiene** y administramos? | Activo | `Domain`, `EmailAccount`, `DomainCredential`, `License`, `AdCampaign` |
 
-El **cliente es la empresa** y el centro de todo: de él cuelgan contactos, dominios, licencias, proyectos y bitácora. El **contacto es la persona**, guardada una sola vez y ligada a todas sus empresas, así que un dueño de tres negocios se escribe una vez y entra al portal con un solo acceso. El **proyecto es el trabajo que se hace**, no el expediente del cliente: por eso los accesos y los activos no cuelgan de él, que termina, sino del cliente y del dominio, que perduran.
+El **cliente es la empresa** y el centro de todo: de él cuelgan contactos, dominios, licencias, campañas, líneas cobrables, proyectos y bitácora. El **contacto es la persona**, guardada una sola vez y ligada a todas sus empresas, así que un dueño de tres negocios se escribe una vez y entra al portal con un solo acceso. El **proyecto es el trabajo que se hace**, no el expediente del cliente: por eso los accesos y los activos no cuelgan de él, que termina, sino del cliente y del dominio, que perduran.
+
+El **proyecto es opcional**: una línea de $500 o una renovación anual cuelgan del cliente sin obligar a inventar un proyecto, y se capturan en un renglón —fecha, concepto, monto— siempre visible en su ficha. El proyecto agrupa las líneas de un trabajo grande, que son las menos. Cada línea puede llevar **subtareas** —las tres visitas que cubre un mantenimiento de $1,000 al año, no $1,000 por visita— y el menú **Trabajos y cobros** lista todo lo cobrable con el proyecto como una columna más.
 
 El **cobro no es binario**: cada `Charge` lleva sus abonos (`ChargePayment`) y su estatus —pendiente, parcial, pagado, vencido— se deriva de ellos, porque los pagos en dos o tres exhibiciones están por todas partes en los datos reales y el restante es la columna que más se mira. Marcar un cobro como pagado registra el restante como un abono, no toca el estatus a mano.
 
@@ -35,7 +37,8 @@ El razonamiento completo detrás de estas decisiones está en **[CRM_PLAN.md](CR
 - ✅ Fase 8 — Contactos como entidad propia
 - ✅ Fase 9 — Accesos de servidor, licencias e importación del libro de hosting
 - ✅ Fase 10 — Abonos y pagos parciales, cobros editables y agencias reorientadas
-- 📋 Fases 11–14 — Líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos
+- ✅ Fase 11 — Líneas cobrables sin proyecto, subtareas, cobro quincenal y vista de trabajos y cobros
+- 📋 Fases 12–14 — Renovaciones con aviso al cliente, cotizaciones y contratos
 
 ## Desarrollo local
 
@@ -67,7 +70,7 @@ php artisan migrate:fresh --seed
 
 Las migraciones se **reescriben en su lugar** en vez de acumular migraciones de `add_x_to_y`: el proyecto todavía no tiene producción ni datos que preservar, así que el esquema de cada tabla se lee entero en el archivo que la crea. Esto deja de aplicar en cuanto haya un despliegue real.
 
-El seeder construye seis escenarios con nombre en vez de repetir el mismo proyecto genérico, para que abrir la app muestre el sistema completo: un proyecto web con dominio, buzones y accesos; un mantenimiento trimestral con un dominio de solo seguimiento; campañas de ads con las dos formas de facturar el presupuesto; un proyecto solo de correo; un rediseño a plazos en dólares; y un proyecto cancelado con agencia heredada. Entre todos cubren las seis frecuencias de cobro, las nueve categorías de servicio y los cuatro estatus de cobro, incluido uno abonado a la mitad.
+El seeder construye seis escenarios con nombre en vez de repetir el mismo proyecto genérico, para que abrir la app muestre el sistema completo: un proyecto web con dominio, buzones y accesos; un mantenimiento trimestral con un dominio de solo seguimiento; campañas de ads con las dos formas de facturar el presupuesto; un proyecto solo de correo; un rediseño a plazos en dólares; y un proyecto cancelado con agencia heredada. Entre todos cubren las siete frecuencias de cobro, las nueve categorías de servicio y los cuatro estatus de cobro, incluido uno abonado a la mitad. Un séptimo escenario, sin proyecto, muestra las líneas sueltas de un cliente: su renovación anual, un mantenimiento con sus tres visitas como subtareas, un soporte quincenal y una campaña de ads que no nació de ningún proyecto.
 
 La cuenta de administrador real se siembra aparte y necesita `ADMIN_SEED_PASSWORD` en el `.env`:
 
@@ -101,8 +104,8 @@ pnpm run build
 | Rol | Alcance |
 |---|---|
 | **Admin** | Acceso total, incluidos los accesos de servidor, las credenciales de licencia y los proveedores de correo. |
-| **Staff** (equipo interno) | Todo el CRM —clientes, contactos, proyectos, cobros, dominios, buzones— **menos** contraseñas de servidor y de licencia. |
-| **Collaborator** (colaborador externo) | Solo los proyectos que se le asignen. Sin datos financieros, sin dominios, sin campañas. |
+| **Staff** (equipo interno) | Todo el CRM —clientes, contactos, proyectos, trabajos y cobros, dominios, buzones— **menos** contraseñas de servidor y de licencia. |
+| **Collaborator** (colaborador externo) | Solo los proyectos que se le asignen, listados en su dashboard, que es su entrada al sistema. Sin datos financieros, sin dominios, sin campañas. |
 | **Client** (cliente) | Portal de solo lectura: los proyectos, cobros y buzones de todas sus empresas. |
 
 ## Datos sensibles

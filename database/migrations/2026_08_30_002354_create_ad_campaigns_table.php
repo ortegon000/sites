@@ -13,7 +13,10 @@ return new class extends Migration
     {
         Schema::create('ad_campaigns', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('project_id')->constrained()->cascadeOnDelete();
+            /** La campaña es un activo del cliente: vive mientras corre, no
+             *  mientras dura el proyecto que la montó. */
+            $table->foreignId('client_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('project_id')->nullable()->constrained()->cascadeOnDelete();
             $table->string('name');
             $table->string('platform');
             $table->string('ad_account_id')->nullable();
@@ -27,7 +30,7 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            $table->index(['project_id', 'status']);
+            $table->index(['client_id', 'status']);
         });
     }
 

@@ -13,7 +13,10 @@ return new class extends Migration
     {
         Schema::create('services', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('project_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('client_id')->constrained()->cascadeOnDelete();
+            /** Nullable a propósito: una línea de $500 cuelga del cliente sin
+             *  obligar a inventar un proyecto para poder cobrarla. */
+            $table->foreignId('project_id')->nullable()->constrained()->cascadeOnDelete();
             $table->foreignId('domain_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('ad_campaign_id')->nullable()->constrained()->nullOnDelete();
             $table->string('name');
@@ -28,6 +31,7 @@ return new class extends Migration
             $table->unsignedTinyInteger('installments_count')->nullable();
             $table->timestamps();
 
+            $table->index(['client_id', 'status']);
             $table->index(['project_id', 'status']);
         });
     }

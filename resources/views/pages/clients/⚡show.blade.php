@@ -360,7 +360,13 @@ new class extends Component {
             </flux:card>
 
             @if (auth()->user()->isAdmin() || auth()->user()->isStaff())
+                <livewire:services-panel :client="$client" :key="'services-panel-client-'.$client->id" />
+
+                <livewire:charges-panel :client="$client" :key="'charges-panel-client-'.$client->id" />
+
                 <livewire:domains-panel :client="$client" :key="'domains-panel-client-'.$client->id" />
+
+                <livewire:campaigns-panel :client="$client" :key="'campaigns-panel-client-'.$client->id" />
 
                 <livewire:client-licenses :client="$client" :key="'client-licenses-'.$client->id" />
             @endif

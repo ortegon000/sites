@@ -85,6 +85,10 @@ new class extends Component
     }
 
     /**
+     * Todos los proyectos asignados al colaborador, no solo los activos: el
+     * dashboard es su lista completa y su única entrada al sistema, porque no
+     * tiene menú de proyectos ni acceso a la ficha del cliente.
+     *
      * @return Collection<int, Project>
      */
     #[Computed]
@@ -92,8 +96,8 @@ new class extends Component
     {
         return Project::query()
             ->whereHas('users', fn ($q) => $q->whereKey(auth()->id()))
-            ->where('status', ProjectStatus::Activo)
             ->with('client')
+            ->orderByRaw("case when status = ? then 0 else 1 end", [ProjectStatus::Activo->value])
             ->orderBy('name')
             ->get();
     }

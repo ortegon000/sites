@@ -4,6 +4,8 @@ use App\Enums\ChargeStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceStatus;
+use App\Livewire\ChargesPanel;
+use App\Livewire\ServicesPanel;
 use App\Models\Agency;
 use App\Models\Charge;
 use App\Models\Client;
@@ -129,14 +131,14 @@ test('collaborator can view an assigned project but not one they are not assigne
     expect($collaborator->can('view', $notAssigned))->toBeFalse();
 });
 
-test('staff can add a service to a project from the show page', function () {
+test('staff can add a service to a project from its services panel', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
     $project = Project::factory()->for($client)->create();
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
+    Livewire::test(ServicesPanel::class, ['client' => $client, 'project' => $project])
         ->set('serviceName', 'Hosting anual')
         ->set('billingFrequency', ServiceBillingFrequency::Annual->value)
         ->set('amount', '1200.00')
@@ -152,7 +154,7 @@ test('staff can add a service to a project from the show page', function () {
         ->and($project->services->first()->charges)->toHaveCount(1);
 });
 
-test('staff can mark a charge as paid from the project show page', function () {
+test('staff can mark a charge as paid from the project charges panel', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
     $project = Project::factory()->for($client)->create();
@@ -161,7 +163,7 @@ test('staff can mark a charge as paid from the project show page', function () {
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::projects.show', ['project' => $project])
+    Livewire::test(ChargesPanel::class, ['client' => $client, 'project' => $project])
         ->call('markChargeAsPaid', $charge->id);
 
     expect($charge->fresh()->status)->toBe(ChargeStatus::Pagado)
