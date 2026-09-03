@@ -1,19 +1,36 @@
 # CRM de Agencia
 
-Aplicación interna a medida para gestionar clientes, prospectos, proyectos, cobros recurrentes, agencias colaboradoras y cuentas de correo de clientes.
+Aplicación interna a medida para gestionar clientes y sus contactos, proyectos y trabajos, cobros con recordatorios, dominios con sus buzones y accesos, licencias, campañas de ads y agencias, con un portal de solo lectura para el cliente.
 
 Construida sobre Laravel 13 con el stack de [`laravel/livewire-starter-kit`](https://github.com/laravel/livewire-starter-kit): Livewire 4 (componentes de página nativos), [Flux UI](https://fluxui.dev/), Fortify (login, 2FA, passkeys) y Tailwind CSS v4.
 
-## Estado del proyecto
+## Qué modela
 
-El desarrollo avanza por fases. El detalle completo, las decisiones de producto confirmadas y el roadmap están en **[CRM_PLAN.md](CRM_PLAN.md)**.
+Tres familias, con una regla clara para elegir entre ellas:
+
+| Pregunta | Qué es | Dónde vive |
+|---|---|---|
+| ¿El cobro **se repite** en un ciclo? | Servicio recurrente | `Service` con frecuencia |
+| ¿Se cobra **una vez**? | Trabajo | `Service` de pago único o a plazos |
+| ¿Es algo que el cliente **tiene** y administramos? | Activo | `Domain`, `EmailAccount`, `DomainCredential`, `License`, `AdCampaign` |
+
+El **cliente es la empresa** y el centro de todo: de él cuelgan contactos, dominios, licencias, proyectos y bitácora. El **contacto es la persona**, guardada una sola vez y ligada a todas sus empresas, así que un dueño de tres negocios se escribe una vez y entra al portal con un solo acceso. El **proyecto es el trabajo que se hace**, no el expediente del cliente: por eso los accesos y los activos no cuelgan de él, que termina, sino del cliente y del dominio, que perduran.
+
+El razonamiento completo detrás de estas decisiones está en **[CRM_PLAN.md](CRM_PLAN.md)**.
+
+## Estado del proyecto
 
 - ✅ Fase 0 — Roles y fundamento de auth
 - ✅ Fase 1 — CRM de clientes y prospectos
 - ✅ Fase 2 — Proyectos, servicios y cobros con recordatorios
 - ✅ Fase 3 — Agencias colaboradoras
-- ✅ Fase 4 — Portal de clientes (proyectos, cobros y correos propios, todo de solo lectura)
-- 🔶 Fase 5 — Aprovisionamiento de cuentas de correo (andamiaje completo con driver simulado; falta conectar MXroute/cPanel/Hostinger reales)
+- ✅ Fase 4 — Portal de clientes (proyectos, cobros y correos propios, de solo lectura)
+- 🔶 Fase 5 — Aprovisionamiento de correo (andamiaje completo con driver simulado; falta conectar MXroute/cPanel/Hostinger reales)
+- ✅ Fase 6 — Dashboard interno con KPIs por rol
+- ✅ Fase 7 — Dominios, tipos de proyecto y campañas de ads
+- ✅ Fase 8 — Contactos como entidad propia
+- ✅ Fase 9 — Accesos de servidor, licencias e importación del libro de hosting
+- 📋 Fases 10–14 — Abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos
 
 ## Desarrollo local
 
@@ -27,9 +44,14 @@ Este proyecto corre con **[LERD](https://github.com/geodro/lerd)** (alternativa 
 
 ```bash
 composer install
+```
+
+```bash
 pnpm install
-cp .env.example .env
-php artisan key:generate
+```
+
+```bash
+cp .env.example .env && php artisan key:generate
 ```
 
 ### Base de datos
@@ -38,7 +60,15 @@ php artisan key:generate
 php artisan migrate:fresh --seed
 ```
 
-El seeder (`database/seeders/`) crea datos de ejemplo: clientes, prospectos, notas de actividad, un usuario por rol, proyectos con servicios y cobros en distintos estados (pendiente, pagado, vencido), agencias colaboradoras asociadas a proyectos, y un proveedor de correo simulado con un par de cuentas ya aprovisionadas.
+Las migraciones se **reescriben en su lugar** en vez de acumular migraciones de `add_x_to_y`: el proyecto todavía no tiene producción ni datos que preservar, así que el esquema de cada tabla se lee entero en el archivo que la crea. Esto deja de aplicar en cuanto haya un despliegue real.
+
+El seeder construye seis escenarios con nombre en vez de repetir el mismo proyecto genérico, para que abrir la app muestre el sistema completo: un proyecto web con dominio, buzones y accesos; un mantenimiento trimestral con un dominio de solo seguimiento; campañas de ads con las dos formas de facturar el presupuesto; un proyecto solo de correo; un rediseño a plazos en dólares; y un proyecto cancelado con agencia heredada. Entre todos cubren las seis frecuencias de cobro, las nueve categorías de servicio y los tres estatus de cobro.
+
+La cuenta de administrador real se siembra aparte y necesita `ADMIN_SEED_PASSWORD` en el `.env`:
+
+```bash
+php artisan db:seed --class=AdminSeeder
+```
 
 ### Usuarios de prueba
 
@@ -49,45 +79,63 @@ Password para todos: `password`
 | `test@example.com` | Admin |
 | `staff@example.com` | Equipo interno (staff) |
 | `colaborador@example.com` | Colaborador externo |
-| `cliente@example.com` | Cliente (portal) |
+| `cliente@example.com` | Cliente — Juan Pérez, dueño de tres empresas, útil para ver el portal multi-empresa |
 
 ### Assets del frontend
 
 ```bash
-pnpm run dev    # servidor de desarrollo con HMR
-pnpm run build  # build de producción
+pnpm run dev
+```
+
+```bash
+pnpm run build
 ```
 
 ## Roles y accesos
 
 | Rol | Alcance |
 |---|---|
-| **Admin** | Acceso total. |
-| **Staff** (equipo interno) | Acceso total al CRM (clientes, prospectos, proyectos, cobros). |
-| **Collaborator** (colaborador externo) | Solo ve los proyectos que se le asignen. Sin acceso a datos financieros ni a otros clientes. |
-| **Client** (cliente) | Portal limitado: sus propios proyectos, cobros y cuentas de correo. |
+| **Admin** | Acceso total, incluidos los accesos de servidor, las credenciales de licencia y los proveedores de correo. |
+| **Staff** (equipo interno) | Todo el CRM —clientes, contactos, proyectos, cobros, dominios, buzones— **menos** contraseñas de servidor y de licencia. |
+| **Collaborator** (colaborador externo) | Solo los proyectos que se le asignen. Sin datos financieros, sin dominios, sin campañas. |
+| **Client** (cliente) | Portal de solo lectura: los proyectos, cobros y buzones de todas sus empresas. |
+
+## Datos sensibles
+
+El sistema custodia credenciales de clientes, así que el criterio es explícito:
+
+- **Todo se guarda cifrado** con el cast `encrypted`: contraseñas de buzón, de servidor y de licencia, y las credenciales de proveedor.
+- **Los accesos de servidor son solo de admin** y **nunca aparecen en el portal**. Un cPanel o una base de datos abren la infraestructura del cliente; su buzón, en cambio, sí es suyo y puede verlo.
+- **La contraseña de un buzón solo se guarda si el proveedor no tiene API.** Un driver real puede resetearla cuando sea; uno manual no, y perderla ahí es perderla para siempre.
+- **Los correos al cliente llevan enlace al portal, nunca las contraseñas en el cuerpo.**
 
 ## Comandos útiles
 
 ```bash
-# Pruebas (Pest)
 php artisan test --compact
-php artisan test --filter=nombreDelTest
+```
 
-# Análisis estático (Larastan, nivel 7)
+```bash
 vendor/bin/phpstan analyse --no-progress --memory-limit=512M
+```
 
-# Formato de código (Pint)
-vendor/bin/pint --format agent <rutas>
+```bash
+vendor/bin/pint --dirty --format agent
+```
 
-# Rutas registradas
-php artisan route:list
+Corrida diaria vía scheduler: genera los cobros programados, marca los vencidos y envía los recordatorios de cobro y de expiración de dominios.
 
-# Generar cobros pendientes, marcar vencidos, y enviar recordatorios (corre diario vía scheduler)
+```bash
 php artisan charges:process
+```
+
+Importa dominios, buzones y accesos desde el libro de hosting en Excel. Es idempotente, y la corrida en seco recorre el camino real dentro de una transacción que deshace al final.
+
+```bash
+php artisan import:hosting archivo.xlsx --dry-run
 ```
 
 ## Documentación del proyecto
 
-- [CRM_PLAN.md](CRM_PLAN.md) — plan de implementación completo, decisiones de producto y roadmap por fases.
-- `.ai/rules/` (si existe) — convenciones y reglas específicas del proyecto para Laravel Boost.
+- [CRM_PLAN.md](CRM_PLAN.md) — historial de fases, decisiones de producto con su razonamiento, modelo objetivo y hoja de ruta.
+- `.ai/rules/` (si existe) — convenciones y reglas del proyecto para Laravel Boost.
