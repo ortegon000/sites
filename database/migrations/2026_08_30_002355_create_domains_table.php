@@ -18,6 +18,9 @@ return new class extends Migration
             $table->string('name');
             $table->string('management');
             $table->string('registrar')->nullable();
+            $table->string('site_url')->nullable();
+            $table->string('hosting_plan')->nullable();
+            $table->date('hosted_since')->nullable();
             $table->date('registered_at')->nullable();
             $table->date('expires_at')->nullable();
             $table->boolean('auto_renew')->default(false);

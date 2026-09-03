@@ -71,7 +71,7 @@ new #[Layout('layouts::portal')] class extends Component {
 
             <div class="grid gap-4 md:grid-cols-2">
                 @forelse ($domain->emailAccounts as $emailAccount)
-                    @php $settings = $emailAccount->provider->driver()->getConnectionSettings($emailAccount->provider) @endphp
+                    @php $settings = $emailAccount->provider->driver()->getConnectionSettings($emailAccount->provider, $domain->name) @endphp
 
                     <flux:card wire:key="portal-email-account-{{ $emailAccount->id }}" class="flex flex-col gap-4">
                         <div class="flex items-center justify-between gap-4">
@@ -84,6 +84,15 @@ new #[Layout('layouts::portal')] class extends Component {
                             <span>{{ $settings['imap_host'] }}:{{ $settings['imap_port'] }}</span>
                             <span class="text-zinc-400">{{ __('Servidor SMTP') }}</span>
                             <span>{{ $settings['smtp_host'] }}:{{ $settings['smtp_port'] }}</span>
+
+                            @if (! empty($settings['webmail_url']))
+                                <span class="text-zinc-400">{{ __('Webmail') }}</span>
+                                <span>
+                                    <a href="{{ $settings['webmail_url'] }}" target="_blank" rel="noopener" class="hover:underline">
+                                        {{ $settings['webmail_url'] }}
+                                    </a>
+                                </span>
+                            @endif
 
                             @if ($emailAccount->password !== null)
                                 <span class="text-zinc-400">{{ __('Contraseña') }}</span>

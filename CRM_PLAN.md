@@ -13,7 +13,7 @@
 - ✅ **Fase 6 — Dashboard interno**: completa (KPIs financieros y próximos cobros/actividad reciente para admin/staff, resumen de proyectos asignados sin datos financieros para collaborator).
 - ✅ **Fase 7 — Dominios, tipos de proyecto y campañas de ads**: completa. Introduce la tabla `domains` (dueño: el cliente), mueve las cuentas de correo de `clients` a `domains`, agrega `ProjectType` como plantilla, `ServiceCategory`, frecuencias trimestral/semestral, proveedor de correo `manual` con contraseñas cifradas, importación de buzones existentes y campañas de ads.
 - ✅ **Fase 8 — Contactos como entidad propia**: completa. Separa a la persona de la empresa: `contacts` con pivot `client_contact`, para que un dueño de varias empresas se escriba una sola vez y entre al portal con un solo acceso.
-- 📋 **Fases 9–14 — Centralizar los tres Excel**: planeadas. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
+- 🔶 **Fases 9–14 — Centralizar los tres Excel**: la 9 completa, el resto planeadas. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
 
@@ -458,9 +458,9 @@ El modelo actual no se tira. Se **afloja en dos puntos** y se le agregan activos
 
 Lo demás es aditivo: credenciales, licencias, subtareas, y el ciclo de renovación.
 
-### Fase 9 — Activos: credenciales y licencias
+### Fase 9 — Activos: credenciales y licencias ✅
 
-Mata el libro del VPS.
+Mata el libro del VPS. **Implementada.**
 
 - **`domain_credentials`**: `domain_id`, `kind` (panel/base de datos/FTP/CMS/otro), `label`, `url`, `username`, `password` (cifrada), `notes`. Una fila por acceso en vez de columnas fijas, porque no todos los sitios tienen WordPress ni FTP y alguno tendrá dos bases de datos.
 - **`licenses`**: `client_id` (requerido), `domain_id` (nullable), `name`, `vendor`, `cost`, `renewal_date`, `status`, credenciales opcionales, `notes`.
@@ -469,6 +469,22 @@ Mata el libro del VPS.
 - **Importación** del libro `VPS Controlmas.xlsx` (fechas en serial de Excel).
 
 **Nota de seguridad, no opcional.** Ese libro es una bóveda de credenciales en texto plano: cPanel, base de datos, FTP y WordPress de 14 sitios. Centralizarlo mejora las cosas —quedan cifradas y con control de acceso— pero **sube la apuesta del CRM**: pasa de herramienta de gestión a custodio del acceso a la infraestructura de los clientes. De ahí que estas credenciales sean **solo admin** (mismo criterio que los proveedores de correo) y **nunca visibles en el portal**: el buzón sí es del cliente, el cPanel es infraestructura. Las contraseñas que ya viajaron en ese archivo deben rotarse tras migrar.
+
+**Lo que se construyó**
+
+- `domain_credentials` y `licenses`, ambas con la contraseña cifrada; `domains` ganó `site_url`, `hosting_plan` y `hosted_since`.
+- `ProjectDomains` se generalizó a **`DomainsPanel`**: recibe siempre el cliente y opcionalmente un proyecto. Sin proyecto lista todos los dominios del cliente, que era la única forma de administrar los de quien solo tiene hosting — y son la mayoría de los importados. El detalle de cliente pasó de un resumen de solo lectura a este panel completo.
+- `ClientLicenses` en la ficha del cliente. Las credenciales de licencia siguen el mismo criterio que los accesos: solo admin, y un campo de contraseña vacío al editar conserva la guardada en vez de borrarla.
+- `getConnectionSettings()` recibe el dominio y sustituye `{dominio}`, porque la configuración real se deriva de él (`mail.acme.com`) y guardarla literal obligaba a capturar lo mismo una vez por dominio.
+- `App\Services\Import\XlsxReader`: lector de `.xlsx` sobre `ZipArchive` y `SimpleXML`, sin dependencias nuevas para algo que se usa una vez.
+- `php artisan import:hosting {archivo} [--provider=] [--dry-run]`, idempotente. La corrida en seco recorre el camino real dentro de una transacción y la deshace al final; simularla con ramas aparte daba conteos falsos, porque sin escribir nada la deduplicación nunca ocurría y cada fila parecía un cliente nuevo.
+
+**Resultado de la importación real**: 19 clientes, 19 dominios, 59 buzones, 23 accesos y 9 contactos. Los buzones van por defecto a un proveedor **manual**, porque traen contraseña y no hay API detrás; con un proveedor de API el importador las descarta y lo advierte.
+
+**Dos cosas que la importación reveló**
+
+- El libro **no trae el nombre de la empresa**, así que se deriva del dominio (`momat.com.mx` → "Momat"). Es una conjetura deliberada: es más rápido renombrar unos cuantos clientes después que capturar diecinueve a mano antes. Los nombres derivados tampoco coinciden con los del CSV de cobrables ("Geeaguasresiduales" contra "Gee"), así que al importar ese CSV habrá que unificar.
+- **Ninguno de los 19 dominios traía fecha de renovación**, aunque 14 sí tenían plan y 11 fecha de alta en el VPS. Eso explica por qué el archivo se revisaba a mano: no había dato del cual disparar un aviso. Hasta que esas fechas se capturen, el tablero de la Fase 12 no tendrá nada que avisar.
 
 ### Fase 10 — Abonos, cobros editables y agencias
 

@@ -21,6 +21,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $name
  * @property DomainManagement $management
  * @property string|null $registrar
+ * @property string|null $site_url
+ * @property string|null $hosting_plan
+ * @property CarbonImmutable|null $hosted_since
  * @property CarbonImmutable|null $registered_at
  * @property CarbonImmutable|null $expires_at
  * @property bool $auto_renew
@@ -31,7 +34,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['client_id', 'project_id', 'name', 'management', 'registrar', 'registered_at', 'expires_at', 'auto_renew', 'email_management', 'email_notes', 'status', 'expiry_notified_at'])]
+#[Fillable(['client_id', 'project_id', 'name', 'management', 'registrar', 'site_url', 'hosting_plan', 'hosted_since', 'registered_at', 'expires_at', 'auto_renew', 'email_management', 'email_notes', 'status', 'expiry_notified_at'])]
 class Domain extends Model
 {
     /** @use HasFactory<DomainFactory> */
@@ -58,6 +61,7 @@ class Domain extends Model
             'email_management' => DomainEmailManagement::class,
             'status' => DomainStatus::class,
             'registered_at' => 'date',
+            'hosted_since' => 'date',
             'expires_at' => 'date',
             'auto_renew' => 'boolean',
             'expiry_notified_at' => 'datetime',
@@ -102,6 +106,22 @@ class Domain extends Model
     public function emailAccounts(): HasMany
     {
         return $this->hasMany(EmailAccount::class);
+    }
+
+    /**
+     * @return HasMany<DomainCredential, $this>
+     */
+    public function credentials(): HasMany
+    {
+        return $this->hasMany(DomainCredential::class);
+    }
+
+    /**
+     * @return HasMany<License, $this>
+     */
+    public function licenses(): HasMany
+    {
+        return $this->hasMany(License::class);
     }
 
     /**

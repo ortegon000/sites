@@ -10,7 +10,10 @@ use App\Enums\DomainEmailManagement;
 use App\Enums\DomainManagement;
 use App\Enums\DomainStatus;
 use App\Enums\EmailProviderStatus;
+use App\Enums\DomainCredentialKind;
+use App\Models\Client;
 use App\Models\Domain;
+use App\Models\DomainCredential;
 use App\Models\EmailAccount;
 use App\Models\EmailProvider;
 use App\Models\Project;
@@ -23,14 +26,20 @@ use Livewire\Attributes\Computed;
 use Livewire\Component;
 
 /**
- * Domains of a project, and the mailboxes hanging off each of them. Lives as
- * its own component rather than inside `pages::projects.show` because that
- * page already carries services, team, charges and agencies — and because the
- * mailbox forms bring their own modals and validation.
+ * Los dominios de un cliente con lo que cuelga de cada uno: buzones y accesos
+ * técnicos.
+ *
+ * Recibe siempre el cliente —que es el dueño del dominio— y opcionalmente un
+ * proyecto. Con proyecto se acota a los dominios de ese proyecto y sirve de
+ * tarjeta en su detalle; sin él lista todos los del cliente, que es la única
+ * forma de administrar los dominios de quien solo tiene hosting y ningún
+ * proyecto abierto.
  */
-class ProjectDomains extends Component
+class DomainsPanel extends Component
 {
-    public Project $project;
+    public Client $client;
+
+    public ?Project $project = null;
 
     public ?int $editingDomainId = null;
 
@@ -51,6 +60,38 @@ class ProjectDomains extends Component
     public ?string $emailNotes = null;
 
     public string $domainStatus = '';
+
+    public ?int $domainProjectId = null;
+
+    public ?string $siteUrl = null;
+
+    public ?string $hostingPlan = null;
+
+    public ?string $hostedSince = null;
+
+    public ?int $credentialDomainId = null;
+
+    public ?int $editingCredentialId = null;
+
+    public string $credentialKind = '';
+
+    public ?string $credentialLabel = null;
+
+    public ?string $credentialUrl = null;
+
+    public ?string $credentialUsername = null;
+
+    public ?string $credentialPassword = null;
+
+    public ?string $credentialNotes = null;
+
+    /**
+     * Contraseñas que el usuario pidió ver, por id de acceso. Se cargan al
+     * pulsar el botón para que no viajen en el render inicial de la página.
+     *
+     * @var array<int, string>
+     */
+    public array $revealedCredentials = [];
 
     public ?int $emailDomainId = null;
 
@@ -82,11 +123,23 @@ class ProjectDomains extends Component
 
     public string $newPassword = '';
 
-    public function mount(Project $project): void
+    public function mount(Client $client, ?Project $project = null): void
     {
-        Gate::authorize('view', $project);
+        Gate::authorize('view', $client);
 
+        $this->client = $client;
         $this->project = $project;
+    }
+
+    /**
+     * Los accesos de servidor abren la infraestructura del cliente, no solo su
+     * correo, así que se guardan bajo el mismo criterio que las credenciales de
+     * proveedor: únicamente admin.
+     */
+    #[Computed]
+    public function canSeeCredentials(): bool
+    {
+        return auth()->user()->isAdmin();
     }
 
     /**
@@ -95,10 +148,28 @@ class ProjectDomains extends Component
     #[Computed]
     public function domains(): Collection
     {
-        return $this->project->domains()
-            ->with(['emailAccounts.provider'])
+        return ($this->project?->domains() ?? $this->client->domains())
+            ->with(['emailAccounts.provider', 'credentials', 'project'])
             ->orderBy('name')
             ->get();
+    }
+
+    /**
+     * @return Collection<int, Project>
+     */
+    #[Computed]
+    public function assignableProjects(): Collection
+    {
+        return $this->client->projects()->orderBy('name')->get();
+    }
+
+    /**
+     * @return array<int, DomainCredentialKind>
+     */
+    #[Computed]
+    public function credentialKindOptions(): array
+    {
+        return DomainCredentialKind::cases();
     }
 
     /**
@@ -133,12 +204,17 @@ class ProjectDomains extends Component
 
     public function openDomainModal(?int $domainId = null): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
         $this->resetValidation();
         $this->editingDomainId = $domainId;
 
         if ($domainId === null) {
+            /** Dentro de un proyecto se propone ese; desde el cliente, ninguno. */
+            $this->domainProjectId = $this->project?->id;
+            $this->siteUrl = null;
+            $this->hostingPlan = null;
+            $this->hostedSince = null;
             $this->domainName = '';
             $this->management = DomainManagement::Managed->value;
             $this->registrar = null;
@@ -149,8 +225,12 @@ class ProjectDomains extends Component
             $this->emailNotes = null;
             $this->domainStatus = DomainStatus::Activo->value;
         } else {
-            $domain = $this->project->domains()->findOrFail($domainId);
+            $domain = $this->client->domains()->findOrFail($domainId);
 
+            $this->domainProjectId = $domain->project_id;
+            $this->siteUrl = $domain->site_url;
+            $this->hostingPlan = $domain->hosting_plan;
+            $this->hostedSince = $domain->hosted_since?->toDateString();
             $this->domainName = $domain->name;
             $this->management = $domain->management->value;
             $this->registrar = $domain->registrar;
@@ -167,15 +247,19 @@ class ProjectDomains extends Component
 
     public function saveDomain(): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
         $validated = $this->validate([
             'domainName' => [
                 'required', 'string', 'max:255',
                 Rule::unique('domains', 'name')
-                    ->where('client_id', $this->project->client_id)
+                    ->where('client_id', $this->client->id)
                     ->ignore($this->editingDomainId),
             ],
+            'domainProjectId' => ['nullable', Rule::exists('projects', 'id')->where('client_id', $this->client->id)],
+            'siteUrl' => ['nullable', 'string', 'max:255'],
+            'hostingPlan' => ['nullable', 'string', 'max:255'],
+            'hostedSince' => ['nullable', 'date'],
             'management' => ['required', Rule::enum(DomainManagement::class)],
             'registrar' => ['nullable', 'string', 'max:255'],
             'registeredAt' => ['nullable', 'date'],
@@ -186,18 +270,25 @@ class ProjectDomains extends Component
             'domainStatus' => ['required', Rule::enum(DomainStatus::class)],
         ]);
 
-        if ($validated['emailManagement'] === DomainEmailManagement::Managed->value && ! $this->project->includes_email) {
-            $this->addError('emailManagement', __('Este proyecto no incluye correo. Actívalo en el proyecto para poder administrar buzones en este dominio.'));
+        $linkedProject = $validated['domainProjectId'] === null
+            ? null
+            : $this->client->projects()->find((int) $validated['domainProjectId']);
+
+        if ($validated['emailManagement'] === DomainEmailManagement::Managed->value && $linkedProject?->includes_email !== true) {
+            $this->addError('emailManagement', __('El correo requiere un proyecto que lo incluya. Elige uno arriba, o activa "Incluye correo" en el proyecto.'));
 
             return;
         }
 
         $attributes = [
-            'client_id' => $this->project->client_id,
-            'project_id' => $this->project->id,
+            'client_id' => $this->client->id,
+            'project_id' => $linkedProject?->id,
             'name' => $validated['domainName'],
             'management' => DomainManagement::from($validated['management']),
             'registrar' => $validated['registrar'],
+            'site_url' => $validated['siteUrl'],
+            'hosting_plan' => $validated['hostingPlan'],
+            'hosted_since' => $validated['hostedSince'],
             'registered_at' => $validated['registeredAt'],
             'expires_at' => $validated['expiresAt'],
             'auto_renew' => $validated['autoRenew'],
@@ -209,7 +300,7 @@ class ProjectDomains extends Component
         if ($this->editingDomainId === null) {
             Domain::create($attributes);
         } else {
-            $this->project->domains()->findOrFail($this->editingDomainId)->update($attributes);
+            $this->client->domains()->findOrFail($this->editingDomainId)->update($attributes);
         }
 
         unset($this->domains);
@@ -226,9 +317,9 @@ class ProjectDomains extends Component
 
     public function deleteDomain(int $domainId): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
-        $this->project->domains()->findOrFail($domainId)->delete();
+        $this->client->domains()->findOrFail($domainId)->delete();
 
         unset($this->domains);
 
@@ -237,7 +328,7 @@ class ProjectDomains extends Component
 
     public function openEmailModal(int $domainId): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
         $this->resetValidation();
         $this->emailDomainId = $domainId;
@@ -250,7 +341,7 @@ class ProjectDomains extends Component
 
     public function provisionEmailAccount(ProvisionEmailAccount $action): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
         $validated = $this->validate([
             'emailDomainId' => ['required', 'integer'],
@@ -259,7 +350,7 @@ class ProjectDomains extends Component
             'newEmailPassword' => ['required', 'string', 'min:8'],
         ]);
 
-        $domain = $this->project->domains()->findOrFail((int) $validated['emailDomainId']);
+        $domain = $this->client->domains()->findOrFail((int) $validated['emailDomainId']);
 
         if (! $domain->managesEmail()) {
             $this->addError('emailDomainId', __('Este dominio no tiene el correo activado.'));
@@ -288,7 +379,7 @@ class ProjectDomains extends Component
 
     public function deleteEmailAccount(int $emailAccountId, DeleteEmailAccount $action): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
         $action->handle($this->findEmailAccount($emailAccountId));
 
@@ -299,7 +390,7 @@ class ProjectDomains extends Component
 
     public function openImportModal(int $domainId): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
         $this->resetValidation();
         $this->importDomainId = $domainId;
@@ -316,14 +407,14 @@ class ProjectDomains extends Component
      */
     public function loadImportCandidates(): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
         $validated = $this->validate([
             'importDomainId' => ['required', 'integer'],
             'importProviderId' => ['required', 'exists:email_providers,id'],
         ]);
 
-        $domain = $this->project->domains()->findOrFail((int) $validated['importDomainId']);
+        $domain = $this->client->domains()->findOrFail((int) $validated['importDomainId']);
         $provider = EmailProvider::findOrFail((int) $validated['importProviderId']);
 
         $known = $domain->emailAccounts()->pluck('email_address')->all();
@@ -338,9 +429,9 @@ class ProjectDomains extends Component
 
     public function importEmailAccounts(ImportEmailAccounts $action): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
-        $domain = $this->project->domains()->findOrFail((int) $this->importDomainId);
+        $domain = $this->client->domains()->findOrFail((int) $this->importDomainId);
         $provider = EmailProvider::findOrFail((int) $this->importProviderId);
 
         if ($this->selectedImports === []) {
@@ -363,9 +454,123 @@ class ProjectDomains extends Component
         $this->modal('email-import')->close();
     }
 
+    public function openCredentialModal(int $domainId, ?int $credentialId = null): void
+    {
+        Gate::authorize('update', $this->client);
+        abort_unless($this->canSeeCredentials(), 403);
+
+        $this->resetValidation();
+        $this->credentialDomainId = $domainId;
+        $this->editingCredentialId = $credentialId;
+
+        if ($credentialId === null) {
+            $this->credentialKind = DomainCredentialKind::Panel->value;
+            $this->credentialLabel = null;
+            $this->credentialUrl = null;
+            $this->credentialUsername = null;
+            $this->credentialPassword = null;
+            $this->credentialNotes = null;
+        } else {
+            $credential = $this->findCredential($credentialId);
+
+            $this->credentialKind = $credential->kind->value;
+            $this->credentialLabel = $credential->label;
+            $this->credentialUrl = $credential->url;
+            $this->credentialUsername = $credential->username;
+            $this->credentialPassword = $credential->password;
+            $this->credentialNotes = $credential->notes;
+        }
+
+        $this->modal('credential-form')->show();
+    }
+
+    public function saveCredential(): void
+    {
+        Gate::authorize('update', $this->client);
+        abort_unless($this->canSeeCredentials(), 403);
+
+        $validated = $this->validate([
+            'credentialDomainId' => ['required', 'integer'],
+            'credentialKind' => ['required', Rule::enum(DomainCredentialKind::class)],
+            'credentialLabel' => ['nullable', 'string', 'max:255'],
+            'credentialUrl' => ['nullable', 'string', 'max:255'],
+            'credentialUsername' => ['nullable', 'string', 'max:255'],
+            'credentialPassword' => ['nullable', 'string', 'max:255'],
+            'credentialNotes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $domain = $this->client->domains()->findOrFail((int) $validated['credentialDomainId']);
+
+        $attributes = [
+            'kind' => DomainCredentialKind::from($validated['credentialKind']),
+            'label' => $validated['credentialLabel'],
+            'url' => $validated['credentialUrl'],
+            'username' => $validated['credentialUsername'],
+            'password' => $validated['credentialPassword'],
+            'notes' => $validated['credentialNotes'],
+        ];
+
+        if ($this->editingCredentialId === null) {
+            $domain->credentials()->create($attributes);
+        } else {
+            $this->findCredential($this->editingCredentialId)->update($attributes);
+        }
+
+        unset($this->domains);
+        $this->revealedCredentials = [];
+
+        $this->modal('credential-form')->close();
+
+        Flux::toast(variant: 'success', text: __('Acceso guardado.'));
+    }
+
+    public function closeCredentialModal(): void
+    {
+        $this->modal('credential-form')->close();
+    }
+
+    public function deleteCredential(int $credentialId): void
+    {
+        Gate::authorize('update', $this->client);
+        abort_unless($this->canSeeCredentials(), 403);
+
+        $this->findCredential($credentialId)->delete();
+
+        unset($this->domains);
+
+        Flux::toast(variant: 'success', text: __('Acceso eliminado.'));
+    }
+
+    public function revealCredential(int $credentialId): void
+    {
+        abort_unless($this->canSeeCredentials(), 403);
+
+        $credential = $this->findCredential($credentialId);
+
+        if ($credential->password !== null) {
+            $this->revealedCredentials[$credentialId] = $credential->password;
+        }
+    }
+
+    public function hideCredential(int $credentialId): void
+    {
+        unset($this->revealedCredentials[$credentialId]);
+    }
+
+    /**
+     * Los accesos solo se alcanzan a través de los dominios de este cliente, así
+     * que un id de otro cliente da 404 en vez de revelar una contraseña ajena.
+     */
+    private function findCredential(int $credentialId): DomainCredential
+    {
+        return DomainCredential::query()
+            ->whereIn('domain_id', $this->client->domains()->select('domains.id'))
+            ->findOrFail($credentialId);
+    }
+
     public function openPasswordModal(int $emailAccountId): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
         $this->passwordAccountId = $emailAccountId;
         $this->newPassword = '';
@@ -376,7 +581,7 @@ class ProjectDomains extends Component
 
     public function changePassword(ChangeEmailAccountPassword $action): void
     {
-        Gate::authorize('update', $this->project);
+        Gate::authorize('update', $this->client);
 
         $validated = $this->validate([
             'newPassword' => ['required', 'string', 'min:8'],
@@ -403,12 +608,12 @@ class ProjectDomains extends Component
     private function findEmailAccount(int $emailAccountId): EmailAccount
     {
         return EmailAccount::query()
-            ->whereIn('domain_id', $this->project->domains()->select('domains.id'))
+            ->whereIn('domain_id', $this->client->domains()->select('domains.id'))
             ->findOrFail($emailAccountId);
     }
 
     public function render(): View
     {
-        return view('livewire.project-domains');
+        return view('livewire.domains-panel');
     }
 }

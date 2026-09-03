@@ -133,18 +133,6 @@ new class extends Component {
         Flux::toast(variant: 'success', text: __('Contacto desvinculado de esta empresa.'));
     }
 
-    /**
-     * @return \Illuminate\Database\Eloquent\Collection<int, \App\Models\Domain>
-     */
-    #[Computed]
-    public function domains(): \Illuminate\Database\Eloquent\Collection
-    {
-        return $this->client->domains()
-            ->with(['project', 'emailAccounts.provider'])
-            ->orderBy('name')
-            ->get();
-    }
-
     public function addNote(): void
     {
         Gate::authorize('update', $this->client);
@@ -311,49 +299,9 @@ new class extends Component {
             </flux:card>
 
             @if (auth()->user()->isAdmin() || auth()->user()->isStaff())
-                <flux:card class="flex flex-col gap-4">
-                    <flux:heading size="lg">{{ __('Dominios y correo') }}</flux:heading>
+                <livewire:domains-panel :client="$client" :key="'domains-panel-client-'.$client->id" />
 
-                    <flux:text class="text-xs text-zinc-400">
-                        {{ __('Resumen de solo lectura. Los dominios y sus buzones se administran desde el proyecto correspondiente.') }}
-                    </flux:text>
-
-                    <div class="flex flex-col gap-3">
-                        @forelse ($this->domains as $domain)
-                            <div wire:key="client-domain-{{ $domain->id }}" class="flex flex-col gap-1">
-                                <div class="flex items-center justify-between gap-2">
-                                    <span class="text-sm font-medium">{{ $domain->name }}</span>
-                                    <flux:badge size="sm">{{ $domain->status->label() }}</flux:badge>
-                                </div>
-
-                                @if ($domain->project)
-                                    <a href="{{ route('projects.show', $domain->project) }}" wire:navigate class="text-xs text-zinc-400 hover:underline">
-                                        {{ $domain->project->name }}
-                                    </a>
-                                @else
-                                    <span class="text-xs text-zinc-400">{{ __('Sin proyecto asociado') }}</span>
-                                @endif
-
-                                @if ($domain->managesEmail())
-                                    <div class="flex flex-col gap-1 ps-3">
-                                        @forelse ($domain->emailAccounts as $emailAccount)
-                                            <span wire:key="client-email-account-{{ $emailAccount->id }}" class="text-sm">
-                                                {{ $emailAccount->email_address }}
-                                                <span class="text-xs text-zinc-400">· {{ $emailAccount->provider->name }}</span>
-                                            </span>
-                                        @empty
-                                            <span class="text-xs text-zinc-400">{{ __('Sin cuentas de correo todavía.') }}</span>
-                                        @endforelse
-                                    </div>
-                                @elseif ($domain->email_notes)
-                                    <span class="text-xs text-zinc-400 ps-3">{{ __('Correo') }}: {{ $domain->email_notes }}</span>
-                                @endif
-                            </div>
-                        @empty
-                            <flux:text class="text-zinc-400">{{ __('Sin dominios todavía.') }}</flux:text>
-                        @endforelse
-                    </div>
-                </flux:card>
+                <livewire:client-licenses :client="$client" :key="'client-licenses-'.$client->id" />
             @endif
         </div>
     </div>

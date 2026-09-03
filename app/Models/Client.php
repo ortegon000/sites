@@ -91,6 +91,14 @@ class Client extends Model
     }
 
     /**
+     * @return HasMany<License, $this>
+     */
+    public function licenses(): HasMany
+    {
+        return $this->hasMany(License::class);
+    }
+
+    /**
      * @return HasMany<ClientNote, $this>
      */
     public function notes(): HasMany

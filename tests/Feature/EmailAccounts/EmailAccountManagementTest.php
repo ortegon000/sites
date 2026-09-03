@@ -6,7 +6,7 @@ use App\Actions\EmailAccounts\ProvisionEmailAccount;
 use App\Enums\DomainEmailManagement;
 use App\Enums\EmailAccountOrigin;
 use App\Enums\EmailAccountStatus;
-use App\Livewire\ProjectDomains;
+use App\Livewire\DomainsPanel;
 use App\Models\Client;
 use App\Models\Domain;
 use App\Models\EmailAccount;
@@ -35,7 +35,7 @@ test('staff can add a domain to a project', function () {
 
     $this->actingAs($staff);
 
-    Livewire::test(ProjectDomains::class, ['project' => $project])
+    Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openDomainModal')
         ->set('domainName', 'acme.com')
         ->set('emailManagement', DomainEmailManagement::Managed->value)
@@ -52,7 +52,7 @@ test('a domain cannot manage email when its project does not include email', fun
 
     $this->actingAs($staff);
 
-    Livewire::test(ProjectDomains::class, ['project' => $project])
+    Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openDomainModal')
         ->set('domainName', 'acme.com')
         ->set('emailManagement', DomainEmailManagement::Managed->value)
@@ -69,7 +69,7 @@ test('staff can provision an email account on a domain', function () {
 
     $this->actingAs($staff);
 
-    Livewire::test(ProjectDomains::class, ['project' => $project])
+    Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openEmailModal', $domain->id)
         ->set('emailProviderIdToAssign', $provider->id)
         ->set('newEmailAddress', 'nueva@cliente.test')
@@ -90,7 +90,7 @@ test('provisioning is rejected on a domain that does not manage email', function
 
     $this->actingAs($staff);
 
-    Livewire::test(ProjectDomains::class, ['project' => $project])
+    Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
         ->set('emailDomainId', $domain->id)
         ->set('emailProviderIdToAssign', $provider->id)
         ->set('newEmailAddress', 'nueva@cliente.test')
@@ -118,13 +118,13 @@ test('staff can delete an email account', function () {
 
     $this->actingAs($staff);
 
-    Livewire::test(ProjectDomains::class, ['project' => $project])
+    Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('deleteEmailAccount', $emailAccount->id);
 
     expect(EmailAccount::find($emailAccount->id))->toBeNull();
 });
 
-test('staff cannot act on a mailbox belonging to another project', function () {
+test('staff cannot act on a mailbox belonging to another client', function () {
     $staff = User::factory()->staff()->create();
     [$project] = projectWithEmailDomain();
     [, $otherDomain] = projectWithEmailDomain();
@@ -132,7 +132,7 @@ test('staff cannot act on a mailbox belonging to another project', function () {
 
     $this->actingAs($staff);
 
-    expect(fn () => Livewire::test(ProjectDomains::class, ['project' => $project])
+    expect(fn () => Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('deleteEmailAccount', $foreignAccount->id))
         ->toThrow(ModelNotFoundException::class);
 
@@ -146,7 +146,7 @@ test('staff can change an email account password', function () {
 
     $this->actingAs($staff);
 
-    Livewire::test(ProjectDomains::class, ['project' => $project])
+    Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openPasswordModal', $emailAccount->id)
         ->set('newPassword', 'nueva-password')
         ->call('changePassword')
@@ -155,17 +155,25 @@ test('staff can change an email account password', function () {
     expect($emailAccount->refresh()->status)->toBe(EmailAccountStatus::Activa);
 });
 
-test('the client detail shows domains and mailboxes read-only, with no provisioning form', function () {
+test('a domain with no project can be managed from the client detail', function () {
     $staff = User::factory()->staff()->create();
-    [$project, $domain] = projectWithEmailDomain();
-    EmailAccount::factory()->for($domain)->create(['email_address' => 'buzon@cliente.test']);
+    $client = Client::factory()->client()->create();
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::clients.show', ['client' => $project->client])
-        ->assertSee($domain->name)
-        ->assertSee('buzon@cliente.test')
-        ->assertDontSee('provisionEmailAccount');
+    Livewire::test(DomainsPanel::class, ['client' => $client])
+        ->call('openDomainModal')
+        ->set('domainName', 'solo-hosting.test')
+        ->set('hostingPlan', 'compartido')
+        ->set('siteUrl', 'https://solo-hosting.test')
+        ->call('saveDomain')
+        ->assertHasNoErrors();
+
+    $domain = $client->domains()->firstOrFail();
+
+    expect($domain->project_id)->toBeNull()
+        ->and($domain->hosting_plan)->toBe('compartido')
+        ->and($domain->site_url)->toBe('https://solo-hosting.test');
 });
 
 test('collaborator does not see the domains card on a project', function () {
@@ -192,7 +200,7 @@ test('staff can import mailboxes that already exist on the provider', function (
 
     $this->actingAs($staff);
 
-    $component = Livewire::test(ProjectDomains::class, ['project' => $project])
+    $component = Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openImportModal', $domain->id)
         ->set('importProviderId', $provider->id)
         ->call('loadImportCandidates');
@@ -260,4 +268,31 @@ test('a stored password is never written in plain text to the database', functio
 
     expect($raw)->not->toBe('password123')
         ->and($emailAccount->fresh()->password)->toBe('password123');
+});
+
+test('a manual provider derives its connection settings from each domain', function () {
+    $provider = EmailProvider::factory()->manual()->create([
+        'connection_settings' => [
+            'imap_host' => 'mail.{dominio}',
+            'imap_port' => '993',
+            'smtp_host' => 'mail.{dominio}',
+            'smtp_port' => '587',
+            'webmail_url' => 'https://webmail.{dominio}',
+        ],
+    ]);
+
+    $settings = $provider->driver()->getConnectionSettings($provider, 'acme.com');
+
+    expect($settings['imap_host'])->toBe('mail.acme.com')
+        ->and($settings['smtp_host'])->toBe('mail.acme.com')
+        ->and($settings['webmail_url'])->toBe('https://webmail.acme.com')
+        ->and($settings['imap_port'])->toBe('993');
+});
+
+test('without a domain the template is left as captured', function () {
+    $provider = EmailProvider::factory()->manual()->create([
+        'connection_settings' => ['imap_host' => 'mail.{dominio}'],
+    ]);
+
+    expect($provider->driver()->getConnectionSettings($provider)['imap_host'])->toBe('mail.{dominio}');
 });

@@ -34,7 +34,11 @@ interface EmailProviderDriver
     /**
      * Get the IMAP/SMTP connection settings a mailbox owner would need.
      *
+     * Recibe el dominio porque la configuración real suele derivarse de él
+     * —`mail.acme.com`, `webmail.acme.com`— y guardarla literal por proveedor
+     * obligaría a capturar lo mismo una vez por dominio.
+     *
      * @return array<string, string>
      */
-    public function getConnectionSettings(EmailProvider $provider): array;
+    public function getConnectionSettings(EmailProvider $provider, ?string $domain = null): array;
 }

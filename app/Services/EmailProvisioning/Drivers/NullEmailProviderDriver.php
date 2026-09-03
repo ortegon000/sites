@@ -51,7 +51,7 @@ class NullEmailProviderDriver implements EmailProviderDriver
         return array_values(array_unique([...$known, ...$simulated]));
     }
 
-    public function getConnectionSettings(EmailProvider $provider): array
+    public function getConnectionSettings(EmailProvider $provider, ?string $domain = null): array
     {
         return [
             'imap_host' => 'imap.simulado.test',

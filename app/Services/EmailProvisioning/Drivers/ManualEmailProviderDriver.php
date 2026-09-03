@@ -38,15 +38,34 @@ class ManualEmailProviderDriver implements EmailProviderDriver
             ->all();
     }
 
-    public function getConnectionSettings(EmailProvider $provider): array
+    public function getConnectionSettings(EmailProvider $provider, ?string $domain = null): array
     {
         $settings = $provider->connection_settings ?? [];
 
         return [
-            'imap_host' => (string) ($settings['imap_host'] ?? ''),
+            'imap_host' => $this->resolve($settings['imap_host'] ?? null, $domain),
             'imap_port' => (string) ($settings['imap_port'] ?? ''),
-            'smtp_host' => (string) ($settings['smtp_host'] ?? ''),
+            'smtp_host' => $this->resolve($settings['smtp_host'] ?? null, $domain),
             'smtp_port' => (string) ($settings['smtp_port'] ?? ''),
+            'webmail_url' => $this->resolve($settings['webmail_url'] ?? null, $domain),
         ];
+    }
+
+    /**
+     * Sustituye `{dominio}` por el dominio del buzón, para que un proveedor
+     * cuya configuración es `mail.{dominio}` se capture una sola vez y sirva
+     * para todos sus dominios.
+     */
+    private function resolve(?string $template, ?string $domain): string
+    {
+        if ($template === null || $template === '') {
+            return '';
+        }
+
+        if ($domain === null) {
+            return $template;
+        }
+
+        return str_replace(['{dominio}', '{domain}'], $domain, $template);
     }
 }
