@@ -13,6 +13,7 @@
 - ✅ **Fase 6 — Dashboard interno**: completa (KPIs financieros y próximos cobros/actividad reciente para admin/staff, resumen de proyectos asignados sin datos financieros para collaborator).
 - ✅ **Fase 7 — Dominios, tipos de proyecto y campañas de ads**: completa. Introduce la tabla `domains` (dueño: el cliente), mueve las cuentas de correo de `clients` a `domains`, agrega `ProjectType` como plantilla, `ServiceCategory`, frecuencias trimestral/semestral, proveedor de correo `manual` con contraseñas cifradas, importación de buzones existentes y campañas de ads.
 - ✅ **Fase 8 — Contactos como entidad propia**: completa. Separa a la persona de la empresa: `contacts` con pivot `client_contact`, para que un dueño de varias empresas se escriba una sola vez y entre al portal con un solo acceso.
+- 📋 **Fases 9–14 — Centralizar los tres Excel**: planeadas. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
 
@@ -410,6 +411,106 @@ El cambio no se pudo partir en commits independientes que quedaran verdes por se
 ### Verificación
 
 `php artisan test --compact` → 154 tests (152 pasan, 2 se saltan), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y revisado en `https://sites.test`: el directorio de contactos, la ficha de Juan Pérez con sus tres empresas, y la tarjeta de contactos en el detalle de cliente. El seeder incluye a propósito el caso que motivó la fase: una persona dueña de tres empresas, escrita una sola vez.
+
+## Modelo objetivo y hoja de ruta (Fases 9+)
+
+> Escrito tras revisar los tres archivos que el dueño de la agencia usa hoy en paralelo al sistema: un CSV de líneas cobrables del año, un libro de Excel del VPS (hojas `Cuentas`, `Emails`, `Sitios`) y su seguimiento de renovaciones. El objetivo declarado es centralizar los tres, ganar avisos automáticos de caducidad, y eventualmente ofrecer el sistema a las agencias con las que trabaja.
+
+### El problema conceptual que resuelve
+
+Al listar lo que quería, el dueño enumeró "proyectos", "tareas cobrables" y "servicios" como tres cosas distintas y preguntó cuándo usar cada una. No hay respuesta a esa pregunta porque la división está mal trazada: **"Quitar sección Evaled, $500" y "Ecommerce Refrigeron, $39,500" no son de naturaleza distinta**, se diferencian en tamaño. Ambos se cobran una vez, tienen principio y fin.
+
+Las preguntas que sí separan son tres:
+
+| Pregunta | Qué es |
+|---|---|
+| ¿El cobro **se repite** en un ciclo? | Servicio recurrente |
+| ¿Se cobra **una vez**? | Trabajo |
+| ¿Es algo que el cliente **tiene** y nosotros administramos? | Activo |
+
+Un proyecto no es una tercera categoría: es un **agrupador opcional** para trabajos grandes que necesitan desglose. Y una campaña de ads, que era el caso que no encajaba, se parte en los tres: la campaña es un **activo** (plataforma, cuenta publicitaria, objetivo, presupuesto), su fee mensual es un **servicio recurrente**, su montaje inicial fue un **trabajo**.
+
+### Los activos son una sola familia
+
+Dominio, sitio, buzón, licencia y campaña comparten forma: tienen datos y accesos, pertenecen al cliente, caducan o corren, y **generan los cobros recurrentes**. Tratarlos como una familia da gratis el aviso de caducidad para todos, no solo para dominios.
+
+El servicio recurrente deja de confundirse con el activo: es **el cobro que ese activo genera**. Se cobran $4,000 anuales (un servicio) por hosting + SSL + dominio (tres activos).
+
+### Dónde viven los accesos, y por qué no en el proyecto
+
+El dueño quería que el "proyecto web" contuviera todos los datos, accesos y licencias. Se descartó por dos razones tomadas de sus propios datos:
+
+- **Los proyectos terminan y los accesos no.** Sus dominios están dados de alta desde 2015; sus proyectos duran meses. Enterrar un cPanel en un proyecto cerrado esconde justo el dato que se necesita un martes cualquiera.
+- **Hay clientes sin ningún proyecto.** Momat, Gee y Previmed solo tienen "Renovación Anual". Exigir proyecto obligaría a inventar proyectos falsos para guardar una contraseña.
+
+El contenedor que buscaba **ya existe y es la ficha del cliente**. El proyecto es el trabajo que se hace, no el expediente.
+
+Reparto final: **accesos técnicos** (cPanel, base de datos, FTP, CMS) cuelgan del dominio, porque son del sitio y el sitio vive en el dominio. **Licencias y suscripciones** cuelgan del cliente con dominio opcional, porque Brevo es del cliente y una licencia de tema es de un sitio.
+
+Se descartó introducir un `Sitio` como entidad intermedia entre dominio y proyecto: sería lo correcto en teoría —un sitio puede tener varios dominios apuntándole— pero en los datos reales hay 15 dominios y 14 sitios, prácticamente uno a uno, y los subdominios (`app.solyva.mx`) entran como dominio propio porque el índice único ya es `(client_id, name)`. Se agregará esa capa el día que exista el caso.
+
+### La adaptación: qué se afloja y qué se agrega
+
+El modelo actual no se tira. Se **afloja en dos puntos** y se le agregan activos:
+
+1. **El proyecto obligatorio.** Hoy `services.project_id` es requerido, así que una línea de $500 exige construir proyecto y servicio. Pasa a: `services.client_id` requerido, `project_id` nullable. Una línea suelta cuelga del cliente; una grande se agrupa en un proyecto.
+2. **El cobro binario.** Hoy un `Charge` es pendiente/pagado/vencido. Los pagos parciales están por todas partes en los datos reales —$12,914 de $24,000, dos transferencias en fechas distintas— y "Restante" es la columna que más se mira. El cobro pasa a tener **abonos**, y su estatus se deriva.
+
+Lo demás es aditivo: credenciales, licencias, subtareas, y el ciclo de renovación.
+
+### Fase 9 — Activos: credenciales y licencias
+
+Mata el libro del VPS.
+
+- **`domain_credentials`**: `domain_id`, `kind` (panel/base de datos/FTP/CMS/otro), `label`, `url`, `username`, `password` (cifrada), `notes`. Una fila por acceso en vez de columnas fijas, porque no todos los sitios tienen WordPress ni FTP y alguno tendrá dos bases de datos.
+- **`licenses`**: `client_id` (requerido), `domain_id` (nullable), `name`, `vendor`, `cost`, `renewal_date`, `status`, credenciales opcionales, `notes`.
+- **`domains`**: se agregan `hosting_plan` (texto libre — puede ser VPS o compartido), `site_url` y `vps_added_at`.
+- **Plantillas de conexión**: `email_providers.connection_settings` debe admitir `mail.{dominio}`, porque la configuración real se deriva del dominio y hoy obligaría a capturar lo mismo 15 veces.
+- **Importación** del libro `VPS Controlmas.xlsx` (fechas en serial de Excel).
+
+**Nota de seguridad, no opcional.** Ese libro es una bóveda de credenciales en texto plano: cPanel, base de datos, FTP y WordPress de 14 sitios. Centralizarlo mejora las cosas —quedan cifradas y con control de acceso— pero **sube la apuesta del CRM**: pasa de herramienta de gestión a custodio del acceso a la infraestructura de los clientes. De ahí que estas credenciales sean **solo admin** (mismo criterio que los proveedores de correo) y **nunca visibles en el portal**: el buzón sí es del cliente, el cPanel es infraestructura. Las contraseñas que ya viajaron en ese archivo deben rotarse tras migrar.
+
+### Fase 10 — Abonos, cobros editables y agencias
+
+Desbloquea mover el CSV de cobrables.
+
+- **`charge_payments`**: `charge_id`, `amount`, `paid_on`, `method`, `account`, `reference` (comprobante), `invoice_reference` (folio). El estatus del cobro se deriva: pendiente / parcial / pagado / vencido, y aparece el restante.
+- **Cobros editables**: monto, fecha y concepto. Hoy solo se puede marcar pagado, y los montos cambian entre periodos (B2B pasó de $5,500 a $9,500; CMCP de $3,000 a $5,000 al subir de 12 a 20 horas).
+- **Agencias reorientadas.** `Agency` está mal modelado: se construyó como "agencia colaboradora con facturación bidireccional" y en realidad es **de dónde viene el trabajo y quién paga**. AgenciaEfe5 es una agencia para la que trabaja como freelancer y cuyos clientes atiende (le factura a la agencia); IECA es una empresa cuyos temas internos atiende (cliente y pagador son la misma entidad); ControlMas es su propio negocio (le factura al cliente final). Se agrega a la agencia **a quién se le factura** (agencia o cliente final), se quita la bidireccionalidad —nadie le factura a él— y se agregan filtros y reportes por agencia, que es la primera columna de su hoja.
+
+### Fase 11 — Líneas sueltas, subtareas y campañas al cliente
+
+Mata el CSV de cobrables.
+
+- **`services.project_id` nullable** y `client_id` requerido.
+- **Captura rápida**: un renglón siempre visible en la ficha del cliente —fecha, concepto, monto— sin modal, con fecha en hoy. Si no se captura tan rápido como una fila de Excel, se vuelve al Excel.
+- **`service_items`** (subtareas): descripción, fecha, hecho/no hecho. Cubre las tres visitas del mantenimiento cuatrimestral —**confirmado: un cobro de $1,000 al año que cubre tres visitas, no $1,000 por visita**— y también la lista numerada de cambios que hoy escribe dentro del concepto de "Mejora continua".
+- **Frecuencia quincenal** (IECA cobra dos veces al mes).
+- **`ad_campaigns`** pasa de colgar del proyecto a colgar del cliente, con proyecto opcional: es un activo, no trabajo.
+
+### Fase 12 — Renovaciones
+
+Mata el Excel de renovaciones y entrega el aviso automático que motivó todo esto.
+
+- **Tablero unificado de caducidades**: dominios, licencias y servicios anuales en una sola vista, "qué caduca en los próximos N días".
+- **Ciclo explícito**: por avisar → avisado → renovó (genera la línea cobrable) → no renovó (baja). Hoy no hay dónde registrar "ya le avisé, estoy esperando".
+- **Aviso al cliente**, no solo interno. **Con enlace al portal, nunca con las contraseñas en el cuerpo**: un correo se queda para siempre en la bandeja, se reenvía y se filtra. La pantalla donde el cliente ve sus datos y revela su contraseña con un clic ya existe.
+
+### Fase 13 — Cotizaciones
+
+Su CSV tiene filas en estatus *Pendiente* sin costo, con el precio escrito en Notas ("Mexico Juega — Costo $5500"): trabajo cotizado y no aceptado. Necesita un estado propio antes de que exista cobro.
+
+### Fase 14 — Contratos
+
+Con activos, servicios, montos, vigencias y entregas ya en el sistema, el contrato es un documento generable. No antes: sin las fases anteriores no hay de dónde sacarlo.
+
+### Fuera de alcance por ahora
+
+- **Costos internos y margen.** Cobra $4,000 por una renovación que le cuesta algo en el registrador. Aplazado por decisión explícita del dueño.
+- **Registro de tiempo.** Las horas aparecen en sus conceptos ("-12 horas", "14 horas") pero como **tamaño del trato**, no como tiempo medido. No hay que construir cronómetros.
+- **Multi-agencia (multi-tenencia).** El objetivo declarado es ofrecer el sistema a las agencias con las que trabaja. Construirlo ahora, sin una segunda agencia real usándolo, costaría complejidad en cada pantalla a cambio de nada. Lo correcto es no cerrarse la puerta: si el modelo se mantiene limpio —todo colgando del cliente, sin atajos— la migración es agregar una columna de organización a las tablas raíz y un filtro global, que es mecánico. Lo que sí encarece esa migración es acumular consultas que asuman "todos los clientes son míos", y de eso conviene cuidarse desde ahora sin costo.
+
+  Advertencia para cuando llegue: AgenciaEfe5 existirá **dos veces** —como contraparte de facturación y como organización que entra a usar el sistema— y sus clientes finales, que hoy registra él, pasarían a ser de ellos. Es la razón de no sobreinvertir todavía en el modelo de agencias.
 
 ## Verificación (repetir en cada fase nueva)
 
