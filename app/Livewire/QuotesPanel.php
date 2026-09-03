@@ -57,6 +57,12 @@ class QuotesPanel extends Component
      */
     public bool $quoteIsProject = false;
 
+    /**
+     * Qué lista se está viendo: lo que sigue esperando respuesta o lo ya
+     * decidido. Abre en pendientes, que es sobre lo que se actúa.
+     */
+    public string $quotesTab = 'pendientes';
+
     public ?int $rejectingQuoteId = null;
 
     public ?string $rejectionReason = null;
@@ -77,11 +83,44 @@ class QuotesPanel extends Component
     public function quotes(): Collection
     {
         return $this->quotesQuery()
+            ->whereIn('status', $this->statusesOfCurrentTab())
             ->with(['service', 'project'])
             ->orderByRaw('case when status in (?, ?) then 0 else 1 end', [QuoteStatus::Borrador->value, QuoteStatus::Enviada->value])
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->get();
+    }
+
+    /**
+     * Cuántas hay de cada lado, para no tener que cambiar de lista para saber
+     * si quedó algo pendiente.
+     *
+     * @return array{pendientes: int, archivadas: int}
+     */
+    #[Computed]
+    public function quoteCounts(): array
+    {
+        return [
+            'pendientes' => (clone $this->quotesQuery())->whereIn('status', $this->statusValues(QuoteStatus::open()))->count(),
+            'archivadas' => (clone $this->quotesQuery())->whereIn('status', $this->statusValues(QuoteStatus::archived()))->count(),
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function statusesOfCurrentTab(): array
+    {
+        return $this->statusValues($this->quotesTab === 'archivadas' ? QuoteStatus::archived() : QuoteStatus::open());
+    }
+
+    /**
+     * @param  array<int, QuoteStatus>  $statuses
+     * @return array<int, string>
+     */
+    private function statusValues(array $statuses): array
+    {
+        return array_map(fn (QuoteStatus $status) => $status->value, $statuses);
     }
 
     /**
@@ -175,7 +214,7 @@ class QuotesPanel extends Component
             ]);
         }
 
-        unset($this->quotes);
+        unset($this->quotes, $this->quoteCounts);
 
         $this->modal('quote-form')->close();
 
@@ -193,7 +232,7 @@ class QuotesPanel extends Component
 
         $action->handle($this->findQuote($quoteId), auth()->user());
 
-        unset($this->quotes);
+        unset($this->quotes, $this->quoteCounts);
 
         Flux::toast(variant: 'success', text: __('Cotización marcada como enviada.'));
     }
@@ -204,7 +243,7 @@ class QuotesPanel extends Component
 
         $action->handle($this->findQuote($quoteId), auth()->user());
 
-        unset($this->quotes);
+        unset($this->quotes, $this->quoteCounts);
 
         /**
          * Aceptar crea cosas que se pintan fuera de este panel —el proyecto, la
@@ -237,7 +276,7 @@ class QuotesPanel extends Component
 
         $action->handle($this->findQuote($this->rejectingQuoteId ?? 0), $validated['rejectionReason']);
 
-        unset($this->quotes);
+        unset($this->quotes, $this->quoteCounts);
 
         $this->rejectingQuoteId = null;
 
@@ -267,7 +306,7 @@ class QuotesPanel extends Component
 
         $quote->delete();
 
-        unset($this->quotes);
+        unset($this->quotes, $this->quoteCounts);
 
         Flux::toast(variant: 'success', text: __('Cotización eliminada.'));
     }

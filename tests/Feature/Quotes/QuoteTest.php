@@ -147,6 +147,47 @@ test('lo que crea una cotización aceptada aparece sin recargar la ficha', funct
         ->assertSee('Sitio web institucional');
 });
 
+test('el panel abre en pendientes y manda lo decidido a archivadas', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    Quote::factory()->for($client)->sent()->create(['name' => 'Esperando respuesta']);
+    Quote::factory()->for($client)->create(['name' => 'Ya aceptada', 'status' => QuoteStatus::Aceptada]);
+    Quote::factory()->for($client)->create(['name' => 'Ya rechazada', 'status' => QuoteStatus::Rechazada]);
+    Quote::factory()->for($client)->expiring()->create(['name' => 'Se le pasó la fecha', 'status' => QuoteStatus::Expirada]);
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->assertSet('quotesTab', 'pendientes')
+        ->assertSee('Esperando respuesta')
+        ->assertDontSee('Ya aceptada')
+        ->assertDontSee('Ya rechazada')
+        ->assertDontSee('Se le pasó la fecha')
+        ->set('quotesTab', 'archivadas')
+        ->assertDontSee('Esperando respuesta')
+        ->assertSee('Ya aceptada')
+        ->assertSee('Ya rechazada')
+        /** La expirada vive en archivadas: si no, no se vería en ninguna de las dos listas. */
+        ->assertSee('Se le pasó la fecha');
+});
+
+test('aceptar una cotización la saca de pendientes', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $quote = Quote::factory()->for($client)->sent()->create(['name' => 'Mejora continua del sitio']);
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->assertSee('Mejora continua del sitio')
+        ->call('accept', $quote->id)
+        ->assertDontSee('Mejora continua del sitio')
+        ->set('quotesTab', 'archivadas')
+        ->assertSee('Mejora continua del sitio');
+});
+
 test('aceptar la cotización de un prospecto lo gana y lo convierte en cliente', function () {
     $staff = User::factory()->staff()->create();
     $prospect = Client::factory()->prospect()->create();

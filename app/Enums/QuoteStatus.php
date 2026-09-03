@@ -46,4 +46,16 @@ enum QuoteStatus: string
     {
         return [self::Borrador, self::Enviada];
     }
+
+    /**
+     * Las que ya no esperan nada: se decidieron o se les pasó la vigencia. La
+     * expirada entra aquí —aunque nadie la haya contestado— para que ninguna
+     * cotización quede fuera de las dos listas.
+     *
+     * @return array<int, self>
+     */
+    public static function archived(): array
+    {
+        return [self::Aceptada, self::Rechazada, self::Expirada];
+    }
 }

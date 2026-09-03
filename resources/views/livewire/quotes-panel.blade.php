@@ -10,6 +10,11 @@
         @endcan
     </div>
 
+    <flux:radio.group wire:model.live="quotesTab" variant="segmented" size="sm" class="self-start">
+        <flux:radio value="pendientes">{{ __('Pendientes (:count)', ['count' => $this->quoteCounts['pendientes']]) }}</flux:radio>
+        <flux:radio value="archivadas">{{ __('Archivadas (:count)', ['count' => $this->quoteCounts['archivadas']]) }}</flux:radio>
+    </flux:radio.group>
+
     <flux:table>
         <flux:table.columns>
             <flux:table.column>{{ __('Concepto') }}</flux:table.column>
@@ -92,7 +97,11 @@
             @empty
                 <flux:table.row>
                     <flux:table.cell colspan="5" class="text-center text-zinc-400">
-                        {{ __('Sin cotizaciones. Aquí vive lo que ya ofreciste y todavía no te contestan.') }}
+                        @if ($quotesTab === 'archivadas')
+                            {{ __('Nada archivado todavía: aquí caen las aceptadas, las rechazadas y las que expiraron.') }}
+                        @else
+                            {{ __('Sin cotizaciones pendientes. Aquí vive lo que ya ofreciste y todavía no te contestan.') }}
+                        @endif
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse
