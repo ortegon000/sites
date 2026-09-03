@@ -17,7 +17,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 /**
  * @property int $id
  * @property int $client_id
- * @property int|null $project_id
  * @property string $name
  * @property AdPlatform $platform
  * @property string|null $ad_account_id
@@ -31,7 +30,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['client_id', 'project_id', 'name', 'platform', 'ad_account_id', 'objective', 'monthly_budget', 'currency', 'budget_billing', 'starts_on', 'ends_on', 'status'])]
+#[Fillable(['client_id', 'name', 'platform', 'ad_account_id', 'objective', 'monthly_budget', 'currency', 'budget_billing', 'starts_on', 'ends_on', 'status'])]
 class AdCampaign extends Model
 {
     /** @use HasFactory<AdCampaignFactory> */
@@ -54,17 +53,6 @@ class AdCampaign extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
-    }
-
-    /**
-     * Opcional: la campaña puede haber nacido en un proyecto de montaje, pero
-     * le sobrevive.
-     *
-     * @return BelongsTo<Project, $this>
-     */
-    public function project(): BelongsTo
-    {
-        return $this->belongsTo(Project::class);
     }
 
     /**

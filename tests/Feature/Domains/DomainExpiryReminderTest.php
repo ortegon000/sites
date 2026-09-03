@@ -2,29 +2,26 @@
 
 use App\Models\Client;
 use App\Models\Domain;
-use App\Models\Project;
 use App\Models\User;
 use App\Notifications\DomainExpiringNotification;
 use Illuminate\Support\Facades\Notification;
 
-test('a managed domain expiring within a month notifies admins and the project staff', function () {
+test('a managed domain expiring within a month notifies the admins', function () {
     Notification::fake();
 
     $admin = User::factory()->admin()->create();
     $client = Client::factory()->client()->create();
-    $project = Project::factory()->for($client)->create();
+    /** El dominio no cuelga de ningún proyecto, así que no hay equipo asignado a quién avisarle. */
     $staff = User::factory()->staff()->create();
-    $project->users()->attach($staff);
-    $unrelatedStaff = User::factory()->staff()->create();
 
-    $domain = Domain::factory()->for($client)->for($project)->create([
+    $domain = Domain::factory()->for($client)->create([
         'expires_at' => now()->addDays(10)->toDateString(),
     ]);
 
     $this->artisan('charges:process')->assertSuccessful();
 
-    Notification::assertSentTo([$admin, $staff], DomainExpiringNotification::class);
-    Notification::assertNotSentTo($unrelatedStaff, DomainExpiringNotification::class);
+    Notification::assertSentTo($admin, DomainExpiringNotification::class);
+    Notification::assertNotSentTo($staff, DomainExpiringNotification::class);
 
     expect($domain->refresh()->expiry_notified_at)->not->toBeNull();
 });
@@ -73,14 +70,11 @@ test('domains we only track, expired ones and far-off ones are left alone', func
     Notification::assertNothingSentTo(User::all());
 });
 
-test('a domain with no project still reaches the admins', function () {
+test('el dominio de un cliente sin trabajo abierto también llega a los admins', function () {
     Notification::fake();
 
     $admin = User::factory()->admin()->create();
-    Domain::factory()->create([
-        'project_id' => null,
-        'expires_at' => now()->addDays(5)->toDateString(),
-    ]);
+    Domain::factory()->create(['expires_at' => now()->addDays(5)->toDateString()]);
 
     $this->artisan('charges:process')->assertSuccessful();
 

@@ -18,7 +18,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 /**
  * @property int $id
  * @property int $client_id
- * @property int|null $project_id
  * @property string $name
  * @property DomainManagement $management
  * @property string|null $registrar
@@ -35,7 +34,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['client_id', 'project_id', 'name', 'management', 'registrar', 'site_url', 'hosting_plan', 'hosted_since', 'registered_at', 'expires_at', 'auto_renew', 'email_management', 'email_notes', 'status', 'expiry_notified_at'])]
+#[Fillable(['client_id', 'name', 'management', 'registrar', 'site_url', 'hosting_plan', 'hosted_since', 'registered_at', 'expires_at', 'auto_renew', 'email_management', 'email_notes', 'status', 'expiry_notified_at'])]
 class Domain extends Model
 {
     /** @use HasFactory<DomainFactory> */
@@ -72,13 +71,13 @@ class Domain extends Model
     /**
      * Que administremos el correo es propiedad del dominio y de nadie más.
      *
-     * Antes esto exigía además un proyecto con `includes_email`, que tenía
-     * sentido cuando se asumía que todo cliente tenía proyecto. Los datos
+     * Antes esto exigía además un proyecto marcado como "incluye correo", que
+     * tenía sentido cuando se asumía que todo cliente tenía proyecto. Los datos
      * reales dijeron lo contrario: la mayoría de los dominios con buzones son
-     * de clientes que solo tienen hosting y renovación, sin proyecto abierto,
-     * y esa regla los dejaba con sus buzones invisibles. El `includes_email`
-     * del proyecto pasó de ser candado a ser el valor que se propone al dar de
-     * alta un dominio desde un proyecto.
+     * de clientes que solo tienen hosting y renovación, sin proyecto abierto, y
+     * esa regla los dejaba con sus buzones invisibles. Esa marca del proyecto ya
+     * no existe: el correo se administra desde el dominio, sin pasar por ningún
+     * proyecto.
      */
     public function managesEmail(): bool
     {
@@ -99,14 +98,6 @@ class Domain extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
-    }
-
-    /**
-     * @return BelongsTo<Project, $this>
-     */
-    public function project(): BelongsTo
-    {
-        return $this->belongsTo(Project::class);
     }
 
     /**

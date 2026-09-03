@@ -20,9 +20,6 @@
                                 · {{ $campaign->objective }}
                             @endif
                         </span>
-                        @if (! $project && $campaign->project)
-                            <span class="text-xs text-zinc-400">{{ $campaign->project->name }}</span>
-                        @endif
                     </div>
 
                     <div class="flex items-center gap-2">

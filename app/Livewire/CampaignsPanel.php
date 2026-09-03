@@ -11,7 +11,6 @@ use App\Enums\ServiceCategory;
 use App\Enums\ServiceStatus;
 use App\Models\AdCampaign;
 use App\Models\Client;
-use App\Models\Project;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,15 +25,13 @@ use Livewire\Component;
  * (Meta y Google en paralelo), y cada una decide por su cuenta si la inversión
  * se factura a través nuestro o la paga el cliente directo a la plataforma.
  *
- * La campaña es un activo del cliente, no del proyecto: el montaje inicial fue
- * un trabajo que terminó, y la campaña le sobrevive. Por eso el panel recibe
- * siempre el cliente y opcionalmente el proyecto que la montó.
+ * La campaña es un activo del cliente, no de un proyecto: el montaje inicial
+ * fue un trabajo que terminó, y la campaña le sobrevive. Por eso cuelga del
+ * cliente y se administra desde su ficha.
  */
 class CampaignsPanel extends Component
 {
     public Client $client;
-
-    public ?Project $project = null;
 
     public ?int $editingCampaignId = null;
 
@@ -65,12 +62,11 @@ class CampaignsPanel extends Component
      */
     public bool $createBudgetService = true;
 
-    public function mount(Client $client, ?Project $project = null): void
+    public function mount(Client $client): void
     {
         Gate::authorize('view', $client);
 
         $this->client = $client;
-        $this->project = $project;
         $this->currency = $client->currency;
     }
 
@@ -81,7 +77,7 @@ class CampaignsPanel extends Component
     public function campaigns(): Collection
     {
         return $this->campaignsQuery()
-            ->with(['services', 'project'])
+            ->with(['services'])
             ->orderByDesc('starts_on')
             ->get();
     }
@@ -183,10 +179,7 @@ class CampaignsPanel extends Component
         ];
 
         if ($this->editingCampaignId === null) {
-            $campaign = $this->client->adCampaigns()->create([
-                ...$attributes,
-                'project_id' => $this->project?->id,
-            ]);
+            $campaign = $this->client->adCampaigns()->create($attributes);
 
             if ($budgetBilling->isBilledByUs() && $this->createBudgetService) {
                 $createServiceWithSchedule->handle($this->client, [
@@ -200,7 +193,7 @@ class CampaignsPanel extends Component
                     'status' => ServiceStatus::Activo,
                     'starts_on' => $campaign->starts_on->toDateString(),
                     'installments_count' => null,
-                ], $this->project);
+                ]);
             }
         } else {
             $this->findCampaign($this->editingCampaignId)->update($attributes);
@@ -234,9 +227,7 @@ class CampaignsPanel extends Component
      */
     private function campaignsQuery(): Builder
     {
-        return AdCampaign::query()
-            ->where('client_id', $this->client->id)
-            ->when($this->project, fn ($query) => $query->where('project_id', $this->project->id));
+        return AdCampaign::query()->where('client_id', $this->client->id);
     }
 
     private function findCampaign(int $campaignId): AdCampaign

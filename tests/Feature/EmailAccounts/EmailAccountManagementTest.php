@@ -18,51 +18,47 @@ use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 
 /**
- * @return array{0: Project, 1: Domain}
+ * Un cliente con un dominio que sí administramos: el correo cuelga del dominio
+ * y del cliente, sin ningún proyecto de por medio.
+ *
+ * @return array{0: Client, 1: Domain}
  */
-function projectWithEmailDomain(bool $includesEmail = true): array
+function clientWithEmailDomain(): array
 {
     $client = Client::factory()->client()->create();
-    $project = Project::factory()->for($client)->create(['includes_email' => $includesEmail]);
-    $domain = Domain::factory()->for($client)->for($project)->withManagedEmail()->create();
+    $domain = Domain::factory()->for($client)->withManagedEmail()->create();
 
-    return [$project, $domain];
+    return [$client, $domain];
 }
 
-test('staff can add a domain to a project', function () {
+test('staff can add a domain to a client', function () {
     $staff = User::factory()->staff()->create();
-    $project = Project::factory()->create(['includes_email' => true]);
+    $client = Client::factory()->client()->create();
 
     $this->actingAs($staff);
 
-    Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
+    Livewire::test(DomainsPanel::class, ['client' => $client])
         ->call('openDomainModal')
         ->set('domainName', 'acme.com')
         ->set('emailManagement', DomainEmailManagement::Managed->value)
         ->call('saveDomain')
         ->assertHasNoErrors();
 
-    expect($project->domains()->where('name', 'acme.com')->exists())->toBeTrue()
-        ->and($project->domains()->first()->client_id)->toBe($project->client_id);
+    expect($client->domains()->where('name', 'acme.com')->exists())->toBeTrue();
 });
 
-test('a project that includes email proposes managing it, without forcing the choice', function () {
+test('el alta de dominio no propone correo administrado: eso lo decide el dominio', function () {
     $staff = User::factory()->staff()->create();
-    $withEmail = Project::factory()->create(['includes_email' => true]);
-    $withoutEmail = Project::factory()->for($withEmail->client)->create(['includes_email' => false]);
+    $client = Client::factory()->client()->create();
 
     $this->actingAs($staff);
 
-    Livewire::test(DomainsPanel::class, ['client' => $withEmail->client, 'project' => $withEmail])
-        ->call('openDomainModal')
-        ->assertSet('emailManagement', DomainEmailManagement::Managed->value);
-
-    Livewire::test(DomainsPanel::class, ['client' => $withoutEmail->client, 'project' => $withoutEmail])
+    Livewire::test(DomainsPanel::class, ['client' => $client])
         ->call('openDomainModal')
         ->assertSet('emailManagement', DomainEmailManagement::NotManaged->value);
 });
 
-test('a hosting-only domain with no project can still manage its mailboxes', function () {
+test('a hosting-only domain can manage its mailboxes', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
     $provider = EmailProvider::factory()->create();
@@ -78,8 +74,7 @@ test('a hosting-only domain with no project can still manage its mailboxes', fun
 
     $domain = $client->domains()->firstOrFail();
 
-    expect($domain->project_id)->toBeNull()
-        ->and($domain->managesEmail())->toBeTrue();
+    expect($domain->managesEmail())->toBeTrue();
 
     Livewire::test(DomainsPanel::class, ['client' => $client])
         ->call('openEmailModal', $domain->id)
@@ -94,12 +89,12 @@ test('a hosting-only domain with no project can still manage its mailboxes', fun
 
 test('staff can provision an email account on a domain', function () {
     $staff = User::factory()->staff()->create();
-    [$project, $domain] = projectWithEmailDomain();
+    [$client, $domain] = clientWithEmailDomain();
     $provider = EmailProvider::factory()->create();
 
     $this->actingAs($staff);
 
-    Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
+    Livewire::test(DomainsPanel::class, ['client' => $client])
         ->call('openEmailModal', $domain->id)
         ->set('emailProviderIdToAssign', $provider->id)
         ->set('newEmailAddress', 'nueva@cliente.test')
@@ -112,15 +107,15 @@ test('staff can provision an email account on a domain', function () {
 
 test('provisioning is rejected on a domain that does not manage email', function () {
     $staff = User::factory()->staff()->create();
-    [$project] = projectWithEmailDomain();
-    $domain = Domain::factory()->for($project->client)->for($project)->create([
+    [$client] = clientWithEmailDomain();
+    $domain = Domain::factory()->for($client)->create([
         'email_management' => DomainEmailManagement::NotManaged,
     ]);
     $provider = EmailProvider::factory()->create();
 
     $this->actingAs($staff);
 
-    Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
+    Livewire::test(DomainsPanel::class, ['client' => $client])
         ->set('emailDomainId', $domain->id)
         ->set('emailProviderIdToAssign', $provider->id)
         ->set('newEmailAddress', 'nueva@cliente.test')
@@ -132,7 +127,7 @@ test('provisioning is rejected on a domain that does not manage email', function
 });
 
 test('a mailbox on a simulated provider never stores its password', function () {
-    [$project, $domain] = projectWithEmailDomain();
+    [$client, $domain] = clientWithEmailDomain();
     $provider = EmailProvider::factory()->create();
 
     $emailAccount = app(ProvisionEmailAccount::class)
@@ -143,12 +138,12 @@ test('a mailbox on a simulated provider never stores its password', function () 
 
 test('staff can delete an email account', function () {
     $staff = User::factory()->staff()->create();
-    [$project, $domain] = projectWithEmailDomain();
+    [$client, $domain] = clientWithEmailDomain();
     $emailAccount = EmailAccount::factory()->for($domain)->create();
 
     $this->actingAs($staff);
 
-    Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
+    Livewire::test(DomainsPanel::class, ['client' => $client])
         ->call('deleteEmailAccount', $emailAccount->id);
 
     expect(EmailAccount::find($emailAccount->id))->toBeNull();
@@ -156,13 +151,13 @@ test('staff can delete an email account', function () {
 
 test('staff cannot act on a mailbox belonging to another client', function () {
     $staff = User::factory()->staff()->create();
-    [$project] = projectWithEmailDomain();
-    [, $otherDomain] = projectWithEmailDomain();
+    [$client] = clientWithEmailDomain();
+    [, $otherDomain] = clientWithEmailDomain();
     $foreignAccount = EmailAccount::factory()->for($otherDomain)->create();
 
     $this->actingAs($staff);
 
-    expect(fn () => Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
+    expect(fn () => Livewire::test(DomainsPanel::class, ['client' => $client])
         ->call('deleteEmailAccount', $foreignAccount->id))
         ->toThrow(ModelNotFoundException::class);
 
@@ -171,12 +166,12 @@ test('staff cannot act on a mailbox belonging to another client', function () {
 
 test('staff can change an email account password', function () {
     $staff = User::factory()->staff()->create();
-    [$project, $domain] = projectWithEmailDomain();
+    [$client, $domain] = clientWithEmailDomain();
     $emailAccount = EmailAccount::factory()->for($domain)->create(['status' => EmailAccountStatus::Activa]);
 
     $this->actingAs($staff);
 
-    Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
+    Livewire::test(DomainsPanel::class, ['client' => $client])
         ->call('openPasswordModal', $emailAccount->id)
         ->set('newPassword', 'nueva-password')
         ->call('changePassword')
@@ -185,7 +180,7 @@ test('staff can change an email account password', function () {
     expect($emailAccount->refresh()->status)->toBe(EmailAccountStatus::Activa);
 });
 
-test('a domain with no project can be managed from the client detail', function () {
+test('el dominio se administra desde la ficha del cliente', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
 
@@ -201,26 +196,26 @@ test('a domain with no project can be managed from the client detail', function 
 
     $domain = $client->domains()->firstOrFail();
 
-    expect($domain->project_id)->toBeNull()
-        ->and($domain->hosting_plan)->toBe('compartido')
+    expect($domain->hosting_plan)->toBe('compartido')
         ->and($domain->site_url)->toBe('https://solo-hosting.test');
 });
 
-test('collaborator does not see the domains card on a project', function () {
-    $collaborator = User::factory()->collaborator()->create();
-    [$project] = projectWithEmailDomain();
-    $project->users()->attach($collaborator);
+test('el detalle del proyecto ya no muestra la tarjeta de dominios', function () {
+    $staff = User::factory()->staff()->create();
+    [$client, $domain] = clientWithEmailDomain();
+    $project = Project::factory()->for($client)->create();
 
-    $this->actingAs($collaborator);
+    $this->actingAs($staff);
 
     $this->get(route('projects.show', $project))
         ->assertOk()
-        ->assertDontSee('Dominios y correo');
+        ->assertDontSee('Dominios y correo')
+        ->assertDontSee($domain->name);
 });
 
 test('staff can import mailboxes that already exist on the provider', function () {
     $staff = User::factory()->staff()->create();
-    [$project, $domain] = projectWithEmailDomain();
+    [$client, $domain] = clientWithEmailDomain();
     $provider = EmailProvider::factory()->create();
 
     EmailAccount::factory()->for($domain)->create([
@@ -230,7 +225,7 @@ test('staff can import mailboxes that already exist on the provider', function (
 
     $this->actingAs($staff);
 
-    $component = Livewire::test(DomainsPanel::class, ['client' => $project->client, 'project' => $project])
+    $component = Livewire::test(DomainsPanel::class, ['client' => $client])
         ->call('openImportModal', $domain->id)
         ->set('importProviderId', $provider->id)
         ->call('loadImportCandidates');
@@ -253,7 +248,7 @@ test('staff can import mailboxes that already exist on the provider', function (
 });
 
 test('importing rejects addresses that do not belong to the domain', function () {
-    [$project, $domain] = projectWithEmailDomain();
+    [$client, $domain] = clientWithEmailDomain();
     $provider = EmailProvider::factory()->create();
 
     $imported = app(ImportEmailAccounts::class)->handle($domain, $provider, [
@@ -266,7 +261,7 @@ test('importing rejects addresses that do not belong to the domain', function ()
 });
 
 test('a manual provider stores the mailbox password and serves its own connection settings', function () {
-    [$project, $domain] = projectWithEmailDomain();
+    [$client, $domain] = clientWithEmailDomain();
     $provider = EmailProvider::factory()->manual()->create([
         'connection_settings' => [
             'imap_host' => 'imap.miproveedor.com',
@@ -288,7 +283,7 @@ test('a manual provider stores the mailbox password and serves its own connectio
 });
 
 test('a stored password is never written in plain text to the database', function () {
-    [$project, $domain] = projectWithEmailDomain();
+    [$client, $domain] = clientWithEmailDomain();
     $provider = EmailProvider::factory()->manual()->create();
 
     $emailAccount = app(ProvisionEmailAccount::class)

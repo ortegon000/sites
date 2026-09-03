@@ -42,8 +42,6 @@ class DomainExpiringNotification extends Notification
             'domain_id' => $this->domain->id,
             'domain_name' => $this->domain->name,
             'client_name' => $this->domain->client->name,
-            'project_id' => $this->domain->project_id,
-            'project_name' => $this->domain->project?->name,
             'auto_renew' => $this->domain->auto_renew,
             'expires_at' => $this->domain->expires_at->toDateString(),
         ];

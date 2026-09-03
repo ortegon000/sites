@@ -23,9 +23,6 @@
                                 · {{ __('Expira') }} {{ $domain->expires_at->format('d/m/Y') }}
                             @endif
                         </span>
-                        @if (! $project && $domain->project)
-                            <span class="text-xs text-zinc-400">{{ $domain->project->name }}</span>
-                        @endif
                         @if ($domain->site_url)
                             <a href="{{ $domain->site_url }}" target="_blank" rel="noopener" class="text-xs text-zinc-400 hover:underline">
                                 {{ $domain->site_url }}
@@ -145,14 +142,6 @@
             </flux:heading>
 
             <flux:input wire:model="domainName" :label="__('Dominio')" placeholder="acme.com" autofocus />
-
-            <flux:select wire:model.live="domainProjectId" :label="__('Proyecto')"
-                :description="__('Opcional. Un dominio de puro hosting no necesita proyecto; el correo sí requiere uno que lo incluya.')">
-                <flux:select.option value="">{{ __('Sin proyecto') }}</flux:select.option>
-                @foreach ($this->assignableProjects as $assignableProject)
-                    <flux:select.option value="{{ $assignableProject->id }}">{{ $assignableProject->name }}</flux:select.option>
-                @endforeach
-            </flux:select>
 
             <div class="grid gap-4 sm:grid-cols-2">
                 <flux:select wire:model="management" :label="__('Administración')">

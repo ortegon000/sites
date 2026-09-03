@@ -20,9 +20,9 @@ function portalEmailContactFor(Client $client): Contact
 
 function portalDomainFor(Client $client): Domain
 {
-    $project = Project::factory()->for($client)->create(['includes_email' => true]);
+    $project = Project::factory()->for($client)->create();
 
-    return Domain::factory()->for($client)->for($project)->withManagedEmail()->create();
+    return Domain::factory()->for($client)->withManagedEmail()->create();
 }
 
 test('guests are redirected to the login page', function () {

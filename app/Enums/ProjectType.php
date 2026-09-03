@@ -22,19 +22,6 @@ enum ProjectType: string
     }
 
     /**
-     * Whether a project of this type manages email by default. This only seeds
-     * the `includes_email` flag when the project is created — the flag itself
-     * is what gates turning on email for a domain, and staff can override it.
-     */
-    public function includesEmailByDefault(): bool
-    {
-        return match ($this) {
-            self::Web, self::Email => true,
-            self::Maintenance, self::Ads, self::Other => false,
-        };
-    }
-
-    /**
      * Services this type of project usually bills, used to prefill the creation
      * form. Amounts are left out on purpose: they change per client, so staff
      * fills them in (and removes whatever does not apply) before saving.

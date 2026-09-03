@@ -25,7 +25,6 @@ class ProjectFactory extends Factory
             'name' => fake()->words(3, true),
             'description' => fake()->sentence(),
             'type' => ProjectType::Other,
-            'includes_email' => false,
             'status' => ProjectStatus::Activo,
             'started_at' => fake()->dateTimeBetween('-6 months', 'now'),
         ];

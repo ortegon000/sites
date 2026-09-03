@@ -20,14 +20,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $name
  * @property string|null $description
  * @property ProjectType $type
- * @property bool $includes_email
  * @property ProjectStatus $status
  * @property CarbonImmutable|null $started_at
  * @property CarbonImmutable|null $ended_at
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['client_id', 'name', 'description', 'type', 'includes_email', 'status', 'started_at', 'ended_at'])]
+#[Fillable(['client_id', 'name', 'description', 'type', 'status', 'started_at', 'ended_at'])]
 class Project extends Model
 {
     /** @use HasFactory<ProjectFactory> */
@@ -37,7 +36,6 @@ class Project extends Model
     {
         return [
             'type' => ProjectType::class,
-            'includes_email' => 'boolean',
             'status' => ProjectStatus::class,
             'started_at' => 'date',
             'ended_at' => 'date',

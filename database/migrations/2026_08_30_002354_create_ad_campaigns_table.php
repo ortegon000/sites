@@ -16,7 +16,6 @@ return new class extends Migration
             /** La campaña es un activo del cliente: vive mientras corre, no
              *  mientras dura el proyecto que la montó. */
             $table->foreignId('client_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('project_id')->nullable()->constrained()->cascadeOnDelete();
             $table->string('name');
             $table->string('platform');
             $table->string('ad_account_id')->nullable();

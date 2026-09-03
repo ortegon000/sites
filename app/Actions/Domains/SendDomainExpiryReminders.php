@@ -30,9 +30,10 @@ class SendDomainExpiryReminders
             ->whereNotNull('expires_at')
             ->whereNull('expiry_notified_at')
             ->whereBetween('expires_at', [today(), today()->addDays(self::EXPIRING_SOON_DAYS)])
-            ->with(['client', 'project'])
+            ->with('client')
             ->each(function (Domain $domain): void {
-                $this->notifyProjectTeam->handle($domain->project, new DomainExpiringNotification($domain));
+                /** El dominio no cuelga de ningún proyecto, así que no hay equipo: avisa a los admins. */
+                $this->notifyProjectTeam->handle(null, new DomainExpiringNotification($domain));
 
                 $domain->updateQuietly(['expiry_notified_at' => now()]);
             });

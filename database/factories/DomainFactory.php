@@ -23,7 +23,6 @@ class DomainFactory extends Factory
     {
         return [
             'client_id' => Client::factory()->client(),
-            'project_id' => null,
             'name' => fake()->unique()->domainName(),
             'management' => DomainManagement::Managed,
             'registrar' => fake()->randomElement(['Namecheap', 'GoDaddy', 'Cloudflare']),

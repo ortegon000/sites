@@ -3,7 +3,6 @@
 use App\Enums\AdBudgetBilling;
 use App\Enums\AdCampaignStatus;
 use App\Enums\AdPlatform;
-use App\Enums\ProjectType;
 use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceCategory;
 use App\Livewire\CampaignsPanel;
@@ -15,11 +14,11 @@ use Livewire\Livewire;
 
 test('staff can add a campaign the client pays directly, and it generates no charges', function () {
     $staff = User::factory()->staff()->create();
-    $project = Project::factory()->create(['type' => ProjectType::Ads]);
+    $client = Client::factory()->client()->create();
 
     $this->actingAs($staff);
 
-    Livewire::test(CampaignsPanel::class, ['client' => $project->client, 'project' => $project])
+    Livewire::test(CampaignsPanel::class, ['client' => $client])
         ->call('openCampaignModal')
         ->set('campaignName', 'Meta — temporada alta')
         ->set('platform', AdPlatform::Meta->value)
@@ -28,20 +27,20 @@ test('staff can add a campaign the client pays directly, and it generates no cha
         ->call('saveCampaign')
         ->assertHasNoErrors();
 
-    $campaign = $project->adCampaigns()->firstOrFail();
+    $campaign = $client->adCampaigns()->firstOrFail();
 
     expect($campaign->budget_billing)->toBe(AdBudgetBilling::ClientDirect)
         ->and($campaign->services)->toHaveCount(0)
-        ->and($project->services()->count())->toBe(0);
+        ->and($client->services()->count())->toBe(0);
 });
 
 test('a pass-through campaign creates its own monthly ad spend service', function () {
     $staff = User::factory()->staff()->create();
-    $project = Project::factory()->create(['type' => ProjectType::Ads]);
+    $client = Client::factory()->client()->create();
 
     $this->actingAs($staff);
 
-    Livewire::test(CampaignsPanel::class, ['client' => $project->client, 'project' => $project])
+    Livewire::test(CampaignsPanel::class, ['client' => $client])
         ->call('openCampaignModal')
         ->set('campaignName', 'Google — siempre activa')
         ->set('platform', AdPlatform::Google->value)
@@ -50,10 +49,11 @@ test('a pass-through campaign creates its own monthly ad spend service', functio
         ->call('saveCampaign')
         ->assertHasNoErrors();
 
-    $campaign = $project->adCampaigns()->firstOrFail();
-    $service = $project->services()->firstOrFail();
+    $campaign = $client->adCampaigns()->firstOrFail();
+    $service = $client->services()->firstOrFail();
 
     expect($service->ad_campaign_id)->toBe($campaign->id)
+        ->and($service->project_id)->toBeNull()
         ->and($service->category)->toBe(ServiceCategory::AdsBudget)
         ->and($service->billing_frequency)->toBe(ServiceBillingFrequency::Monthly)
         ->and((float) $service->amount)->toBe(18000.0)
@@ -62,11 +62,11 @@ test('a pass-through campaign creates its own monthly ad spend service', functio
 
 test('a pass-through campaign can skip the ad spend service', function () {
     $staff = User::factory()->staff()->create();
-    $project = Project::factory()->create(['type' => ProjectType::Ads]);
+    $client = Client::factory()->client()->create();
 
     $this->actingAs($staff);
 
-    Livewire::test(CampaignsPanel::class, ['client' => $project->client, 'project' => $project])
+    Livewire::test(CampaignsPanel::class, ['client' => $client])
         ->call('openCampaignModal')
         ->set('campaignName', 'Meta — facturada aparte')
         ->set('monthlyBudget', '5000')
@@ -75,16 +75,16 @@ test('a pass-through campaign can skip the ad spend service', function () {
         ->call('saveCampaign')
         ->assertHasNoErrors();
 
-    expect($project->services()->count())->toBe(0);
+    expect($client->services()->count())->toBe(0);
 });
 
 test('a campaign cannot end before it starts', function () {
     $staff = User::factory()->staff()->create();
-    $project = Project::factory()->create();
+    $client = Client::factory()->client()->create();
 
     $this->actingAs($staff);
 
-    Livewire::test(CampaignsPanel::class, ['client' => $project->client, 'project' => $project])
+    Livewire::test(CampaignsPanel::class, ['client' => $client])
         ->call('openCampaignModal')
         ->set('campaignName', 'Campaña inválida')
         ->set('monthlyBudget', '1000')
@@ -93,73 +93,54 @@ test('a campaign cannot end before it starts', function () {
         ->call('saveCampaign')
         ->assertHasErrors('campaignEndsOn');
 
-    expect($project->adCampaigns()->count())->toBe(0);
+    expect($client->adCampaigns()->count())->toBe(0);
 });
 
 test('editing a campaign does not create another ad spend service', function () {
     $staff = User::factory()->staff()->create();
-    $project = Project::factory()->create();
-    $campaign = AdCampaign::factory()->for($project)->passThrough()->create();
+    $client = Client::factory()->client()->create();
+    $campaign = AdCampaign::factory()->for($client)->passThrough()->create();
 
     $this->actingAs($staff);
 
-    Livewire::test(CampaignsPanel::class, ['client' => $project->client, 'project' => $project])
+    Livewire::test(CampaignsPanel::class, ['client' => $client])
         ->call('openCampaignModal', $campaign->id)
         ->set('campaignStatus', AdCampaignStatus::Pausada->value)
         ->call('saveCampaign')
         ->assertHasNoErrors();
 
     expect($campaign->refresh()->status)->toBe(AdCampaignStatus::Pausada)
-        ->and($project->services()->count())->toBe(0);
+        ->and($client->services()->count())->toBe(0);
 });
 
-test('collaborator does not see the campaigns card on a project', function () {
-    $collaborator = User::factory()->collaborator()->create();
-    $project = Project::factory()->create();
-    $project->users()->attach($collaborator);
-    AdCampaign::factory()->for($project)->create(['name' => 'Campaña reservada']);
-
-    $this->actingAs($collaborator);
-
-    $this->get(route('projects.show', $project))
-        ->assertOk()
-        ->assertDontSee('Campañas de ads')
-        ->assertDontSee('Campaña reservada');
-});
-
-test('una campaña puede colgar solo del cliente, sin proyecto', function () {
-    $staff = User::factory()->staff()->create();
-    $client = Client::factory()->client()->create();
-
-    $this->actingAs($staff);
-
-    Livewire::test(CampaignsPanel::class, ['client' => $client])
-        ->call('openCampaignModal')
-        ->set('campaignName', 'Google — marca')
-        ->set('platform', AdPlatform::Google->value)
-        ->set('monthlyBudget', '6000')
-        ->set('budgetBilling', AdBudgetBilling::ClientDirect->value)
-        ->set('campaignStartsOn', today()->toDateString())
-        ->call('saveCampaign')
-        ->assertHasNoErrors();
-
-    $campaign = $client->adCampaigns()->firstOrFail();
-
-    expect($campaign->project_id)->toBeNull()
-        ->and($campaign->services()->count())->toBe(0);
-});
-
-test('el panel del cliente lista las campañas de sus proyectos y las sueltas', function () {
+test('el detalle del proyecto ya no muestra campañas ni dominios: viven en la ficha del cliente', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
     $project = Project::factory()->for($client)->create();
 
-    AdCampaign::factory()->for($project)->create(['name' => 'Meta — remarketing']);
-    AdCampaign::factory()->standalone()->for($client)->create(['name' => 'Google — marca']);
+    AdCampaign::factory()->for($client)->create(['name' => 'Meta — remarketing']);
+
+    $this->actingAs($staff);
+
+    $this->get(route('projects.show', $project))
+        ->assertOk()
+        ->assertDontSee('Campañas de ads')
+        ->assertDontSee('Meta — remarketing')
+        ->assertDontSee('Dominios y correo');
+});
+
+test('las campañas del cliente se administran desde su ficha', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    AdCampaign::factory()->for($client)->create(['name' => 'Meta — remarketing']);
+    AdCampaign::factory()->for($client)->create(['name' => 'Google — marca']);
+    AdCampaign::factory()->create(['name' => 'Campaña ajena']);
 
     $this->actingAs($staff);
 
     Livewire::test(CampaignsPanel::class, ['client' => $client])
         ->assertSee('Meta — remarketing')
-        ->assertSee('Google — marca');
+        ->assertSee('Google — marca')
+        ->assertDontSee('Campaña ajena');
 });

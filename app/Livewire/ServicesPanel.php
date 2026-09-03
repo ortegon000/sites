@@ -148,10 +148,7 @@ class ServicesPanel extends Component
     #[Computed]
     public function domainOptions(): Collection
     {
-        return $this->client->domains()
-            ->when($this->project, fn ($query) => $query->where('project_id', $this->project->id))
-            ->orderBy('name')
-            ->get();
+        return $this->client->domains()->orderBy('name')->get();
     }
 
     /**
@@ -219,10 +216,6 @@ class ServicesPanel extends Component
         Gate::authorize('update', $this->client);
 
         $domainRule = Rule::exists('domains', 'id')->where('client_id', $this->client->id);
-
-        if ($this->project) {
-            $domainRule->where('project_id', $this->project->id);
-        }
 
         $validated = $this->validate([
             'serviceName' => ['required', 'string', 'max:255'],

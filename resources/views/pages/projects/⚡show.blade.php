@@ -222,10 +222,6 @@ new class extends Component {
                 <livewire:services-panel :client="$project->client" :project="$project" :key="'services-panel-'.$project->id" />
 
                 <livewire:charges-panel :client="$project->client" :project="$project" :key="'charges-panel-'.$project->id" />
-
-                <livewire:domains-panel :client="$project->client" :project="$project" :key="'domains-panel-'.$project->id" />
-
-                <livewire:campaigns-panel :client="$project->client" :project="$project" :key="'campaigns-panel-'.$project->id" />
             @else
                 <flux:card class="flex flex-col gap-4">
                     <flux:heading size="lg">{{ __('Servicios') }}</flux:heading>

@@ -16,7 +16,6 @@ use App\Models\Domain;
 use App\Models\DomainCredential;
 use App\Models\EmailAccount;
 use App\Models\EmailProvider;
-use App\Models\Project;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
@@ -29,17 +28,13 @@ use Livewire\Component;
  * Los dominios de un cliente con lo que cuelga de cada uno: buzones y accesos
  * técnicos.
  *
- * Recibe siempre el cliente —que es el dueño del dominio— y opcionalmente un
- * proyecto. Con proyecto se acota a los dominios de ese proyecto y sirve de
- * tarjeta en su detalle; sin él lista todos los del cliente, que es la única
- * forma de administrar los dominios de quien solo tiene hosting y ningún
- * proyecto abierto.
+ * Recibe el cliente, que es el dueño del dominio y el único: un dominio no
+ * cuelga de ningún proyecto. La mayoría son de clientes que solo tienen
+ * hosting y renovación, y atarlos a un proyecto dejaba fuera ese caso.
  */
 class DomainsPanel extends Component
 {
     public Client $client;
-
-    public ?Project $project = null;
 
     public ?int $editingDomainId = null;
 
@@ -60,8 +55,6 @@ class DomainsPanel extends Component
     public ?string $emailNotes = null;
 
     public string $domainStatus = '';
-
-    public ?int $domainProjectId = null;
 
     public ?string $siteUrl = null;
 
@@ -123,12 +116,11 @@ class DomainsPanel extends Component
 
     public string $newPassword = '';
 
-    public function mount(Client $client, ?Project $project = null): void
+    public function mount(Client $client): void
     {
         Gate::authorize('view', $client);
 
         $this->client = $client;
-        $this->project = $project;
     }
 
     /**
@@ -148,19 +140,10 @@ class DomainsPanel extends Component
     #[Computed]
     public function domains(): Collection
     {
-        return ($this->project?->domains() ?? $this->client->domains())
-            ->with(['emailAccounts.provider', 'credentials', 'project'])
+        return $this->client->domains()
+            ->with(['emailAccounts.provider', 'credentials'])
             ->orderBy('name')
             ->get();
-    }
-
-    /**
-     * @return Collection<int, Project>
-     */
-    #[Computed]
-    public function assignableProjects(): Collection
-    {
-        return $this->client->projects()->orderBy('name')->get();
     }
 
     /**
@@ -210,8 +193,6 @@ class DomainsPanel extends Component
         $this->editingDomainId = $domainId;
 
         if ($domainId === null) {
-            /** Dentro de un proyecto se propone ese; desde el cliente, ninguno. */
-            $this->domainProjectId = $this->project?->id;
             $this->siteUrl = null;
             $this->hostingPlan = null;
             $this->hostedSince = null;
@@ -221,16 +202,13 @@ class DomainsPanel extends Component
             $this->registeredAt = null;
             $this->expiresAt = null;
             $this->autoRenew = true;
-            /** Un proyecto que incluye correo propone administrarlo; es una propuesta, no un candado. */
-            $this->emailManagement = $this->project?->includes_email
-                ? DomainEmailManagement::Managed->value
-                : DomainEmailManagement::NotManaged->value;
+            /** Que administremos el correo es del dominio: el proyecto no lo propone ni lo condiciona. */
+            $this->emailManagement = DomainEmailManagement::NotManaged->value;
             $this->emailNotes = null;
             $this->domainStatus = DomainStatus::Activo->value;
         } else {
             $domain = $this->client->domains()->findOrFail($domainId);
 
-            $this->domainProjectId = $domain->project_id;
             $this->siteUrl = $domain->site_url;
             $this->hostingPlan = $domain->hosting_plan;
             $this->hostedSince = $domain->hosted_since?->toDateString();
@@ -259,7 +237,6 @@ class DomainsPanel extends Component
                     ->where('client_id', $this->client->id)
                     ->ignore($this->editingDomainId),
             ],
-            'domainProjectId' => ['nullable', Rule::exists('projects', 'id')->where('client_id', $this->client->id)],
             'siteUrl' => ['nullable', 'string', 'max:255'],
             'hostingPlan' => ['nullable', 'string', 'max:255'],
             'hostedSince' => ['nullable', 'date'],
@@ -273,13 +250,8 @@ class DomainsPanel extends Component
             'domainStatus' => ['required', Rule::enum(DomainStatus::class)],
         ]);
 
-        $linkedProject = $validated['domainProjectId'] === null
-            ? null
-            : $this->client->projects()->find((int) $validated['domainProjectId']);
-
         $attributes = [
             'client_id' => $this->client->id,
-            'project_id' => $linkedProject?->id,
             'name' => $validated['domainName'],
             'management' => DomainManagement::from($validated['management']),
             'registrar' => $validated['registrar'],

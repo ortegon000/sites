@@ -105,8 +105,8 @@ test('site accesses never reach the client portal', function () {
     $contact->clients()->attach($client, ['is_primary' => true]);
     $clientUser = User::factory()->client($contact)->create();
 
-    $project = Project::factory()->for($client)->create(['includes_email' => true]);
-    $domain = Domain::factory()->for($client)->for($project)->withManagedEmail()->create();
+    $project = Project::factory()->for($client)->create();
+    $domain = Domain::factory()->for($client)->withManagedEmail()->create();
     DomainCredential::factory()->for($domain)->create([
         'username' => 'acme_admin',
         'password' => 'clave-cpanel',

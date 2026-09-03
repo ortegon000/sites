@@ -155,7 +155,6 @@ class ProjectSeeder extends Seeder
             'name' => 'Mantenimiento Cliente Demo',
             'description' => 'Actualizaciones, respaldos y soporte trimestral.',
             'type' => ProjectType::Maintenance,
-            'includes_email' => false,
             'status' => ProjectStatus::Activo,
             'started_at' => now()->subMonths(8)->toDateString(),
         ]);
@@ -164,7 +163,6 @@ class ProjectSeeder extends Seeder
 
         Domain::create([
             'client_id' => $client->id,
-            'project_id' => $project->id,
             'name' => 'tienda-demo.test',
             'management' => DomainManagement::Tracked,
             'registrar' => null,
@@ -197,7 +195,6 @@ class ProjectSeeder extends Seeder
             'name' => 'Campañas Meta y Google',
             'description' => 'Adquisición para las sucursales del norte.',
             'type' => ProjectType::Ads,
-            'includes_email' => false,
             'status' => ProjectStatus::Activo,
             'started_at' => now()->subMonths(5)->toDateString(),
         ]);
@@ -206,7 +203,7 @@ class ProjectSeeder extends Seeder
             $project->users()->attach($this->collaborator);
         }
 
-        $meta = AdCampaign::factory()->for($project)->create([
+        $meta = AdCampaign::factory()->for($client)->create([
             'name' => 'Meta — remarketing',
             'platform' => AdPlatform::Meta,
             'ad_account_id' => '284917365',
@@ -217,7 +214,7 @@ class ProjectSeeder extends Seeder
             'starts_on' => now()->subMonths(5)->toDateString(),
         ]);
 
-        AdCampaign::factory()->for($project)->create([
+        AdCampaign::factory()->for($client)->create([
             'name' => 'Google — búsqueda de marca',
             'platform' => AdPlatform::Google,
             'ad_account_id' => '734-014-6150',
@@ -228,7 +225,7 @@ class ProjectSeeder extends Seeder
             'starts_on' => now()->subMonths(3)->toDateString(),
         ]);
 
-        AdCampaign::factory()->for($project)->create([
+        AdCampaign::factory()->for($client)->create([
             'name' => 'TikTok — lanzamiento de sucursal',
             'platform' => AdPlatform::TikTok,
             'objective' => 'Reconocimiento',
@@ -263,14 +260,12 @@ class ProjectSeeder extends Seeder
             'name' => 'Correo corporativo',
             'description' => 'Buzones del equipo de ventas.',
             'type' => ProjectType::Email,
-            'includes_email' => true,
             'status' => ProjectStatus::Activo,
             'started_at' => now()->subYear()->toDateString(),
         ]);
 
         $domain = Domain::create([
             'client_id' => $client->id,
-            'project_id' => $project->id,
             'name' => 'inmobiliaria-norte.test',
             'management' => DomainManagement::Managed,
             'registrar' => 'GoDaddy',
@@ -373,7 +368,6 @@ class ProjectSeeder extends Seeder
             'name' => 'Landing de campaña',
             'description' => 'Landing de una campaña que no se renovó.',
             'type' => ProjectType::Other,
-            'includes_email' => false,
             'status' => ProjectStatus::Cancelado,
             'started_at' => now()->subMonths(10)->toDateString(),
             'ended_at' => now()->subMonths(6)->toDateString(),
@@ -383,7 +377,6 @@ class ProjectSeeder extends Seeder
 
         Domain::create([
             'client_id' => $client->id,
-            'project_id' => $project->id,
             'name' => 'campana-clinica-sur.test',
             'management' => DomainManagement::Managed,
             'registrar' => 'Namecheap',
@@ -480,7 +473,7 @@ class ProjectSeeder extends Seeder
         Charge::factory()->for($support)->pending()->create(['amount' => '2500.00']);
 
         /** Una campaña que no nació de ningún proyecto: es un activo del cliente. */
-        AdCampaign::factory()->standalone()->for($client)->create([
+        AdCampaign::factory()->for($client)->create([
             'name' => 'Google — marca',
             'platform' => AdPlatform::Google,
             'objective' => 'Tráfico',

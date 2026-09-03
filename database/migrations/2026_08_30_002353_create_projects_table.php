@@ -17,7 +17,6 @@ return new class extends Migration
             $table->string('name');
             $table->text('description')->nullable();
             $table->string('type')->default('other');
-            $table->boolean('includes_email')->default(false);
             $table->string('status');
             $table->date('started_at')->nullable();
             $table->date('ended_at')->nullable();

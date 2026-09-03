@@ -10,7 +10,7 @@ use App\Models\Project;
 use App\Models\User;
 use Livewire\Livewire;
 
-test('choosing a project type prefills its suggested services and the email flag', function () {
+test('choosing a project type prefills its suggested services', function () {
     $staff = User::factory()->staff()->create();
 
     $this->actingAs($staff);
@@ -19,15 +19,13 @@ test('choosing a project type prefills its suggested services and the email flag
         ->call('openCreateModal')
         ->set('type', ProjectType::Web->value);
 
-    expect($component->get('includes_email'))->toBeTrue()
-        ->and($component->get('templateServices'))->toHaveCount(5)
+    expect($component->get('templateServices'))->toHaveCount(5)
         ->and(collect($component->get('templateServices'))->pluck('category')->all())
         ->toBe(['website', 'hosting', 'ssl', 'email', 'domain']);
 
     $component->set('type', ProjectType::Ads->value);
 
-    expect($component->get('includes_email'))->toBeFalse()
-        ->and($component->get('templateServices'))->toHaveCount(1);
+    expect($component->get('templateServices'))->toHaveCount(1);
 });
 
 test('creating a web project also creates the services that were left ticked', function () {
@@ -56,7 +54,6 @@ test('creating a web project also creates the services that were left ticked', f
     $project = Project::where('name', 'Sitio Acme')->firstOrFail();
 
     expect($project->type)->toBe(ProjectType::Web)
-        ->and($project->includes_email)->toBeTrue()
         ->and($project->services()->count())->toBe(3)
         ->and($project->services()->pluck('category')->map->value->all())->toBe(['website', 'hosting', 'domain']);
 
@@ -106,7 +103,7 @@ test('a service can be tied to a domain of its project', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
     $project = Project::factory()->for($client)->create();
-    $domain = Domain::factory()->for($client)->for($project)->create();
+    $domain = Domain::factory()->for($client)->create();
 
     $this->actingAs($staff);
 
