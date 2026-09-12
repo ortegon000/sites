@@ -3,10 +3,9 @@
 namespace Database\Factories;
 
 use App\Enums\QuoteStatus;
-use App\Enums\ServiceBillingFrequency;
-use App\Enums\ServiceCategory;
 use App\Models\Client;
 use App\Models\Quote;
+use App\Models\QuoteLineItem;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -24,13 +23,9 @@ class QuoteFactory extends Factory
         return [
             'client_id' => Client::factory()->client(),
             'project_id' => null,
-            'service_id' => null,
             'is_project' => false,
             'name' => 'Cotización '.fake()->word().' '.fake()->word(),
             'description' => null,
-            'category' => ServiceCategory::Other,
-            'billing_frequency' => ServiceBillingFrequency::OneTime,
-            'amount' => fake()->randomFloat(2, 1000, 40000),
             'currency' => 'MXN',
             'status' => QuoteStatus::Borrador,
             'valid_until' => now()->addDays(30)->toDateString(),
@@ -62,5 +57,16 @@ class QuoteFactory extends Factory
             'sent_at' => now()->subDays(40),
             'valid_until' => now()->subDay()->toDateString(),
         ]);
+    }
+
+    /**
+     * Agrega un renglón a la cotización. Encadenable para armar propuestas de
+     * varios conceptos.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function withLineItem(array $attributes = []): static
+    {
+        return $this->has(QuoteLineItem::factory()->state($attributes), 'lineItems');
     }
 }

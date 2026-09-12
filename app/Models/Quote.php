@@ -3,33 +3,31 @@
 namespace App\Models;
 
 use App\Enums\QuoteStatus;
-use App\Enums\ServiceBillingFrequency;
-use App\Enums\ServiceCategory;
 use Carbon\CarbonImmutable;
 use Database\Factories\QuoteFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Trabajo cotizado y todavía no aceptado.
  *
  * No es un servicio con otro estatus: un servicio genera cobros, y una
  * cotización no debe generar ninguno hasta que el cliente diga que sí. Al
- * aceptarse nace la línea cobrable y la cotización se queda como el registro
- * de qué se ofreció, por cuánto y cuándo se decidió.
+ * aceptarse, cada renglón nace como su propia línea cobrable y la cotización
+ * se queda como el registro de qué se ofreció, por cuánto y cuándo se decidió.
+ *
+ * El monto no vive aquí: una cotización de agencia rara vez es un solo
+ * concepto, así que vive repartido en sus renglones (`lineItems`).
  *
  * @property int $id
  * @property int $client_id
  * @property int|null $project_id
- * @property int|null $service_id
  * @property bool $is_project
  * @property string $name
  * @property string|null $description
- * @property ServiceCategory $category
- * @property ServiceBillingFrequency $billing_frequency
- * @property string $amount
  * @property string $currency
  * @property QuoteStatus $status
  * @property CarbonImmutable|null $valid_until
@@ -39,7 +37,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['client_id', 'project_id', 'service_id', 'is_project', 'name', 'description', 'category', 'billing_frequency', 'amount', 'currency', 'status', 'valid_until', 'sent_at', 'decided_at', 'notes'])]
+#[Fillable(['client_id', 'project_id', 'is_project', 'name', 'description', 'currency', 'status', 'valid_until', 'sent_at', 'decided_at', 'notes'])]
 class Quote extends Model
 {
     /** @use HasFactory<QuoteFactory> */
@@ -49,8 +47,6 @@ class Quote extends Model
     {
         return [
             'is_project' => 'boolean',
-            'category' => ServiceCategory::class,
-            'billing_frequency' => ServiceBillingFrequency::class,
             'status' => QuoteStatus::class,
             'valid_until' => 'date',
             'sent_at' => 'datetime',
@@ -85,10 +81,10 @@ class Quote extends Model
     }
 
     /**
-     * @return BelongsTo<Service, $this>
+     * @return HasMany<QuoteLineItem, $this>
      */
-    public function service(): BelongsTo
+    public function lineItems(): HasMany
     {
-        return $this->belongsTo(Service::class);
+        return $this->hasMany(QuoteLineItem::class);
     }
 }

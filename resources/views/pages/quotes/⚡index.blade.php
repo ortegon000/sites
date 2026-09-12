@@ -1,8 +1,11 @@
 <?php
 
+use App\Enums\ClientStatus;
+use App\Enums\ClientType;
 use App\Enums\QuoteStatus;
 use App\Models\Client;
 use App\Models\Quote;
+use App\Models\QuoteLineItem;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Url;
@@ -23,6 +26,15 @@ new class extends Component {
     public ?string $statusFilter = null;
 
     public ?int $clientFilter = null;
+
+    /**
+     * A quién es la cotización nueva: el id de un cliente/prospecto ya
+     * existente, o el valor 'new' para capturar el nombre de un prospecto que
+     * todavía no existe en el sistema.
+     */
+    public string $newQuoteTarget = '';
+
+    public string $newQuoteProspectName = '';
 
     public function mount(): void
     {
@@ -48,7 +60,8 @@ new class extends Component {
     public function quotes()
     {
         return $this->filteredQuery()
-            ->with(['client', 'project', 'service'])
+            ->withSum('lineItems as amount_total', 'amount')
+            ->with(['client', 'project', 'lineItems'])
             ->orderByRaw('case when status in (?, ?) then 0 else 1 end', [QuoteStatus::Borrador->value, QuoteStatus::Enviada->value])
             ->orderByDesc('created_at')
             ->orderByDesc('id')
@@ -62,14 +75,15 @@ new class extends Component {
     #[Computed]
     public function summary(): object
     {
-        $open = Quote::query()->whereIn('status', QuoteStatus::open());
+        $open = QuoteLineItem::query()->whereHas('quote', fn ($query) => $query->whereIn('status', QuoteStatus::open()));
 
         return (object) [
-            'openCount' => (clone $open)->count(),
+            'openCount' => Quote::query()->whereIn('status', QuoteStatus::open())->count(),
             'openAmount' => (float) (clone $open)->sum('amount'),
-            'wonAmount' => (float) Quote::query()
-                ->where('status', QuoteStatus::Aceptada)
-                ->where('decided_at', '>=', today()->subDays(90))
+            'wonAmount' => (float) QuoteLineItem::query()
+                ->whereHas('quote', fn ($query) => $query
+                    ->where('status', QuoteStatus::Aceptada)
+                    ->where('decided_at', '>=', today()->subDays(90)))
                 ->sum('amount'),
         ];
     }
@@ -87,6 +101,66 @@ new class extends Component {
             ->when($this->clientFilter, fn ($query) => $query->where('client_id', $this->clientFilter));
     }
 
+    public function openNewQuoteModal(): void
+    {
+        $this->newQuoteTarget = '';
+        $this->newQuoteProspectName = '';
+        $this->resetValidation();
+
+        $this->modal('new-quote-target')->show();
+    }
+
+    public function closeNewQuoteModal(): void
+    {
+        $this->modal('new-quote-target')->close();
+    }
+
+    /**
+     * Resuelve a quién es la cotización —un cliente/prospecto ya existente, o
+     * uno nuevo capturado aquí mismo con lo mínimo— y manda a su ficha con la
+     * pestaña de trabajo y el formulario de cotización ya abiertos: ahí vive
+     * el resto de la captura, no aquí.
+     */
+    public function startNewQuote(): void
+    {
+        $validated = $this->validate([
+            'newQuoteTarget' => [
+                'required',
+                'string',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ($value !== 'new' && ! Client::whereKey($value)->exists()) {
+                        $fail(__('Elige un cliente válido.'));
+                    }
+                },
+            ],
+            'newQuoteProspectName' => ['required_if:newQuoteTarget,new', 'nullable', 'string', 'max:255'],
+        ]);
+
+        if ($validated['newQuoteTarget'] === 'new') {
+            Gate::authorize('create', Client::class);
+
+            $client = Client::create([
+                'type' => ClientType::Prospect,
+                'status' => ClientStatus::Nuevo,
+                'name' => $validated['newQuoteProspectName'],
+                'currency' => 'MXN',
+                'assigned_to_user_id' => auth()->id(),
+            ]);
+        } else {
+            $client = Client::query()->findOrFail($validated['newQuoteTarget']);
+
+            Gate::authorize('update', $client);
+        }
+
+        $routeName = $client->type === ClientType::Prospect ? 'prospects.show' : 'clients.show';
+
+        $this->redirect(route($routeName, [
+            'client' => $client,
+            'seccion' => 'trabajo',
+            'nueva_cotizacion' => 1,
+        ]), navigate: true);
+    }
+
     public function render()
     {
         return $this->view()->title(__('Cotizaciones'));
@@ -102,19 +176,25 @@ new class extends Component {
             <flux:text class="text-zinc-400">{{ __('Trabajo ofrecido que todavía no es cobro.') }}</flux:text>
         </div>
 
-        <div class="flex gap-6 text-sm">
-            <div class="flex flex-col">
-                <span class="text-zinc-400">{{ __('Sin contestar') }}</span>
-                <span class="text-lg">{{ $this->summary->openCount }}</span>
+        <div class="flex flex-wrap items-center gap-6">
+            <div class="flex gap-6 text-sm">
+                <div class="flex flex-col">
+                    <span class="text-zinc-400">{{ __('Sin contestar') }}</span>
+                    <span class="text-lg">{{ $this->summary->openCount }}</span>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-zinc-400">{{ __('En juego') }}</span>
+                    <span class="text-lg">{{ number_format($this->summary->openAmount, 2) }}</span>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-zinc-400">{{ __('Aceptado (90 días)') }}</span>
+                    <span class="text-lg">{{ number_format($this->summary->wonAmount, 2) }}</span>
+                </div>
             </div>
-            <div class="flex flex-col">
-                <span class="text-zinc-400">{{ __('En juego') }}</span>
-                <span class="text-lg">{{ number_format($this->summary->openAmount, 2) }}</span>
-            </div>
-            <div class="flex flex-col">
-                <span class="text-zinc-400">{{ __('Aceptado (90 días)') }}</span>
-                <span class="text-lg">{{ number_format($this->summary->wonAmount, 2) }}</span>
-            </div>
+
+            @can('create', \App\Models\Client::class)
+                <flux:button size="sm" icon="plus" wire:click="openNewQuoteModal">{{ __('Nueva cotización') }}</flux:button>
+            @endcan
         </div>
     </div>
 
@@ -152,7 +232,7 @@ new class extends Component {
                         <div class="flex flex-col">
                             <span>{{ $quote->name }}</span>
                             <span class="text-xs text-zinc-400">
-                                {{ $quote->category->label() }} · {{ $quote->billing_frequency->label() }}
+                                {{ $quote->lineItems->pluck('name')->implode(' · ') }}
                                 @if ($quote->project)
                                     · {{ $quote->project->name }}
                                 @endif
@@ -160,9 +240,9 @@ new class extends Component {
                         </div>
                     </flux:table.cell>
                     <flux:table.cell>
-                        <flux:link :href="route('clients.show', $quote->client)" wire:navigate>{{ $quote->client->name }}</flux:link>
+                        <flux:link :href="route($quote->client->type === \App\Enums\ClientType::Prospect ? 'prospects.show' : 'clients.show', $quote->client)" wire:navigate>{{ $quote->client->name }}</flux:link>
                     </flux:table.cell>
-                    <flux:table.cell>{{ number_format((float) $quote->amount, 2) }} {{ $quote->currency }}</flux:table.cell>
+                    <flux:table.cell>{{ number_format((float) $quote->amount_total, 2) }} {{ $quote->currency }}</flux:table.cell>
                     <flux:table.cell>
                         <div class="flex flex-col">
                             <span>{{ $quote->valid_until?->format('d/m/Y') ?? '—' }}</span>
@@ -174,8 +254,8 @@ new class extends Component {
                     <flux:table.cell>
                         <div class="flex flex-col gap-1">
                             <flux:badge size="sm" :color="$quote->status->color()">{{ $quote->status->label() }}</flux:badge>
-                            @if ($quote->service)
-                                <flux:link class="text-xs" :href="route('billables.index')" wire:navigate>{{ __('línea generada') }}</flux:link>
+                            @if ($quote->lineItems->contains(fn ($item) => $item->service_id !== null))
+                                <flux:link class="text-xs" :href="route('billables.index')" wire:navigate>{{ __('líneas generadas') }}</flux:link>
                             @endif
                         </div>
                     </flux:table.cell>
@@ -183,10 +263,36 @@ new class extends Component {
             @empty
                 <flux:table.row>
                     <flux:table.cell colspan="5" class="text-center text-zinc-400">
-                        {{ __('Sin cotizaciones. Se capturan desde la ficha del cliente o del prospecto.') }}
+                        {{ __('Sin cotizaciones. Créala aquí o desde la ficha del cliente o del prospecto.') }}
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse
         </flux:table.rows>
     </flux:table>
+
+    <flux:modal name="new-quote-target" class="md:w-96" wire:close="closeNewQuoteModal">
+        <form wire:submit="startNewQuote" class="flex flex-col gap-6">
+            <flux:heading size="lg">{{ __('Nueva cotización') }}</flux:heading>
+
+            <flux:select wire:model.live="newQuoteTarget" :label="__('¿Para quién es?')"
+                :placeholder="__('Elige un cliente o crea uno nuevo')">
+                <flux:select.option value="new">{{ __('+ Crear nuevo prospecto') }}</flux:select.option>
+                @foreach ($this->clientOptions as $client)
+                    <flux:select.option value="{{ $client->id }}">
+                        {{ $client->name }} ({{ $client->type === \App\Enums\ClientType::Prospect ? __('Prospecto') : __('Cliente') }})
+                    </flux:select.option>
+                @endforeach
+            </flux:select>
+
+            @if ($newQuoteTarget === 'new')
+                <flux:input wire:model="newQuoteProspectName" :label="__('Nombre del prospecto')"
+                    :description="__('Lo demás se completa después, ya en su ficha.')" autofocus />
+            @endif
+
+            <div class="flex justify-end gap-2">
+                <flux:button variant="ghost" wire:click="closeNewQuoteModal">{{ __('Cancelar') }}</flux:button>
+                <flux:button type="submit" variant="primary">{{ __('Continuar') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
 </div>

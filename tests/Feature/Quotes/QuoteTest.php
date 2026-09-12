@@ -29,79 +29,143 @@ test('una cotización se captura desde la ficha del cliente y nace en borrador, 
     Livewire::test(QuotesPanel::class, ['client' => $client])
         ->call('openQuoteModal')
         ->set('quoteName', 'Sitio web institucional')
-        ->set('quoteAmount', '38000')
+        ->set('lineItems.0.name', 'Diseño y desarrollo')
+        ->set('lineItems.0.amount', '38000')
         ->call('saveQuote')
         ->assertHasNoErrors();
 
     $quote = $client->quotes()->firstOrFail();
 
     expect($quote->status)->toBe(QuoteStatus::Borrador)
-        ->and($quote->service_id)->toBeNull()
+        ->and($quote->lineItems()->count())->toBe(1)
+        ->and($quote->lineItems()->whereNotNull('service_id')->count())->toBe(0)
         ->and($client->services()->count())->toBe(0);
 });
 
-test('aceptar una cotización genera su línea cobrable con lo cotizado', function () {
+test('una cotización puede tener varios renglones, cada uno con su propia categoría y frecuencia', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
 
-    $quote = Quote::factory()->for($client)->sent()->create([
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->call('openQuoteModal')
+        ->set('quoteName', 'Sitio web + hosting')
+        ->set('lineItems.0.name', 'Diseño y desarrollo')
+        ->set('lineItems.0.amount', '38000')
+        ->call('addLineItem')
+        ->set('lineItems.1.name', 'Hosting anual')
+        ->set('lineItems.1.category', ServiceCategory::Hosting->value)
+        ->set('lineItems.1.billing_frequency', ServiceBillingFrequency::Annual->value)
+        ->set('lineItems.1.amount', '1800')
+        ->call('saveQuote')
+        ->assertHasNoErrors();
+
+    $quote = $client->quotes()->firstOrFail();
+
+    expect($quote->lineItems()->count())->toBe(2)
+        ->and($quote->lineItems()->where('category', ServiceCategory::Hosting)->exists())->toBeTrue();
+});
+
+test('aceptar una cotización genera una línea cobrable por cada renglón', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $quote = Quote::factory()->for($client)->sent()->withLineItem([
         'name' => 'Mejora continua del sitio',
         'amount' => '5500.00',
         'billing_frequency' => ServiceBillingFrequency::Monthly,
-    ]);
+    ])->create();
 
     $this->actingAs($staff);
 
     Livewire::test(QuotesPanel::class, ['client' => $client])
         ->call('accept', $quote->id);
 
-    $quote->refresh();
+    $quote->refresh()->load('lineItems.service');
+    $lineItem = $quote->lineItems->first();
 
     expect($quote->status)->toBe(QuoteStatus::Aceptada)
         ->and($quote->decided_at)->not->toBeNull()
-        ->and($quote->service)->not->toBeNull()
-        ->and((float) $quote->service->amount)->toBe(5500.0)
-        ->and($quote->service->billing_frequency)->toBe(ServiceBillingFrequency::Monthly)
-        ->and($quote->service->charges()->count())->toBe(1);
+        ->and($lineItem->service)->not->toBeNull()
+        ->and((float) $lineItem->service->amount)->toBe(5500.0)
+        ->and($lineItem->service->billing_frequency)->toBe(ServiceBillingFrequency::Monthly)
+        ->and($lineItem->service->charges()->count())->toBe(1);
 });
 
-test('una cotización marcada como proyecto abre el proyecto al aceptarse y mete ahí la línea', function () {
+test('una cotización marcada como proyecto abre el proyecto al aceptarse y mete ahí las líneas', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
 
-    $quote = Quote::factory()->for($client)->sent()->asProject()->create([
-        'name' => 'Sitio web institucional',
+    $quote = Quote::factory()->for($client)->sent()->asProject()->withLineItem([
         'category' => ServiceCategory::Website,
-    ]);
+    ])->create(['name' => 'Sitio web institucional']);
 
     app(AcceptQuote::class)->handle($quote, $staff);
 
-    $quote->refresh();
+    $quote->refresh()->load('lineItems.service', 'project');
+    $lineItem = $quote->lineItems->first();
 
     expect($client->projects()->count())->toBe(1)
         ->and($quote->project)->not->toBeNull()
         ->and($quote->project->name)->toBe('Sitio web institucional')
         ->and($quote->project->type)->toBe(ProjectType::Web)
         ->and($quote->project->status)->toBe(ProjectStatus::Activo)
-        ->and($quote->service->project_id)->toBe($quote->project->id);
+        ->and($lineItem->service->project_id)->toBe($quote->project->id);
 });
 
-test('una cotización sin marcar como proyecto nace como línea suelta del cliente', function () {
+test('una cotización sin marcar como proyecto nace como líneas sueltas del cliente', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
 
-    $quote = Quote::factory()->for($client)->sent()->create();
+    $quote = Quote::factory()->for($client)->sent()->withLineItem()->create();
+
+    app(AcceptQuote::class)->handle($quote, $staff);
+
+    $quote->refresh()->load('lineItems.service');
+
+    expect($client->projects()->count())->toBe(0)
+        ->and($quote->project_id)->toBeNull()
+        ->and($quote->lineItems->first()->service->project_id)->toBeNull();
+});
+
+test('una cotización solo de renglones de dominio marcada como proyecto no abre proyecto al aceptarse', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $quote = Quote::factory()->for($client)->sent()->asProject()->withLineItem([
+        'category' => ServiceCategory::Domain,
+    ])->create();
 
     app(AcceptQuote::class)->handle($quote, $staff);
 
     $quote->refresh();
 
     expect($client->projects()->count())->toBe(0)
-        ->and($quote->project_id)->toBeNull()
-        ->and($quote->service->project_id)->toBeNull();
+        ->and($quote->project_id)->toBeNull();
 });
 
-test('el switch del formulario es lo que deja la cotización marcada como proyecto', function () {
+test('un renglón de dominio dentro de una cotización de proyecto no cuelga del proyecto que sí abre', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $quote = Quote::factory()->for($client)->sent()->asProject()
+        ->withLineItem(['category' => ServiceCategory::Website])
+        ->withLineItem(['category' => ServiceCategory::Hosting])
+        ->create();
+
+    app(AcceptQuote::class)->handle($quote, $staff);
+
+    $quote->refresh()->load('lineItems.service', 'project');
+
+    $websiteService = $quote->lineItems->firstWhere('category', ServiceCategory::Website)->service;
+    $hostingService = $quote->lineItems->firstWhere('category', ServiceCategory::Hosting)->service;
+
+    expect($websiteService->project_id)->toBe($quote->project->id)
+        ->and($hostingService->project_id)->toBeNull();
+});
+
+test('una cotización nueva nunca nace marcada como proyecto: eso se decide hasta editarla o aceptarla', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
 
@@ -111,12 +175,54 @@ test('el switch del formulario es lo que deja la cotización marcada como proyec
         ->call('openQuoteModal')
         ->assertSet('quoteIsProject', false)
         ->set('quoteName', 'Rediseño completo')
-        ->set('quoteAmount', '80000')
+        ->set('lineItems.0.name', 'Rediseño completo')
+        ->set('lineItems.0.amount', '80000')
+        // Aunque llegue manipulado en true, capturar nunca deja la cotización
+        // marcada como proyecto: la pregunta no existe en este formulario.
         ->set('quoteIsProject', true)
         ->call('saveQuote')
         ->assertHasNoErrors();
 
-    expect($client->quotes()->firstOrFail()->is_project)->toBeTrue();
+    expect($client->quotes()->firstOrFail()->is_project)->toBeFalse();
+});
+
+test('el switch del formulario de edición es lo que deja la cotización marcada como proyecto', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $quote = Quote::factory()->for($client)->withLineItem()->create(['name' => 'Rediseño completo']);
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->call('openQuoteModal', $quote->id)
+        ->assertSet('quoteIsProject', false)
+        ->set('quoteIsProject', true)
+        ->call('saveQuote')
+        ->assertHasNoErrors();
+
+    expect($quote->fresh()->is_project)->toBeTrue();
+});
+
+test('aceptar una cotización es donde se pregunta si es proyecto o línea suelta', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $quote = Quote::factory()->for($client)->sent()->withLineItem([
+        'category' => ServiceCategory::Website,
+    ])->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->call('openAcceptModal', $quote->id)
+        ->assertSet('acceptAsProject', false)
+        ->set('acceptAsProject', true)
+        ->call('confirmAccept')
+        ->assertDispatched('quote-accepted');
+
+    expect($quote->fresh()->is_project)->toBeTrue()
+        ->and($client->projects()->count())->toBe(1);
 });
 
 test('una cotización de hosting, ssl, dominio o correo no se puede capturar dentro de un proyecto', function () {
@@ -129,39 +235,22 @@ test('una cotización de hosting, ssl, dominio o correo no se puede capturar den
     Livewire::test(QuotesPanel::class, ['client' => $client, 'project' => $project])
         ->call('openQuoteModal')
         ->set('quoteName', 'Hosting anual')
-        ->set('quoteCategory', ServiceCategory::Hosting->value)
-        ->set('quoteAmount', '3800')
+        ->set('lineItems.0.name', 'Hosting anual')
+        ->set('lineItems.0.category', ServiceCategory::Hosting->value)
+        ->set('lineItems.0.amount', '3800')
         ->call('saveQuote')
-        ->assertHasErrors('quoteCategory');
+        ->assertHasErrors('lineItems.0.category');
 
     expect(Quote::where('project_id', $project->id)->count())->toBe(0);
-});
-
-test('marcar una cotización de dominio como proyecto no la deja marcada', function () {
-    $staff = User::factory()->staff()->create();
-    $client = Client::factory()->client()->create();
-
-    $this->actingAs($staff);
-
-    Livewire::test(QuotesPanel::class, ['client' => $client])
-        ->call('openQuoteModal')
-        ->set('quoteName', 'Renovación de dominio')
-        ->set('quoteCategory', ServiceCategory::Domain->value)
-        ->set('quoteAmount', '450')
-        ->set('quoteIsProject', true)
-        ->call('saveQuote')
-        ->assertHasNoErrors();
-
-    expect($client->quotes()->firstOrFail()->is_project)->toBeFalse();
 });
 
 test('lo que crea una cotización aceptada aparece sin recargar la ficha', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
 
-    $quote = Quote::factory()->for($client)->sent()->asProject()->create([
-        'name' => 'Sitio web institucional',
-    ]);
+    $quote = Quote::factory()->for($client)->sent()->asProject()->withLineItem([
+        'category' => ServiceCategory::Website,
+    ])->create(['name' => 'Sitio web institucional']);
 
     $this->actingAs($staff);
 
@@ -213,7 +302,7 @@ test('aceptar una cotización la saca de pendientes', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
 
-    $quote = Quote::factory()->for($client)->sent()->create(['name' => 'Mejora continua del sitio']);
+    $quote = Quote::factory()->for($client)->sent()->withLineItem()->create(['name' => 'Mejora continua del sitio']);
 
     $this->actingAs($staff);
 
@@ -229,7 +318,7 @@ test('aceptar la cotización de un prospecto lo gana y lo convierte en cliente',
     $staff = User::factory()->staff()->create();
     $prospect = Client::factory()->prospect()->create();
 
-    $quote = Quote::factory()->for($prospect)->sent()->create();
+    $quote = Quote::factory()->for($prospect)->sent()->withLineItem()->create();
 
     app(AcceptQuote::class)->handle($quote, $staff);
 
@@ -282,7 +371,7 @@ test('la corrida diaria expira las cotizaciones enviadas cuya vigencia pasó', f
 test('una cotización que ya generó línea cobrable no se borra', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
-    $quote = Quote::factory()->for($client)->sent()->create();
+    $quote = Quote::factory()->for($client)->sent()->withLineItem()->create();
 
     $this->actingAs($staff);
 
@@ -309,8 +398,8 @@ test('el listado de cotizaciones filtra y suma lo que está en juego', function 
     $client = Client::factory()->client()->create(['name' => 'Clínica Sur']);
     $other = Client::factory()->client()->create(['name' => 'Tacos El Güero']);
 
-    Quote::factory()->for($client)->sent()->create(['name' => 'Sitio institucional', 'amount' => '38000.00']);
-    Quote::factory()->for($other)->sent()->create(['name' => 'Menú digital', 'amount' => '12000.00']);
+    Quote::factory()->for($client)->sent()->withLineItem(['amount' => '38000.00'])->create(['name' => 'Sitio institucional']);
+    Quote::factory()->for($other)->sent()->withLineItem(['amount' => '12000.00'])->create(['name' => 'Menú digital']);
 
     $this->actingAs($staff);
 
@@ -329,4 +418,90 @@ test('un colaborador no entra a cotizaciones', function () {
     $this->actingAs($collaborator);
 
     $this->get(route('quotes.index'))->assertForbidden();
+});
+
+test('nueva cotización para un cliente existente manda a su ficha con el formulario abierto', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::quotes.index')
+        ->set('newQuoteTarget', (string) $client->id)
+        ->call('startNewQuote')
+        ->assertRedirect(route('clients.show', [
+            'client' => $client,
+            'seccion' => 'trabajo',
+            'nueva_cotizacion' => 1,
+        ]));
+});
+
+test('nueva cotización para un prospecto existente manda a su ficha de prospecto', function () {
+    $staff = User::factory()->staff()->create();
+    $prospect = Client::factory()->prospect()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::quotes.index')
+        ->set('newQuoteTarget', (string) $prospect->id)
+        ->call('startNewQuote')
+        ->assertRedirect(route('prospects.show', [
+            'client' => $prospect,
+            'seccion' => 'trabajo',
+            'nueva_cotizacion' => 1,
+        ]));
+});
+
+test('nueva cotización para alguien que no existe crea un prospecto con lo mínimo y manda a su ficha', function () {
+    $staff = User::factory()->staff()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::quotes.index')
+        ->set('newQuoteTarget', 'new')
+        ->set('newQuoteProspectName', 'Café Central')
+        ->call('startNewQuote')
+        ->assertHasNoErrors();
+
+    $prospect = Client::where('name', 'Café Central')->firstOrFail();
+
+    expect($prospect->type)->toBe(ClientType::Prospect)
+        ->and($prospect->status)->toBe(ClientStatus::Nuevo)
+        ->and($prospect->currency)->toBe('MXN')
+        ->and($prospect->assigned_to_user_id)->toBe($staff->id);
+});
+
+test('nueva cotización para alguien nuevo exige el nombre del prospecto', function () {
+    $staff = User::factory()->staff()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::quotes.index')
+        ->set('newQuoteTarget', 'new')
+        ->call('startNewQuote')
+        ->assertHasErrors('newQuoteProspectName');
+
+    expect(Client::count())->toBe(0);
+});
+
+test('llegar a la ficha con la bandera nueva_cotización abre el formulario de captura', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::withQueryParams(['nueva_cotizacion' => '1'])
+        ->test(QuotesPanel::class, ['client' => $client])
+        ->assertSet('editingQuoteId', null)
+        ->assertCount('lineItems', 1);
+});
+
+test('sin la bandera nueva_cotización el formulario no se abre solo', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->assertCount('lineItems', 0);
 });

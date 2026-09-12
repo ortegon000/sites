@@ -29,43 +29,65 @@ class QuoteSeeder extends Seeder
         $tacos = Client::where('name', 'Tacos El Güero')->firstOrFail();
 
         /** Marcada como proyecto: si el prospecto acepta, el sitio nace como trabajo con su propio expediente. */
-        Quote::factory()->for($prospect)->sent()->asProject()->create([
-            'name' => 'Sitio web institucional',
-            'description' => 'Sitio de cinco secciones con blog y formulario.',
-            'category' => ServiceCategory::Website,
-            'billing_frequency' => ServiceBillingFrequency::OneTime,
-            'amount' => '38000.00',
-            'currency' => $prospect->currency,
-            'valid_until' => now()->addDays(20)->toDateString(),
-            'notes' => 'Pidió que le incluyéramos la migración de su blog viejo.',
-        ]);
+        Quote::factory()->for($prospect)->sent()->asProject()
+            ->withLineItem([
+                'name' => 'Diseño y desarrollo del sitio',
+                'category' => ServiceCategory::Website,
+                'billing_frequency' => ServiceBillingFrequency::OneTime,
+                'amount' => '38000.00',
+            ])
+            ->withLineItem([
+                'name' => 'Hosting anual',
+                'category' => ServiceCategory::Hosting,
+                'billing_frequency' => ServiceBillingFrequency::Annual,
+                'amount' => '1800.00',
+            ])
+            ->create([
+                'name' => 'Sitio web institucional',
+                'description' => 'Sitio de cinco secciones con blog y formulario.',
+                'currency' => $prospect->currency,
+                'valid_until' => now()->addDays(20)->toDateString(),
+                'notes' => 'Pidió que le incluyéramos la migración de su blog viejo.',
+            ]);
 
         /** Vencida sin respuesta: `charges:process` la expira en la siguiente corrida. */
-        Quote::factory()->for($demo)->expiring()->create([
-            'name' => 'Rediseño de la tienda en línea',
-            'category' => ServiceCategory::Website,
-            'billing_frequency' => ServiceBillingFrequency::OneTime,
-            'amount' => '55000.00',
-            'currency' => $demo->currency,
-        ]);
+        Quote::factory()->for($demo)->expiring()
+            ->withLineItem([
+                'name' => 'Rediseño de la tienda en línea',
+                'category' => ServiceCategory::Website,
+                'billing_frequency' => ServiceBillingFrequency::OneTime,
+                'amount' => '55000.00',
+            ])
+            ->create([
+                'name' => 'Rediseño de la tienda en línea',
+                'currency' => $demo->currency,
+            ]);
 
-        $accepted = Quote::factory()->for($tacos)->sent()->create([
-            'name' => 'Mejora continua del sitio',
-            'category' => ServiceCategory::Maintenance,
-            'billing_frequency' => ServiceBillingFrequency::Monthly,
-            'amount' => '5500.00',
-            'currency' => $tacos->currency,
-        ]);
+        $accepted = Quote::factory()->for($tacos)->sent()
+            ->withLineItem([
+                'name' => 'Mejora continua del sitio',
+                'category' => ServiceCategory::Maintenance,
+                'billing_frequency' => ServiceBillingFrequency::Monthly,
+                'amount' => '5500.00',
+            ])
+            ->create([
+                'name' => 'Mejora continua del sitio',
+                'currency' => $tacos->currency,
+            ]);
 
         app(AcceptQuote::class)->handle($accepted, $staff);
 
-        $rejected = Quote::factory()->for($demo)->sent()->create([
-            'name' => 'Campaña de lanzamiento',
-            'category' => ServiceCategory::AdsManagement,
-            'billing_frequency' => ServiceBillingFrequency::Monthly,
-            'amount' => '9500.00',
-            'currency' => $demo->currency,
-        ]);
+        $rejected = Quote::factory()->for($demo)->sent()
+            ->withLineItem([
+                'name' => 'Campaña de lanzamiento',
+                'category' => ServiceCategory::AdsManagement,
+                'billing_frequency' => ServiceBillingFrequency::Monthly,
+                'amount' => '9500.00',
+            ])
+            ->create([
+                'name' => 'Campaña de lanzamiento',
+                'currency' => $demo->currency,
+            ]);
 
         app(RejectQuote::class)->handle($rejected, 'Lo pospuso para el siguiente trimestre.');
     }

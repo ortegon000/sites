@@ -12,4 +12,6 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/{Models/Domain.php,Livewire/DomainsPanel.php,Models/Project.php}, app/{Models/Agency.php,Models/Project.php,Models/Client.php} | .ai/rules/models.md |
 | resources/views/pages/portal/** | .ai/rules/portal.md |
 | app/{Actions/Projects/CreateProjectFromTemplate.php,Actions/Quotes/AcceptQuote.php,Livewire/ServicesPanel.php,Livewire/QuotesPanel.php,Enums/ServiceCategory.php} | .ai/rules/projects.md |
+| app/{Actions/Quotes/AcceptQuote.php,Livewire/QuotesPanel.php,Models/Quote.php,Models/QuoteLineItem.php} | .ai/rules/quotes.md |
 | app/{Actions/Renewals/**,Models/Renewal.php,Notifications/RenewalNoticeNotification.php} | .ai/rules/renewals.md |
+| resources/views/**/*.blade.php | .ai/rules/views.md |
