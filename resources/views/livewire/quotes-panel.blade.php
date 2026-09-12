@@ -115,7 +115,7 @@
             <flux:input wire:model="quoteName" :label="__('Concepto')" required autofocus />
             <flux:textarea wire:model="quoteDescription" :label="__('Descripción')" rows="2" />
 
-            <flux:select wire:model="quoteCategory" :label="__('Categoría')">
+            <flux:select wire:model.live="quoteCategory" :label="__('Categoría')">
                 @foreach ($this->categoryOptions as $option)
                     <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
                 @endforeach
@@ -139,7 +139,7 @@
 
             <flux:textarea wire:model="quoteNotes" :label="__('Notas')" rows="2" />
 
-            @unless ($project)
+            @unless ($project || \App\Enums\ServiceCategory::from($quoteCategory)->belongsToDomain())
                 <flux:switch wire:model="quoteIsProject" :label="__('Es un proyecto')"
                     :description="__('Al aceptarse abre un proyecto y la línea cobrable nace dentro. Apagado, queda como línea suelta del cliente.')" />
             @endunless

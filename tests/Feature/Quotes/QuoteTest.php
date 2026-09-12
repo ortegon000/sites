@@ -14,6 +14,7 @@ use App\Livewire\ChargesPanel;
 use App\Livewire\ProjectsPanel;
 use App\Livewire\QuotesPanel;
 use App\Models\Client;
+use App\Models\Project;
 use App\Models\Quote;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -116,6 +117,42 @@ test('el switch del formulario es lo que deja la cotización marcada como proyec
         ->assertHasNoErrors();
 
     expect($client->quotes()->firstOrFail()->is_project)->toBeTrue();
+});
+
+test('una cotización de hosting, ssl, dominio o correo no se puede capturar dentro de un proyecto', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $project = Project::factory()->for($client)->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client, 'project' => $project])
+        ->call('openQuoteModal')
+        ->set('quoteName', 'Hosting anual')
+        ->set('quoteCategory', ServiceCategory::Hosting->value)
+        ->set('quoteAmount', '3800')
+        ->call('saveQuote')
+        ->assertHasErrors('quoteCategory');
+
+    expect(Quote::where('project_id', $project->id)->count())->toBe(0);
+});
+
+test('marcar una cotización de dominio como proyecto no la deja marcada', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->call('openQuoteModal')
+        ->set('quoteName', 'Renovación de dominio')
+        ->set('quoteCategory', ServiceCategory::Domain->value)
+        ->set('quoteAmount', '450')
+        ->set('quoteIsProject', true)
+        ->call('saveQuote')
+        ->assertHasNoErrors();
+
+    expect($client->quotes()->firstOrFail()->is_project)->toBeFalse();
 });
 
 test('lo que crea una cotización aceptada aparece sin recargar la ficha', function () {

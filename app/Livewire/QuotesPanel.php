@@ -124,12 +124,19 @@ class QuotesPanel extends Component
     }
 
     /**
+     * Hosting, SSL, dominio y correo cuelgan del cliente y no del proyecto,
+     * así que ni se ofrecen como categoría cuando el panel vive en el
+     * detalle de un proyecto.
+     *
      * @return array<int, ServiceCategory>
      */
     #[Computed]
     public function categoryOptions(): array
     {
-        return ServiceCategory::cases();
+        return collect(ServiceCategory::cases())
+            ->reject(fn (ServiceCategory $category) => $this->project && $category->belongsToDomain())
+            ->values()
+            ->all();
     }
 
     /**
@@ -175,6 +182,17 @@ class QuotesPanel extends Component
         $this->modal('quote-form')->show();
     }
 
+    /**
+     * Hosting, SSL, dominio y correo nunca abren proyecto: al elegir una de
+     * esas categorías se apaga el interruptor aunque ya estuviera prendido.
+     */
+    public function updatedQuoteCategory(string $value): void
+    {
+        if (ServiceCategory::from($value)->belongsToDomain()) {
+            $this->quoteIsProject = false;
+        }
+    }
+
     public function saveQuote(): void
     {
         Gate::authorize('update', $this->client);
@@ -182,7 +200,15 @@ class QuotesPanel extends Component
         $validated = $this->validate([
             'quoteName' => ['required', 'string', 'max:255'],
             'quoteDescription' => ['nullable', 'string', 'max:2000'],
-            'quoteCategory' => ['required', Rule::enum(ServiceCategory::class)],
+            'quoteCategory' => [
+                'required',
+                Rule::enum(ServiceCategory::class),
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ($this->project && ServiceCategory::from($value)->belongsToDomain()) {
+                        $fail(__('Esta categoría cuelga del cliente, no de un proyecto.'));
+                    }
+                },
+            ],
             'quoteFrequency' => ['required', Rule::enum(ServiceBillingFrequency::class)],
             'quoteAmount' => ['required', 'numeric', 'min:0'],
             'quoteCurrency' => ['required', 'string', 'size:3'],
@@ -191,17 +217,21 @@ class QuotesPanel extends Component
             'quoteIsProject' => ['boolean'],
         ]);
 
+        $category = ServiceCategory::from($validated['quoteCategory']);
+
         $attributes = [
             'name' => $validated['quoteName'],
             'description' => $validated['quoteDescription'],
-            'category' => ServiceCategory::from($validated['quoteCategory']),
+            'category' => $category,
             'billing_frequency' => ServiceBillingFrequency::from($validated['quoteFrequency']),
             'amount' => $validated['quoteAmount'],
             'currency' => $validated['quoteCurrency'],
             'valid_until' => $validated['quoteValidUntil'],
             'notes' => $validated['quoteNotes'],
-            // Dentro de un proyecto la pregunta no aplica: lo cotizado ya es de ese trabajo.
-            'is_project' => $this->project === null && $validated['quoteIsProject'],
+            // Dentro de un proyecto la pregunta no aplica: lo cotizado ya es de
+            // ese trabajo. Hosting, SSL, dominio y correo tampoco abren
+            // proyecto nunca, aunque el interruptor haya quedado prendido.
+            'is_project' => $this->project === null && ! $category->belongsToDomain() && $validated['quoteIsProject'],
         ];
 
         if ($this->editingQuoteId !== null) {
