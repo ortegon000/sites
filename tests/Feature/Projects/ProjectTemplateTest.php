@@ -54,11 +54,13 @@ test('creating a web project also creates the services that were left ticked', f
     $project = Project::where('name', 'Sitio Acme')->firstOrFail();
 
     expect($project->type)->toBe(ProjectType::Web)
-        ->and($project->services()->count())->toBe(3)
-        ->and($project->services()->pluck('category')->map->value->all())->toBe(['website', 'hosting', 'domain']);
+        // Hosting y dominio son costos del cliente, no del proyecto: cuelgan
+        // sueltos aunque hayan nacido de la plantilla de un proyecto Web.
+        ->and($project->services()->pluck('category')->map->value->all())->toBe(['website'])
+        ->and($client->services()->whereNull('project_id')->pluck('category')->map->value->all())->toBe(['hosting', 'domain']);
 
     $website = $project->services()->where('category', ServiceCategory::Website)->firstOrFail();
-    $hosting = $project->services()->where('category', ServiceCategory::Hosting)->firstOrFail();
+    $hosting = $client->services()->whereNull('project_id')->where('category', ServiceCategory::Hosting)->firstOrFail();
 
     expect($website->billing_frequency)->toBe(ServiceBillingFrequency::OneTime)
         ->and($hosting->billing_frequency)->toBe(ServiceBillingFrequency::Annual)
@@ -99,15 +101,14 @@ test('editing a project leaves its services alone', function () {
         ->and($project->services()->count())->toBe(0);
 });
 
-test('a service can be tied to a domain of its project', function () {
+test('a service can be tied to a domain of its client', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
-    $project = Project::factory()->for($client)->create();
     $domain = Domain::factory()->for($client)->create();
 
     $this->actingAs($staff);
 
-    Livewire::test(ServicesPanel::class, ['client' => $project->client, 'project' => $project])
+    Livewire::test(ServicesPanel::class, ['client' => $client])
         ->call('openServiceModal')
         ->set('serviceName', 'Renovación de dominio')
         ->set('serviceCategory', ServiceCategory::Domain->value)
@@ -118,20 +119,20 @@ test('a service can be tied to a domain of its project', function () {
         ->call('saveService')
         ->assertHasNoErrors();
 
-    $service = $project->services()->firstOrFail();
+    $service = $client->services()->firstOrFail();
 
     expect($service->domain_id)->toBe($domain->id)
         ->and($service->category)->toBe(ServiceCategory::Domain);
 });
 
-test('a service cannot be tied to a domain of another project', function () {
+test('a service cannot be tied to a domain of another client', function () {
     $staff = User::factory()->staff()->create();
-    $project = Project::factory()->create();
+    $client = Client::factory()->client()->create();
     $foreignDomain = Domain::factory()->create();
 
     $this->actingAs($staff);
 
-    Livewire::test(ServicesPanel::class, ['client' => $project->client, 'project' => $project])
+    Livewire::test(ServicesPanel::class, ['client' => $client])
         ->call('openServiceModal')
         ->set('serviceName', 'Renovación de dominio')
         ->set('serviceCategory', ServiceCategory::Domain->value)
@@ -141,6 +142,26 @@ test('a service cannot be tied to a domain of another project', function () {
         ->set('startsOn', now()->toDateString())
         ->call('saveService')
         ->assertHasErrors('serviceDomainId');
+
+    expect($client->services()->count())->toBe(0);
+});
+
+test('a domain-bound category cannot be assigned to a project', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $project = Project::factory()->for($client)->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test(ServicesPanel::class, ['client' => $project->client, 'project' => $project])
+        ->call('openServiceModal')
+        ->set('serviceName', 'Hosting anual')
+        ->set('serviceCategory', ServiceCategory::Hosting->value)
+        ->set('billingFrequency', ServiceBillingFrequency::Annual->value)
+        ->set('amount', '3800')
+        ->set('startsOn', now()->toDateString())
+        ->call('saveService')
+        ->assertHasErrors('serviceCategory');
 
     expect($project->services()->count())->toBe(0);
 });

@@ -125,12 +125,19 @@ class ServicesPanel extends Component
     }
 
     /**
+     * Hosting, SSL, dominio y correo cuelgan del cliente y no del proyecto,
+     * así que ni se ofrecen como categoría cuando el panel vive en el
+     * detalle de un proyecto.
+     *
      * @return array<int, ServiceCategory>
      */
     #[Computed]
     public function serviceCategoryOptions(): array
     {
-        return ServiceCategory::cases();
+        return collect(ServiceCategory::cases())
+            ->reject(fn (ServiceCategory $category) => $this->project && $category->belongsToDomain())
+            ->values()
+            ->all();
     }
 
     /**
@@ -220,7 +227,15 @@ class ServicesPanel extends Component
         $validated = $this->validate([
             'serviceName' => ['required', 'string', 'max:255'],
             'serviceDescription' => ['nullable', 'string', 'max:2000'],
-            'serviceCategory' => ['required', Rule::enum(ServiceCategory::class)],
+            'serviceCategory' => [
+                'required',
+                Rule::enum(ServiceCategory::class),
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ($this->project && ServiceCategory::from($value)->belongsToDomain()) {
+                        $fail(__('Esta categoría cuelga del cliente, no de un proyecto.'));
+                    }
+                },
+            ],
             'serviceDomainId' => ['nullable', $domainRule],
             'billingFrequency' => ['required', Rule::enum(ServiceBillingFrequency::class)],
             'amount' => ['required', 'numeric', 'min:0'],

@@ -36,6 +36,8 @@ class AcceptQuote
     {
         $project = $quote->project ?? ($quote->is_project ? $this->openProject($quote) : null);
 
+        /** Hosting, SSL, dominio y correo cuelgan siempre del cliente, aunque
+         *  la cotización se haya marcado como proyecto. */
         $service = $this->createServiceWithSchedule->handle($quote->client, [
             'name' => $quote->name,
             'description' => $quote->description,
@@ -46,7 +48,7 @@ class AcceptQuote
             'status' => ServiceStatus::Activo,
             'starts_on' => today()->toDateString(),
             'installments_count' => null,
-        ], $project);
+        ], $quote->category->belongsToDomain() ? null : $project);
 
         $quote->update([
             'status' => QuoteStatus::Aceptada,
