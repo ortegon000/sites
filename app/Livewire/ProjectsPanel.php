@@ -56,9 +56,11 @@ class ProjectsPanel extends Component
 
     /**
      * Aceptar una cotización puede abrir un proyecto, y la ficha avisa para
-     * que la tabla lo muestre sin recargar.
+     * que la tabla lo muestre sin recargar. Deshacer esa aceptación puede
+     * desligarlo igual de una cotización.
      */
     #[On('quote-accepted')]
+    #[On('quote-undone')]
     public function refreshProjects(): void
     {
         unset($this->projects);

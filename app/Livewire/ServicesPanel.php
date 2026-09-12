@@ -163,9 +163,11 @@ class ServicesPanel extends Component
      * salvo que se cambie. Todo lo demás toma su valor por omisión.
      */
     /**
-     * La cotización que se acaba de aceptar dejó su línea cobrable aquí.
+     * La cotización que se acaba de aceptar dejó su línea cobrable aquí. Si
+     * esa aceptación se deshace por error, la línea se borra igual.
      */
     #[On('quote-accepted')]
+    #[On('quote-undone')]
     public function refreshServices(): void
     {
         unset($this->services);

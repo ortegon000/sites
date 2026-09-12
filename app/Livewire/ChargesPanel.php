@@ -88,9 +88,12 @@ class ChargesPanel extends Component
     }
 
     /**
-     * La línea que nació de la cotización aceptada ya trae sus cobros.
+     * La línea que nació de la cotización aceptada ya trae sus cobros. Si
+     * esa aceptación se deshace por error, la línea y sus cobros desaparecen
+     * igual de repentino.
      */
     #[On('quote-accepted')]
+    #[On('quote-undone')]
     public function refreshCharges(): void
     {
         unset($this->charges);

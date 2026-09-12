@@ -1,5 +1,6 @@
 <?php
 
+use App\Concerns\ManagesQuoteActions;
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
 use App\Enums\QuoteStatus;
@@ -16,9 +17,16 @@ use Livewire\WithPagination;
  * Todo lo cotizado, de un vistazo: qué se ofreció, a quién, por cuánto y quién
  * no ha contestado. Es la lista que antes vivía como filas "Pendiente" sin
  * costo en el archivo del dueño, con el precio escondido en las notas.
+ *
+ * Las acciones sobre cada cotización (editar, enviar, aceptar, rechazar y
+ * deshacer cualquiera de esas tres, más copiarla) viven en
+ * App\Concerns\ManagesQuoteActions, compartidas con el panel de la ficha del
+ * cliente. Aquí nunca se crea una desde cero -eso lo resuelve "Nueva
+ * cotización" más abajo, que primero decide el cliente y manda a su ficha.
  */
 new class extends Component {
     use WithPagination;
+    use ManagesQuoteActions;
 
     #[Url]
     public string $search = '';
@@ -223,6 +231,7 @@ new class extends Component {
             <flux:table.column>{{ __('Monto') }}</flux:table.column>
             <flux:table.column>{{ __('Vigencia') }}</flux:table.column>
             <flux:table.column>{{ __('Estatus') }}</flux:table.column>
+            <flux:table.column></flux:table.column>
         </flux:table.columns>
 
         <flux:table.rows>
@@ -259,16 +268,23 @@ new class extends Component {
                             @endif
                         </div>
                     </flux:table.cell>
+                    <flux:table.cell>
+                        @include('partials.quotes.row-actions', ['quote' => $quote])
+                    </flux:table.cell>
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="5" class="text-center text-zinc-400">
+                    <flux:table.cell colspan="6" class="text-center text-zinc-400">
                         {{ __('Sin cotizaciones. Créala aquí o desde la ficha del cliente o del prospecto.') }}
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse
         </flux:table.rows>
     </flux:table>
+
+    @include('partials.quotes.form-modal')
+    @include('partials.quotes.accept-modal')
+    @include('partials.quotes.reject-modal')
 
     <flux:modal name="new-quote-target" class="md:w-96" wire:close="closeNewQuoteModal">
         <form wire:submit="startNewQuote" class="flex flex-col gap-6">

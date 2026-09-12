@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Charges\MarkChargeAsPaid;
 use App\Actions\Quotes\AcceptQuote;
 use App\Actions\Quotes\RejectQuote;
 use App\Actions\Quotes\SendQuote;
@@ -165,7 +166,7 @@ test('un renglón de dominio dentro de una cotización de proyecto no cuelga del
         ->and($hostingService->project_id)->toBeNull();
 });
 
-test('una cotización nueva nunca nace marcada como proyecto: eso se decide hasta editarla o aceptarla', function () {
+test('una cotización nueva nunca nace marcada como proyecto: eso se decide hasta aceptarla', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
 
@@ -173,31 +174,30 @@ test('una cotización nueva nunca nace marcada como proyecto: eso se decide hast
 
     Livewire::test(QuotesPanel::class, ['client' => $client])
         ->call('openQuoteModal')
-        ->assertSet('quoteIsProject', false)
         ->set('quoteName', 'Rediseño completo')
         ->set('lineItems.0.name', 'Rediseño completo')
         ->set('lineItems.0.amount', '80000')
-        // Aunque llegue manipulado en true, capturar nunca deja la cotización
-        // marcada como proyecto: la pregunta no existe en este formulario.
-        ->set('quoteIsProject', true)
         ->call('saveQuote')
         ->assertHasNoErrors();
 
     expect($client->quotes()->firstOrFail()->is_project)->toBeFalse();
 });
 
-test('el switch del formulario de edición es lo que deja la cotización marcada como proyecto', function () {
+test('editar una cotización ya aceptada no le toca si es proyecto o línea suelta', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
 
-    $quote = Quote::factory()->for($client)->withLineItem()->create(['name' => 'Rediseño completo']);
+    $quote = Quote::factory()->for($client)->sent()->asProject()->withLineItem([
+        'category' => ServiceCategory::Website,
+    ])->create(['name' => 'Rediseño completo']);
+
+    app(AcceptQuote::class)->handle($quote, $staff);
 
     $this->actingAs($staff);
 
     Livewire::test(QuotesPanel::class, ['client' => $client])
         ->call('openQuoteModal', $quote->id)
-        ->assertSet('quoteIsProject', false)
-        ->set('quoteIsProject', true)
+        ->set('quoteName', 'Rediseño completo v2')
         ->call('saveQuote')
         ->assertHasNoErrors();
 
@@ -412,6 +412,66 @@ test('el listado de cotizaciones filtra y suma lo que está en juego', function 
         ->assertDontSee('Menú digital');
 });
 
+test('desde el listado general se puede editar una cotización de cualquier cliente', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $quote = Quote::factory()->for($client)->withLineItem(['amount' => '1000.00'])->create(['name' => 'Original']);
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::quotes.index')
+        ->call('openQuoteModal', $quote->id)
+        ->assertSet('quoteName', 'Original')
+        ->set('quoteName', 'Editada desde el listado')
+        ->call('saveQuote')
+        ->assertHasNoErrors();
+
+    expect($quote->fresh()->name)->toBe('Editada desde el listado');
+});
+
+test('desde el listado general se puede enviar, aceptar, rechazar y deshacer', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $quote = Quote::factory()->for($client)->withLineItem()->create();
+
+    $this->actingAs($staff);
+
+    $component = Livewire::test('pages::quotes.index')
+        ->call('send', $quote->id);
+
+    expect($quote->fresh()->status)->toBe(QuoteStatus::Enviada);
+
+    $component->call('undoSend', $quote->id);
+    expect($quote->fresh()->status)->toBe(QuoteStatus::Borrador);
+
+    $component->call('send', $quote->id)
+        ->call('openAcceptModal', $quote->id)
+        ->assertSet('acceptAsProject', false)
+        ->call('confirmAccept')
+        ->assertDispatched('quote-accepted');
+
+    expect($quote->fresh()->status)->toBe(QuoteStatus::Aceptada)
+        ->and($client->services()->count())->toBe(1);
+
+    $component->call('undoAccept', $quote->id)
+        ->assertDispatched('quote-undone');
+
+    expect($quote->fresh()->status)->toBe(QuoteStatus::Enviada)
+        ->and($client->services()->count())->toBe(0);
+
+    $component->call('openRejectModal', $quote->id)
+        ->set('rejectionReason', 'Se fue con otro proveedor.')
+        ->call('reject');
+
+    expect($quote->fresh()->status)->toBe(QuoteStatus::Rechazada);
+
+    $component->call('undoReject', $quote->id);
+    expect($quote->fresh()->status)->toBe(QuoteStatus::Enviada);
+
+    $component->call('deleteQuote', $quote->id);
+    expect(Quote::find($quote->id))->toBeNull();
+});
+
 test('un colaborador no entra a cotizaciones', function () {
     $collaborator = User::factory()->collaborator()->create();
 
@@ -504,4 +564,107 @@ test('sin la bandera nueva_cotización el formulario no se abre solo', function 
 
     Livewire::test(QuotesPanel::class, ['client' => $client])
         ->assertCount('lineItems', 0);
+});
+
+test('deshacer el envío regresa la cotización a borrador', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $quote = Quote::factory()->for($client)->sent()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->call('undoSend', $quote->id);
+
+    expect($quote->fresh()->status)->toBe(QuoteStatus::Borrador)
+        ->and($quote->fresh()->sent_at)->toBeNull();
+});
+
+test('deshacer el rechazo regresa a enviada si ya se había enviado', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $quote = Quote::factory()->for($client)->sent()->create();
+
+    app(RejectQuote::class)->handle($quote, null);
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->call('undoReject', $quote->id);
+
+    expect($quote->fresh()->status)->toBe(QuoteStatus::Enviada)
+        ->and($quote->fresh()->decided_at)->toBeNull();
+});
+
+test('deshacer el rechazo regresa a borrador si nunca se había enviado', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $quote = Quote::factory()->for($client)->create(['status' => QuoteStatus::Rechazada]);
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->call('undoReject', $quote->id);
+
+    expect($quote->fresh()->status)->toBe(QuoteStatus::Borrador);
+});
+
+test('deshacer una aceptación borra las líneas cobrables y la regresa a enviada', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $quote = Quote::factory()->for($client)->sent()->withLineItem()->create();
+
+    app(AcceptQuote::class)->handle($quote, $staff);
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->call('undoAccept', $quote->id)
+        ->assertDispatched('quote-undone');
+
+    $quote->refresh()->load('lineItems');
+
+    expect($quote->status)->toBe(QuoteStatus::Enviada)
+        ->and($quote->decided_at)->toBeNull()
+        ->and($quote->lineItems->first()->service_id)->toBeNull()
+        ->and($client->services()->count())->toBe(0);
+});
+
+test('deshacer una aceptación con proyecto lo desliga sin borrarlo', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $quote = Quote::factory()->for($client)->sent()->asProject()->withLineItem([
+        'category' => ServiceCategory::Website,
+    ])->create();
+
+    app(AcceptQuote::class)->handle($quote, $staff);
+    $projectId = $quote->fresh()->project_id;
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->call('undoAccept', $quote->id);
+
+    expect($quote->fresh()->project_id)->toBeNull()
+        ->and(Project::find($projectId))->not->toBeNull();
+});
+
+test('una aceptación con cobros abonados no se puede deshacer', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $quote = Quote::factory()->for($client)->sent()->withLineItem()->create();
+
+    app(AcceptQuote::class)->handle($quote, $staff);
+
+    $service = $quote->fresh()->lineItems->first()->service;
+    app(MarkChargeAsPaid::class)->handle($service->charges->first());
+
+    $this->actingAs($staff);
+
+    Livewire::test(QuotesPanel::class, ['client' => $client])
+        ->call('undoAccept', $quote->id)
+        ->assertNotDispatched('quote-undone');
+
+    expect($quote->fresh()->status)->toBe(QuoteStatus::Aceptada)
+        ->and($client->services()->count())->toBe(1);
 });
