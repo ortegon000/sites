@@ -498,11 +498,19 @@ class ProjectSeeder extends Seeder
     }
 
     /**
+     * Hosting, SSL, dominio y correo cuelgan del cliente y no del proyecto que
+     * los sugirió, igual que en `CreateProjectFromTemplate`: son costos del
+     * dominio que siguen existiendo aunque el proyecto se cierre.
+     *
      * @param  array<string, mixed>  $overrides
      */
     private function service(Project $project, string $name, ServiceCategory $category, ServiceBillingFrequency $frequency, string $amount, array $overrides = []): Service
     {
-        return Service::factory()->for($project)->create(array_merge([
+        $factory = $category->belongsToDomain()
+            ? Service::factory()->for($project->client)->standalone()
+            : Service::factory()->for($project);
+
+        return $factory->create(array_merge([
             'name' => $name,
             'category' => $category,
             'billing_frequency' => $frequency,

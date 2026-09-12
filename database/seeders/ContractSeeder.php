@@ -23,9 +23,12 @@ class ContractSeeder extends Seeder
         $demo = Client::where('name', 'Cliente Demo')->firstOrFail();
         $clinic = Client::where('name', 'Clínica Sur')->firstOrFail();
 
+        /** Hosting, SSL, dominio y correo ya cuelgan del cliente y no del
+         *  proyecto web que los sugirió, así que el contrato toma todas las
+         *  líneas activas de Cliente Demo en vez de filtrar por proyecto. */
         $signed = $draft->handle(
             $demo,
-            $demo->services()->with('items')->whereNotNull('project_id')->get(),
+            $demo->services()->with('items')->get(),
             'Contrato de servicios web y correo',
             now()->subMonths(6)->toDateString(),
             now()->addMonths(6)->toDateString(),
