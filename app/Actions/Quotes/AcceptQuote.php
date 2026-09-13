@@ -36,8 +36,11 @@ class AcceptQuote
      * cuelgan siempre del cliente, así que una cotización puramente de
      * dominio nunca abre proyecto aunque el interruptor haya quedado
      * prendido).
+     *
+     * $actor es null cuando quien acepta es el propio cliente desde el
+     * enlace público, no alguien del equipo.
      */
-    public function handle(Quote $quote, User $actor): Quote
+    public function handle(Quote $quote, ?User $actor = null): Quote
     {
         $lineItems = $quote->lineItems;
 

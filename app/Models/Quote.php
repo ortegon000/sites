@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 /**
  * Trabajo cotizado y todavía no aceptado.
@@ -26,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $client_id
  * @property int|null $project_id
  * @property bool $is_project
+ * @property string $public_token
  * @property string $name
  * @property string|null $description
  * @property string $currency
@@ -52,6 +54,21 @@ class Quote extends Model
             'sent_at' => 'datetime',
             'decided_at' => 'datetime',
         ];
+    }
+
+    /**
+     * El token del enlace público nace con la cotización, no se captura: por
+     * eso no está en `#[Fillable]` y se genera aquí, en el constructor y no
+     * en un evento `creating` -los seeders corren con `WithoutModelEvents`, y
+     * uno de esos apagaría esta generación silenciosamente.
+     */
+    public function __construct(array $attributes = [])
+    {
+        parent::__construct($attributes);
+
+        if (! $this->exists && $this->public_token === null) {
+            $this->public_token = Str::random(40);
+        }
     }
 
     public function isOpen(): bool

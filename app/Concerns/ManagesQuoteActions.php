@@ -497,45 +497,17 @@ trait ManagesQuoteActions
     }
 
     /**
-     * Texto plano para copiar y pegar donde se le mande al cliente
-     * -WhatsApp, correo-, ya que enviar aquí solo marca el estatus y no
-     * genera ningún documento por sí solo.
+     * El http completo del enlace público según `APP_URL`, no según el host
+     * de la petición: en LERD (y detrás de cualquier proxy) el request puede
+     * llegar con un host distinto al dominio público, y este es el enlace
+     * que de verdad se le manda al cliente para que vea la cotización y
+     * decida.
      */
-    public function quoteSummary(Quote $quote): string
+    public function quotePublicUrl(Quote $quote): string
     {
-        $lines = [$quote->name];
+        $path = route('quotes.public', ['quote' => $quote->public_token], absolute: false);
 
-        if ($quote->description) {
-            $lines[] = $quote->description;
-        }
-
-        $lines[] = '';
-        $lines[] = __('Renglones:');
-
-        foreach ($quote->lineItems as $item) {
-            $lines[] = sprintf(
-                '- %s (%s, %s): %s %s',
-                $item->name,
-                $item->category->label(),
-                $item->billing_frequency->label(),
-                number_format((float) $item->amount, 2),
-                $quote->currency,
-            );
-        }
-
-        $lines[] = '';
-        $lines[] = sprintf('%s: %s %s', __('Total'), number_format((float) $quote->lineItems->sum('amount'), 2), $quote->currency);
-
-        if ($quote->valid_until) {
-            $lines[] = sprintf('%s: %s', __('Vigencia'), $quote->valid_until->format('d/m/Y'));
-        }
-
-        if ($quote->notes) {
-            $lines[] = '';
-            $lines[] = $quote->notes;
-        }
-
-        return implode("\n", $lines);
+        return rtrim(config('app.url'), '/').$path;
     }
 
     /**

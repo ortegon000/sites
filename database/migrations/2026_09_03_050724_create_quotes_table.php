@@ -18,6 +18,8 @@ return new class extends Migration
             $table->foreignId('project_id')->nullable()->constrained()->cascadeOnDelete();
             /** Marcado a mano al cotizar: al aceptarse nace un proyecto en vez de una línea suelta. */
             $table->boolean('is_project')->default(false);
+            /** El enlace público (/c/{public_token}) para que el cliente la vea y decida sin cuenta. */
+            $table->string('public_token', 40)->unique();
             $table->string('name');
             $table->text('description')->nullable();
             /** El monto vive en los renglones (quote_line_items): una cotización de

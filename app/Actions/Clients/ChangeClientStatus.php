@@ -10,7 +10,12 @@ use App\Models\User;
 
 class ChangeClientStatus
 {
-    public function handle(Client $client, ClientStatus $status, User $actor): Client
+    /**
+     * $actor es null cuando el cambio lo dispara el propio cliente -al
+     * aceptar su cotización desde el enlace público, por ejemplo- y no
+     * alguien del equipo: la nota queda sin autor en vez de inventarle uno.
+     */
+    public function handle(Client $client, ClientStatus $status, ?User $actor = null): Client
     {
         $previous = $client->status;
 
@@ -24,7 +29,7 @@ class ChangeClientStatus
         $client->save();
 
         $client->notes()->create([
-            'user_id' => $actor->id,
+            'user_id' => $actor?->id,
             'type' => ClientNoteType::StatusChange,
             'body' => "Estatus cambiado de \"{$previous->label()}\" a \"{$status->label()}\".",
         ]);

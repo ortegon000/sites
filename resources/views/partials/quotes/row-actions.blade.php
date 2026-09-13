@@ -11,8 +11,8 @@
             wire:click="openQuoteModal({{ $quote->id }})" />
 
         <flux:button size="xs" variant="ghost" icon="clipboard-document"
-            :tooltip="__('Copiar para mandarla')"
-            x-on:click="navigator.clipboard.writeText(@js($this->quoteSummary($quote)))"
+            :tooltip="__('Copiar enlace')"
+            x-on:click="navigator.clipboard.writeText(@js($this->quotePublicUrl($quote)))"
             wire:click="markCopied({{ $quote->id }})" />
 
         @if ($quote->status === \App\Enums\QuoteStatus::Borrador)

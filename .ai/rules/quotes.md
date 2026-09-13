@@ -21,5 +21,5 @@ Al editar una cotización desde `QuotesPanel::syncLineItems()`, un renglón que 
 
 Deshacer una aceptación dispara el evento `quote-undone` -además de `quote-accepted`- para que `ChargesPanel`, `ProjectsPanel` y `ServicesPanel` refresquen lo que acaban de perder, igual que se enteran cuando se acepta.
 
-## Copiar para mandarla es texto plano, no un documento
-Como no hay enlace ni PDF (ver la sección anterior), `QuotesPanel::quoteSummary()` arma un resumen en texto plano (renglones, total, vigencia, notas) para copiarlo al portapapeles y pegarlo donde se le mande al cliente. El copiado ocurre en el navegador vía Alpine (`navigator.clipboard.writeText`, con el texto inyectado por `@js()`); `markCopied()` solo confirma con un toast, no participa en el copiado en sí.
+## Copiar una cotización copia solo su enlace público
+`ManagesQuoteActions::quotePublicUrl()` arma el enlace (ver `.ai/rules/pages-quotes.md`); el botón de copiar solo pone ese enlace en el portapapeles, sin texto alrededor -quien lo pega decide cómo presentarlo-. El copiado ocurre en el navegador vía Alpine (`navigator.clipboard.writeText`, con la URL inyectada por `@js()`); `markCopied()` solo confirma con un toast, no participa en el copiado en sí.
