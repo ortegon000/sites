@@ -6,6 +6,7 @@ use App\Actions\EmailAccounts\ChangeEmailAccountPassword;
 use App\Actions\EmailAccounts\DeleteEmailAccount;
 use App\Actions\EmailAccounts\ImportEmailAccounts;
 use App\Actions\EmailAccounts\ProvisionEmailAccount;
+use App\Actions\EmailAccounts\RecordEmailAccountPassword;
 use App\Enums\DomainCredentialKind;
 use App\Enums\DomainEmailManagement;
 use App\Enums\DomainManagement;
@@ -115,6 +116,19 @@ class DomainsPanel extends Component
     public ?int $passwordAccountId = null;
 
     public string $newPassword = '';
+
+    /**
+     * Whether the mailbox being edited has no password on file yet. Drives
+     * the modal's copy and whether it offers the "set a new one" checkbox.
+     */
+    public bool $passwordAccountIsUnset = false;
+
+    /**
+     * Only meaningful when passwordAccountIsUnset: ticked when staff doesn't
+     * have the mailbox's existing password and wants to set a fresh one
+     * through the provider instead of just recording an old one.
+     */
+    public bool $settingNewPassword = false;
 
     public function mount(Client $client): void
     {
@@ -537,26 +551,60 @@ class DomainsPanel extends Component
             ->findOrFail($credentialId);
     }
 
+    /**
+     * There's no separate "view password" action: this same modal shows the
+     * mailbox's current password prefilled (masked behind the input's own
+     * reveal toggle, like the domain credentials), so staff can look it up
+     * before deciding whether to change it.
+     */
     public function openPasswordModal(int $emailAccountId): void
     {
         Gate::authorize('update', $this->client);
 
+        $emailAccount = $this->findEmailAccount($emailAccountId);
+
         $this->passwordAccountId = $emailAccountId;
-        $this->newPassword = '';
+        $this->passwordAccountIsUnset = $emailAccount->password === null;
+        $this->newPassword = $emailAccount->password ?? '';
+        $this->settingNewPassword = false;
         $this->resetValidation();
 
         $this->modal('email-password-form')->show();
     }
 
-    public function changePassword(ChangeEmailAccountPassword $action): void
+    /**
+     * One modal covers all three cases. A mailbox imported with no password
+     * on file is assumed to already exist on the provider under a password
+     * we simply never captured, so by default this only records it here and
+     * never calls the driver. Ticking "set a new one" — for when that old
+     * password isn't actually known — switches it to a real change, exactly
+     * like editing a mailbox that already has a password on file.
+     */
+    public function changePassword(ChangeEmailAccountPassword $changeAction, RecordEmailAccountPassword $recordAction): void
     {
         Gate::authorize('update', $this->client);
 
         $validated = $this->validate([
-            'newPassword' => ['required', 'string', 'min:8'],
+            'newPassword' => ['required', 'string', 'max:255'],
         ]);
 
-        $action->handle($this->findEmailAccount((int) $this->passwordAccountId), $validated['newPassword']);
+        $emailAccount = $this->findEmailAccount((int) $this->passwordAccountId);
+        $hadNoPassword = $emailAccount->password === null;
+
+        if ($hadNoPassword && ! $this->settingNewPassword) {
+            $recordAction->handle($emailAccount, $validated['newPassword']);
+        } else {
+            $changeAction->handle($emailAccount, $validated['newPassword']);
+
+            /**
+             * The driver may not store a fresh password locally on its own
+             * (see ChangeEmailAccountPassword), but here staff deliberately
+             * chose this value, so it's always worth remembering.
+             */
+            if ($hadNoPassword) {
+                $recordAction->handle($emailAccount->fresh(), $validated['newPassword']);
+            }
+        }
 
         unset($this->domains);
 

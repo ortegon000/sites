@@ -63,7 +63,9 @@
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <flux:badge size="sm">{{ $emailAccount->status->label() }}</flux:badge>
-                                    <flux:button size="xs" variant="ghost" icon="key" wire:click="openPasswordModal({{ $emailAccount->id }})" />
+                                    <flux:button size="xs" variant="ghost" icon="key"
+                                        :tooltip="$emailAccount->password === null ? __('Registrar contraseña existente') : __('Cambiar contraseña')"
+                                        wire:click="openPasswordModal({{ $emailAccount->id }})" />
                                     <flux:button size="xs" variant="ghost" icon="trash" wire:click="deleteEmailAccount({{ $emailAccount->id }})" wire:confirm="{{ __('¿Eliminar esta cuenta de correo?') }}" />
                                 </div>
                             </div>
@@ -288,9 +290,23 @@
 
     <flux:modal name="email-password-form" class="md:w-80">
         <form wire:submit="changePassword" class="flex flex-col gap-6">
-            <flux:heading size="lg">{{ __('Cambiar contraseña') }}</flux:heading>
+            <flux:heading size="lg">
+                {{ $passwordAccountIsUnset && ! $settingNewPassword ? __('Registrar contraseña') : __('Cambiar contraseña') }}
+            </flux:heading>
 
-            <flux:input wire:model="newPassword" type="password" :label="__('Nueva contraseña')" viewable autofocus />
+            @if ($passwordAccountIsUnset)
+                <flux:checkbox wire:model.live="settingNewPassword" :label="__('No tengo la contraseña actual: generar una nueva')" />
+
+                <flux:text class="text-xs text-zinc-400">
+                    @if ($settingNewPassword)
+                        {{ __('Se creará/cambiará esta contraseña directamente en el proveedor.') }}
+                    @else
+                        {{ __('Este buzón ya existe en el proveedor; esto solo guarda su contraseña aquí, no la cambia.') }}
+                    @endif
+                </flux:text>
+            @endif
+
+            <flux:input wire:model="newPassword" type="password" :label="__('Contraseña')" viewable autofocus />
 
             <div class="flex justify-end gap-2">
                 <flux:button variant="ghost" wire:click="closePasswordModal">{{ __('Cancelar') }}</flux:button>

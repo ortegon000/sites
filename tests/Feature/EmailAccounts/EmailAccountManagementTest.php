@@ -15,6 +15,7 @@ use App\Models\Project;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 
 /**
@@ -164,10 +165,125 @@ test('staff cannot act on a mailbox belonging to another client', function () {
     expect(EmailAccount::find($foreignAccount->id))->not->toBeNull();
 });
 
-test('staff can change an email account password', function () {
+test('staff can change an email account that already has a password', function () {
     $staff = User::factory()->staff()->create();
     [$client, $domain] = clientWithEmailDomain();
-    $emailAccount = EmailAccount::factory()->for($domain)->create(['status' => EmailAccountStatus::Activa]);
+    $emailAccount = EmailAccount::factory()->for($domain)->create([
+        'status' => EmailAccountStatus::Activa,
+        'password' => 'contraseña-anterior',
+    ]);
+
+    $this->actingAs($staff);
+
+    Livewire::test(DomainsPanel::class, ['client' => $client])
+        ->call('openPasswordModal', $emailAccount->id)
+        ->assertSet('passwordAccountIsUnset', false)
+        ->set('newPassword', 'nueva-password')
+        ->call('changePassword')
+        ->assertHasNoErrors();
+
+    expect($emailAccount->refresh()->status)->toBe(EmailAccountStatus::Activa)
+        ->and($emailAccount->password)->toBe('nueva-password');
+});
+
+test('opening the password modal prefills the mailbox current password so staff can view it', function () {
+    $staff = User::factory()->staff()->create();
+    [$client, $domain] = clientWithEmailDomain();
+    $emailAccount = EmailAccount::factory()->for($domain)->create(['password' => 'lo-que-ya-tenia']);
+
+    $this->actingAs($staff);
+
+    Livewire::test(DomainsPanel::class, ['client' => $client])
+        ->call('openPasswordModal', $emailAccount->id)
+        ->assertSet('newPassword', 'lo-que-ya-tenia');
+});
+
+test('the same modal registers the password of an imported mailbox without calling the provider', function () {
+    $staff = User::factory()->staff()->create();
+    [$client, $domain] = clientWithEmailDomain();
+    $provider = EmailProvider::factory()->create();
+    $imported = EmailAccount::factory()->for($domain)->create([
+        'email_provider_id' => $provider->id,
+        'origin' => EmailAccountOrigin::Imported,
+        'password' => null,
+    ]);
+
+    $this->actingAs($staff);
+
+    Livewire::test(DomainsPanel::class, ['client' => $client])
+        ->call('openPasswordModal', $imported->id)
+        ->assertSet('passwordAccountIsUnset', true)
+        ->set('newPassword', 'lo-que-ya-tenia')
+        ->call('changePassword')
+        ->assertHasNoErrors();
+
+    expect($imported->refresh()->password)->toBe('lo-que-ya-tenia');
+});
+
+test('staff without the old password can set a fresh one on an imported mxroute mailbox', function () {
+    Http::fake(['api.mxroute.com/*' => Http::response(['success' => true], 200)]);
+
+    $staff = User::factory()->staff()->create();
+    [$client, $domain] = clientWithEmailDomain();
+    $provider = EmailProvider::factory()->mxroute()->create();
+    $imported = EmailAccount::factory()->for($domain)->create([
+        'email_address' => 'sin-password-viejo@'.$domain->name,
+        'email_provider_id' => $provider->id,
+        'origin' => EmailAccountOrigin::Imported,
+        'password' => null,
+    ]);
+
+    $this->actingAs($staff);
+
+    Livewire::test(DomainsPanel::class, ['client' => $client])
+        ->call('openPasswordModal', $imported->id)
+        ->assertSet('passwordAccountIsUnset', true)
+        ->set('settingNewPassword', true)
+        ->set('newPassword', 'contraseña-nueva')
+        ->call('changePassword')
+        ->assertHasNoErrors();
+
+    Http::assertSent(fn ($request) => $request->method() === 'PATCH'
+        && $request['password'] === 'contraseña-nueva');
+
+    expect($imported->refresh()->password)->toBe('contraseña-nueva');
+});
+
+test('registering an imported mxroute mailbox never calls the provider api', function () {
+    Http::fake();
+
+    $staff = User::factory()->staff()->create();
+    [$client, $domain] = clientWithEmailDomain();
+    $provider = EmailProvider::factory()->mxroute()->create();
+    $imported = EmailAccount::factory()->for($domain)->create([
+        'email_provider_id' => $provider->id,
+        'origin' => EmailAccountOrigin::Imported,
+        'password' => null,
+    ]);
+
+    $this->actingAs($staff);
+
+    Livewire::test(DomainsPanel::class, ['client' => $client])
+        ->call('openPasswordModal', $imported->id)
+        ->set('newPassword', 'lo-que-ya-tenia')
+        ->call('changePassword')
+        ->assertHasNoErrors();
+
+    expect($imported->refresh()->password)->toBe('lo-que-ya-tenia');
+    Http::assertNothingSent();
+});
+
+test('changing an mxroute mailbox that already has a password does call the provider api', function () {
+    Http::fake(['api.mxroute.com/*' => Http::response(['success' => true], 200)]);
+
+    $staff = User::factory()->staff()->create();
+    [$client, $domain] = clientWithEmailDomain();
+    $provider = EmailProvider::factory()->mxroute()->create();
+    $emailAccount = EmailAccount::factory()->for($domain)->create([
+        'email_address' => 'rotacion@'.$domain->name,
+        'email_provider_id' => $provider->id,
+        'password' => 'contraseña-anterior',
+    ]);
 
     $this->actingAs($staff);
 
@@ -177,7 +293,27 @@ test('staff can change an email account password', function () {
         ->call('changePassword')
         ->assertHasNoErrors();
 
-    expect($emailAccount->refresh()->status)->toBe(EmailAccountStatus::Activa);
+    Http::assertSent(fn ($request) => $request->method() === 'PATCH'
+        && $request['password'] === 'nueva-password');
+
+    expect($emailAccount->refresh()->password)->toBe('nueva-password');
+});
+
+test('staff cannot change a password on a mailbox belonging to another client', function () {
+    $staff = User::factory()->staff()->create();
+    [$client] = clientWithEmailDomain();
+    [, $otherDomain] = clientWithEmailDomain();
+    $foreignAccount = EmailAccount::factory()->for($otherDomain)->create(['password' => null]);
+
+    $this->actingAs($staff);
+
+    expect(fn () => Livewire::test(DomainsPanel::class, ['client' => $client])
+        ->call('openPasswordModal', $foreignAccount->id)
+        ->set('newPassword', 'algo')
+        ->call('changePassword'))
+        ->toThrow(ModelNotFoundException::class);
+
+    expect($foreignAccount->refresh()->password)->toBeNull();
 });
 
 test('el dominio se administra desde la ficha del cliente', function () {
