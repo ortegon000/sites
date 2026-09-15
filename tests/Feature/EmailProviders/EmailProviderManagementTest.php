@@ -43,6 +43,43 @@ test('admin can create an email provider', function () {
     expect(EmailProvider::where('name', 'Nuevo proveedor')->exists())->toBeTrue();
 });
 
+test('admin can create an mxroute email provider with its api credentials', function () {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin);
+
+    Livewire::test('pages::email-providers.index')
+        ->set('name', 'MXroute real')
+        ->set('driver', EmailProviderDriverType::Mxroute->value)
+        ->set('status', EmailProviderStatus::Activo->value)
+        ->set('mxrouteServer', 'eagle.mxlogin.com')
+        ->set('mxrouteUsername', 'johndoe')
+        ->set('mxrouteApiKey', 'Mx8d989005f0cded8371b7d7271c50K1')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $provider = EmailProvider::where('name', 'MXroute real')->firstOrFail();
+
+    expect($provider->credentials)->toBe([
+        'server' => 'eagle.mxlogin.com',
+        'username' => 'johndoe',
+        'api_key' => 'Mx8d989005f0cded8371b7d7271c50K1',
+    ]);
+});
+
+test('mxroute credentials are required when creating an mxroute provider', function () {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin);
+
+    Livewire::test('pages::email-providers.index')
+        ->set('name', 'MXroute incompleto')
+        ->set('driver', EmailProviderDriverType::Mxroute->value)
+        ->set('status', EmailProviderStatus::Activo->value)
+        ->call('save')
+        ->assertHasErrors(['mxrouteServer', 'mxrouteUsername', 'mxrouteApiKey']);
+});
+
 test('admin can delete an email provider', function () {
     $admin = User::factory()->admin()->create();
     $provider = EmailProvider::factory()->create();

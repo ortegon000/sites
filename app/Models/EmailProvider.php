@@ -6,6 +6,7 @@ use App\Enums\EmailProviderDriverType;
 use App\Enums\EmailProviderStatus;
 use App\Services\EmailProvisioning\Contracts\EmailProviderDriver;
 use App\Services\EmailProvisioning\Drivers\ManualEmailProviderDriver;
+use App\Services\EmailProvisioning\Drivers\MxrouteEmailProviderDriver;
 use App\Services\EmailProvisioning\Drivers\NullEmailProviderDriver;
 use Carbon\CarbonImmutable;
 use Database\Factories\EmailProviderFactory;
@@ -60,6 +61,7 @@ class EmailProvider extends Model
         return match ($this->driver) {
             EmailProviderDriverType::NullDriver => app(NullEmailProviderDriver::class),
             EmailProviderDriverType::Manual => app(ManualEmailProviderDriver::class),
+            EmailProviderDriverType::Mxroute => app(MxrouteEmailProviderDriver::class),
             default => throw new RuntimeException("El driver [{$this->driver->value}] todavía no está implementado."),
         };
     }

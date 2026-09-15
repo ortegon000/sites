@@ -42,6 +42,6 @@ enum EmailProviderDriverType: string
      */
     public static function implemented(): array
     {
-        return [self::NullDriver, self::Manual];
+        return [self::NullDriver, self::Manual, self::Mxroute];
     }
 }

@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'mxroute' => [
+        'base_url' => env('MXROUTE_API_URL', 'https://api.mxroute.com'),
+    ],
+
 ];

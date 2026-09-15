@@ -40,4 +40,16 @@ class EmailProviderFactory extends Factory
             ],
         ]);
     }
+
+    public function mxroute(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'driver' => EmailProviderDriverType::Mxroute,
+            'credentials' => [
+                'server' => 'eagle.mxlogin.com',
+                'username' => fake()->userName(),
+                'api_key' => 'Mx'.fake()->sha256(),
+            ],
+        ]);
+    }
 }

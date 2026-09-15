@@ -26,6 +26,12 @@ new class extends Component {
 
     public string $smtpPort = '';
 
+    public string $mxrouteServer = '';
+
+    public string $mxrouteUsername = '';
+
+    public string $mxrouteApiKey = '';
+
     public function mount(): void
     {
         Gate::authorize('viewAny', EmailProvider::class);
@@ -62,7 +68,7 @@ new class extends Component {
     {
         Gate::authorize('create', EmailProvider::class);
 
-        $this->reset(['editingProviderId', 'name', 'imapHost', 'imapPort', 'smtpHost', 'smtpPort']);
+        $this->reset(['editingProviderId', 'name', 'imapHost', 'imapPort', 'smtpHost', 'smtpPort', 'mxrouteServer', 'mxrouteUsername', 'mxrouteApiKey']);
         $this->driver = EmailProviderDriverType::NullDriver->value;
         $this->status = EmailProviderStatus::Activo->value;
         $this->resetValidation();
@@ -84,6 +90,9 @@ new class extends Component {
         $this->imapPort = (string) ($provider->connection_settings['imap_port'] ?? '');
         $this->smtpHost = $provider->connection_settings['smtp_host'] ?? '';
         $this->smtpPort = (string) ($provider->connection_settings['smtp_port'] ?? '');
+        $this->mxrouteServer = $provider->credentials['server'] ?? '';
+        $this->mxrouteUsername = $provider->credentials['username'] ?? '';
+        $this->mxrouteApiKey = $provider->credentials['api_key'] ?? '';
         $this->resetValidation();
 
         $this->modal('provider-form')->show();
@@ -95,6 +104,8 @@ new class extends Component {
 
         Gate::authorize($provider ? 'update' : 'create', $provider ?? EmailProvider::class);
 
+        $isMxroute = $this->driver === EmailProviderDriverType::Mxroute->value;
+
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'driver' => ['required', Rule::enum(EmailProviderDriverType::class)],
@@ -103,6 +114,9 @@ new class extends Component {
             'imapPort' => ['nullable', 'string', 'max:10'],
             'smtpHost' => ['nullable', 'string', 'max:255'],
             'smtpPort' => ['nullable', 'string', 'max:10'],
+            'mxrouteServer' => [Rule::requiredIf($isMxroute), 'nullable', 'string', 'max:255'],
+            'mxrouteUsername' => [Rule::requiredIf($isMxroute), 'nullable', 'string', 'max:255'],
+            'mxrouteApiKey' => [Rule::requiredIf($isMxroute), 'nullable', 'string', 'max:255'],
         ]);
 
         $attributes = [
@@ -115,6 +129,11 @@ new class extends Component {
                 'smtp_host' => $validated['smtpHost'],
                 'smtp_port' => $validated['smtpPort'],
             ]) ?: null,
+            'credentials' => $isMxroute ? [
+                'server' => $validated['mxrouteServer'],
+                'username' => $validated['mxrouteUsername'],
+                'api_key' => $validated['mxrouteApiKey'],
+            ] : null,
         ];
 
         if ($provider) {
@@ -207,7 +226,7 @@ new class extends Component {
 
             <flux:input wire:model="name" :label="__('Nombre')" required autofocus />
 
-            <flux:select wire:model="driver" :label="__('Driver')">
+            <flux:select wire:model.live="driver" :label="__('Driver')">
                 @foreach ($this->driverOptions as $option)
                     <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
                 @endforeach
@@ -221,16 +240,26 @@ new class extends Component {
 
             <flux:separator />
 
-            <flux:text class="text-xs text-zinc-400">
-                {{ __('Datos de conexión que verá el cliente en su portal. Un driver con API real los resuelve solo; captúralos para proveedores manuales.') }}
-            </flux:text>
+            @if ($driver === \App\Enums\EmailProviderDriverType::Mxroute->value)
+                <flux:text class="text-xs text-zinc-400">
+                    {{ __('Credenciales de la API de MXroute (panel.mxroute.com/api-keys.php). Con ellas el driver crea, cambia y elimina buzones directamente.') }}
+                </flux:text>
 
-            <div class="grid grid-cols-2 gap-4">
-                <flux:input wire:model="imapHost" :label="__('Servidor IMAP')" placeholder="imap.ejemplo.com" />
-                <flux:input wire:model="imapPort" :label="__('Puerto IMAP')" placeholder="993" />
-                <flux:input wire:model="smtpHost" :label="__('Servidor SMTP')" placeholder="smtp.ejemplo.com" />
-                <flux:input wire:model="smtpPort" :label="__('Puerto SMTP')" placeholder="587" />
-            </div>
+                <flux:input wire:model="mxrouteServer" :label="__('Servidor (X-Server)')" placeholder="eagle.mxlogin.com" />
+                <flux:input wire:model="mxrouteUsername" :label="__('Usuario de DirectAdmin')" />
+                <flux:input wire:model="mxrouteApiKey" type="password" :label="__('API key')" viewable />
+            @else
+                <flux:text class="text-xs text-zinc-400">
+                    {{ __('Datos de conexión que verá el cliente en su portal. Un driver con API real los resuelve solo; captúralos para proveedores manuales.') }}
+                </flux:text>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <flux:input wire:model="imapHost" :label="__('Servidor IMAP')" placeholder="imap.ejemplo.com" />
+                    <flux:input wire:model="imapPort" :label="__('Puerto IMAP')" placeholder="993" />
+                    <flux:input wire:model="smtpHost" :label="__('Servidor SMTP')" placeholder="smtp.ejemplo.com" />
+                    <flux:input wire:model="smtpPort" :label="__('Puerto SMTP')" placeholder="587" />
+                </div>
+            @endif
 
             <div class="flex justify-end gap-2">
                 <flux:button variant="ghost" wire:click="closeFormModal">
