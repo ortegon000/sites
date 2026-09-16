@@ -31,6 +31,22 @@ test('staff can register a license for a client', function () {
         ->and($license->status)->toBe(LicenseStatus::Activa);
 });
 
+test('clearing the cost of a license saves it as null instead of an empty string', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $license = License::factory()->for($client)->create(['cost' => 500]);
+
+    $this->actingAs($staff);
+
+    Livewire::test(ClientLicenses::class, ['client' => $client])
+        ->call('openLicenseModal', $license->id)
+        ->set('cost', '')
+        ->call('saveLicense')
+        ->assertHasNoErrors();
+
+    expect($license->refresh()->cost)->toBeNull();
+});
+
 test('a license can be tied to a domain of its own client only', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
@@ -72,6 +88,18 @@ test('staff cannot see or set license credentials', function () {
     expect($component->get('canSeeCredentials'))->toBeFalse();
 
     $component->call('revealPassword', $license->id)->assertForbidden();
+});
+
+test('opening a license for edit does not prefill the stored password', function () {
+    $admin = User::factory()->admin()->create();
+    $client = Client::factory()->client()->create();
+    $license = License::factory()->for($client)->create(['password' => 'clave-brevo']);
+
+    $this->actingAs($admin);
+
+    Livewire::test(ClientLicenses::class, ['client' => $client])
+        ->call('openLicenseModal', $license->id)
+        ->assertSet('password', null);
 });
 
 test('an admin editing a license without retyping the password keeps the stored one', function () {

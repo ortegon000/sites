@@ -237,7 +237,8 @@
                 <flux:input wire:model="credentialLabel" :label="__('Etiqueta')" :placeholder="__('Nombre de la base, del sitio…')" />
                 <flux:input wire:model="credentialUrl" :label="__('URL')" placeholder="https://cpanel.acme.com" />
                 <flux:input wire:model="credentialUsername" :label="__('Usuario')" />
-                <flux:input wire:model="credentialPassword" :label="__('Contraseña')" viewable />
+                <flux:input wire:model="credentialPassword" type="password" :label="__('Contraseña')" viewable
+                    :description="$editingCredentialId ? __('Déjalo vacío para conservar la guardada.') : null" />
                 <flux:textarea wire:model="credentialNotes" :label="__('Notas')" rows="2" />
             </div>
 

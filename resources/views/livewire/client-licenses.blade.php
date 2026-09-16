@@ -117,7 +117,7 @@
 
                     <flux:input wire:model="url" :label="__('URL')" />
                     <flux:input wire:model="username" :label="__('Usuario')" />
-                    <flux:input wire:model="password" :label="__('Contraseña')" viewable
+                    <flux:input wire:model="password" type="password" :label="__('Contraseña')" viewable
                         :description="$editingLicenseId ? __('Déjalo vacío para conservar la guardada.') : null" />
                 </div>
             @endif

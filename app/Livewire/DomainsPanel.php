@@ -460,7 +460,7 @@ class DomainsPanel extends Component
             $this->credentialLabel = $credential->label;
             $this->credentialUrl = $credential->url;
             $this->credentialUsername = $credential->username;
-            $this->credentialPassword = $credential->password;
+            $this->credentialPassword = null;
             $this->credentialNotes = $credential->notes;
         }
 
@@ -489,9 +489,13 @@ class DomainsPanel extends Component
             'label' => $validated['credentialLabel'],
             'url' => $validated['credentialUrl'],
             'username' => $validated['credentialUsername'],
-            'password' => $validated['credentialPassword'],
             'notes' => $validated['credentialNotes'],
         ];
+
+        /** Un campo vacío no borra la contraseña guardada. */
+        if (filled($validated['credentialPassword'])) {
+            $attributes['password'] = $validated['credentialPassword'];
+        }
 
         if ($this->editingCredentialId === null) {
             $domain->credentials()->create($attributes);

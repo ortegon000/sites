@@ -35,6 +35,40 @@ test('admin can register a site access on a domain', function () {
         ->and($credential->password)->toBe('clave-de-la-base');
 });
 
+test('opening a site access for edit does not prefill the stored password', function () {
+    $admin = User::factory()->admin()->create();
+    $client = Client::factory()->client()->create();
+    $domain = Domain::factory()->for($client)->create();
+    $credential = DomainCredential::factory()->for($domain)->create(['password' => 'clave-cpanel']);
+
+    $this->actingAs($admin);
+
+    Livewire::test(DomainsPanel::class, ['client' => $client])
+        ->call('openCredentialModal', $domain->id, $credential->id)
+        ->assertSet('credentialPassword', null);
+});
+
+test('editing a site access without retyping the password keeps the stored one', function () {
+    $admin = User::factory()->admin()->create();
+    $client = Client::factory()->client()->create();
+    $domain = Domain::factory()->for($client)->create();
+    $credential = DomainCredential::factory()->for($domain)->create(['password' => 'clave-cpanel']);
+
+    $this->actingAs($admin);
+
+    Livewire::test(DomainsPanel::class, ['client' => $client])
+        ->call('openCredentialModal', $domain->id, $credential->id)
+        ->set('credentialPassword', '')
+        ->set('credentialLabel', 'cPanel principal')
+        ->call('saveCredential')
+        ->assertHasNoErrors();
+
+    $credential->refresh();
+
+    expect($credential->label)->toBe('cPanel principal')
+        ->and($credential->password)->toBe('clave-cpanel');
+});
+
 test('a site access password is never stored in plain text', function () {
     $admin = User::factory()->admin()->create();
     $client = Client::factory()->client()->create();

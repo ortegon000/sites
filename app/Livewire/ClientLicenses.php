@@ -134,7 +134,7 @@ class ClientLicenses extends Component
             $this->domainId = $license->domain_id;
             $this->url = $license->url;
             $this->username = $license->username;
-            $this->password = $this->canSeeCredentials() ? $license->password : null;
+            $this->password = null;
             $this->cost = $license->cost;
             $this->currency = $license->currency;
             $this->renewalDate = $license->renewal_date?->toDateString();
@@ -171,7 +171,7 @@ class ClientLicenses extends Component
             'domain_id' => $validated['domainId'],
             'url' => $validated['url'],
             'username' => $validated['username'],
-            'cost' => $validated['cost'],
+            'cost' => filled($validated['cost']) ? $validated['cost'] : null,
             'currency' => $validated['currency'],
             'renewal_date' => $validated['renewalDate'],
             'auto_renew' => $validated['autoRenew'],
