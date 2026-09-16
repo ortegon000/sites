@@ -63,6 +63,10 @@ class DomainsPanel extends Component
 
     public ?string $hostedSince = null;
 
+    public ?string $registrationCost = null;
+
+    public string $currency = 'MXN';
+
     public ?int $credentialDomainId = null;
 
     public ?int $editingCredentialId = null;
@@ -214,6 +218,8 @@ class DomainsPanel extends Component
             $this->management = DomainManagement::Managed->value;
             $this->registrar = null;
             $this->registeredAt = null;
+            $this->registrationCost = null;
+            $this->currency = $this->client->currency;
             $this->expiresAt = null;
             $this->autoRenew = true;
             /** Que administremos el correo es del dominio: el proyecto no lo propone ni lo condiciona. */
@@ -230,6 +236,8 @@ class DomainsPanel extends Component
             $this->management = $domain->management->value;
             $this->registrar = $domain->registrar;
             $this->registeredAt = $domain->registered_at?->toDateString();
+            $this->registrationCost = $domain->registration_cost;
+            $this->currency = $domain->currency;
             $this->expiresAt = $domain->expires_at?->toDateString();
             $this->autoRenew = $domain->auto_renew;
             $this->emailManagement = $domain->email_management->value;
@@ -257,6 +265,8 @@ class DomainsPanel extends Component
             'management' => ['required', Rule::enum(DomainManagement::class)],
             'registrar' => ['nullable', 'string', 'max:255'],
             'registeredAt' => ['nullable', 'date'],
+            'registrationCost' => ['nullable', 'numeric', 'min:0'],
+            'currency' => ['required', 'string', 'size:3'],
             'expiresAt' => ['nullable', 'date'],
             'autoRenew' => ['boolean'],
             'emailManagement' => ['required', Rule::enum(DomainEmailManagement::class)],
@@ -273,6 +283,8 @@ class DomainsPanel extends Component
             'hosting_plan' => $validated['hostingPlan'],
             'hosted_since' => $validated['hostedSince'],
             'registered_at' => $validated['registeredAt'],
+            'registration_cost' => filled($validated['registrationCost']) ? $validated['registrationCost'] : null,
+            'currency' => $validated['currency'],
             'expires_at' => $validated['expiresAt'],
             'auto_renew' => $validated['autoRenew'],
             'email_management' => DomainEmailManagement::from($validated['emailManagement']),

@@ -22,6 +22,9 @@
                             @if ($domain->expires_at)
                                 · {{ __('Expira') }} {{ $domain->expires_at->format('d/m/Y') }}
                             @endif
+                            @if ($domain->registration_cost !== null)
+                                · {{ __('Registro') }} {{ number_format((float) $domain->registration_cost, 2) }} {{ $domain->currency }}
+                            @endif
                         </span>
                         @if ($domain->site_url)
                             <a href="{{ $domain->site_url }}" target="_blank" rel="noopener" class="text-xs text-zinc-400 hover:underline">
@@ -163,6 +166,10 @@
                 <flux:input wire:model="registeredAt" type="date" :label="__('Registrado el')" />
 
                 <flux:input wire:model="expiresAt" type="date" :label="__('Expira el')" />
+
+                <flux:input wire:model="registrationCost" type="number" step="0.01" :label="__('Costo de registro')" />
+
+                <flux:input wire:model="currency" :label="__('Moneda')" maxlength="3" />
 
                 <flux:input wire:model="hostingPlan" :label="__('Plan de hosting')" placeholder="full, basic, compartido…" />
 

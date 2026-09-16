@@ -21,6 +21,8 @@ return new class extends Migration
             $table->string('hosting_plan')->nullable();
             $table->date('hosted_since')->nullable();
             $table->date('registered_at')->nullable();
+            $table->decimal('registration_cost', 10, 2)->nullable();
+            $table->char('currency', 3)->default('MXN');
             $table->date('expires_at')->nullable();
             $table->boolean('auto_renew')->default(false);
             $table->string('email_management');
