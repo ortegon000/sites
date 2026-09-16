@@ -8,6 +8,7 @@ use App\Actions\Renewals\NotifyClientOfRenewal;
 use App\Enums\RenewalStatus;
 use App\Models\Client;
 use App\Models\Renewal;
+use App\Models\Service;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -114,7 +115,7 @@ class RenewalsPanel extends Component
         ]);
 
         $renewal->update([
-            'amount' => $validated['renewalAmount'],
+            'amount' => filled($validated['renewalAmount']) ? $validated['renewalAmount'] : null,
             'notes' => $validated['renewalNotes'],
         ]);
 
@@ -134,7 +135,17 @@ class RenewalsPanel extends Component
     {
         Gate::authorize('update', $this->client);
 
-        $action->handle($this->findRenewal($renewalId));
+        $renewal = $this->findRenewal($renewalId);
+
+        if (! $renewal->renewable instanceof Service && $renewal->amount === null) {
+            Flux::toast(variant: 'danger', text: __('Captura el costo de esta renovación antes de registrarla.'));
+
+            $this->openAmountModal($renewalId);
+
+            return;
+        }
+
+        $action->handle($renewal);
 
         unset($this->renewals, $this->renewalCounts);
 

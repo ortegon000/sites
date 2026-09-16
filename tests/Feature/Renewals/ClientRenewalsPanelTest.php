@@ -90,6 +90,25 @@ test('desde la ficha se avisa al cliente y el ciclo queda avisado', function () 
     expect($renewal->refresh()->status)->toBe(RenewalStatus::Avisado);
 });
 
+test('no se puede marcar renovado un dominio sin costo capturado', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $domain = Domain::factory()->for($client)->create();
+
+    $renewal = Renewal::factory()->for($client)->create([
+        'renewable_type' => Domain::class,
+        'renewable_id' => $domain->id,
+        'amount' => null,
+    ]);
+
+    $this->actingAs($staff);
+
+    Livewire::test(RenewalsPanel::class, ['client' => $client])
+        ->call('markRenewed', $renewal->id);
+
+    expect($renewal->refresh()->status)->toBe(RenewalStatus::PorAvisar);
+});
+
 test('el costo capturado desde la ficha es el que se le cobra al renovar', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();

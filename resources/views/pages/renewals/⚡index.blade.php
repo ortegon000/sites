@@ -158,7 +158,7 @@ new class extends Component {
         ]);
 
         $renewal->update([
-            'amount' => $validated['renewalAmount'],
+            'amount' => filled($validated['renewalAmount']) ? $validated['renewalAmount'] : null,
             'notes' => $validated['renewalNotes'],
         ]);
 
@@ -179,6 +179,14 @@ new class extends Component {
         $renewal = $this->findRenewal($renewalId);
 
         Gate::authorize('update', $renewal->client);
+
+        if (! $renewal->renewable instanceof Service && $renewal->amount === null) {
+            Flux::toast(variant: 'danger', text: __('Captura el costo de esta renovación antes de registrarla.'));
+
+            $this->openAmountModal($renewalId);
+
+            return;
+        }
 
         $action->handle($renewal);
 

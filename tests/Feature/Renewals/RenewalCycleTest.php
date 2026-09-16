@@ -224,6 +224,27 @@ test('el tablero lista lo que caduca y permite avisar y cerrar el ciclo', functi
         ->and((float) $renewal->service->amount)->toBe(4000.0);
 });
 
+test('el tablero no registra la renovación de un dominio sin costo capturado', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+
+    $domain = Domain::factory()->for($client)->create();
+
+    $renewal = Renewal::factory()->create([
+        'client_id' => $client->id,
+        'renewable_type' => Domain::class,
+        'renewable_id' => $domain->id,
+        'amount' => null,
+    ]);
+
+    $this->actingAs($staff);
+
+    Livewire::test('pages::renewals.index')
+        ->call('markRenewed', $renewal->id);
+
+    expect($renewal->refresh()->status)->toBe(RenewalStatus::PorAvisar);
+});
+
 test('un colaborador no entra al tablero de renovaciones', function () {
     $collaborator = User::factory()->collaborator()->create();
 
