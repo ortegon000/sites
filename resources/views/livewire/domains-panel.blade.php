@@ -16,9 +16,6 @@
                             @if ($domain->registrar)
                                 · {{ $domain->registrar }}
                             @endif
-                            @if ($domain->hosting_plan)
-                                · {{ __('Plan') }} {{ $domain->hosting_plan }}
-                            @endif
                             @if ($domain->expires_at)
                                 · {{ __('Expira') }} {{ $domain->expires_at->format('d/m/Y') }}
                             @endif
@@ -170,8 +167,6 @@
                 <flux:input wire:model="registrationCost" type="number" step="0.01" :label="__('Costo de registro')" />
 
                 <flux:input wire:model="currency" :label="__('Moneda')" maxlength="3" />
-
-                <flux:input wire:model="hostingPlan" :label="__('Plan de hosting')" placeholder="full, basic, compartido…" />
 
                 <flux:input wire:model="hostedSince" type="date" :label="__('Alojado desde')" />
             </div>

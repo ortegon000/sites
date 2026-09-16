@@ -325,15 +325,13 @@ test('el dominio se administra desde la ficha del cliente', function () {
     Livewire::test(DomainsPanel::class, ['client' => $client])
         ->call('openDomainModal')
         ->set('domainName', 'solo-hosting.test')
-        ->set('hostingPlan', 'compartido')
         ->set('siteUrl', 'https://solo-hosting.test')
         ->call('saveDomain')
         ->assertHasNoErrors();
 
     $domain = $client->domains()->firstOrFail();
 
-    expect($domain->hosting_plan)->toBe('compartido')
-        ->and($domain->site_url)->toBe('https://solo-hosting.test');
+    expect($domain->site_url)->toBe('https://solo-hosting.test');
 });
 
 test('el detalle del proyecto ya no muestra la tarjeta de dominios', function () {

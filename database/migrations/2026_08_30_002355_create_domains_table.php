@@ -18,7 +18,6 @@ return new class extends Migration
             $table->string('management');
             $table->string('registrar')->nullable();
             $table->string('site_url')->nullable();
-            $table->string('hosting_plan')->nullable();
             $table->date('hosted_since')->nullable();
             $table->date('registered_at')->nullable();
             $table->decimal('registration_cost', 10, 2)->nullable();

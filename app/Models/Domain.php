@@ -22,7 +22,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property DomainManagement $management
  * @property string|null $registrar
  * @property string|null $site_url
- * @property string|null $hosting_plan
  * @property CarbonImmutable|null $hosted_since
  * @property CarbonImmutable|null $registered_at
  * @property string|null $registration_cost
@@ -36,7 +35,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['client_id', 'name', 'management', 'registrar', 'site_url', 'hosting_plan', 'hosted_since', 'registered_at', 'registration_cost', 'currency', 'expires_at', 'auto_renew', 'email_management', 'email_notes', 'status', 'expiry_notified_at'])]
+#[Fillable(['client_id', 'name', 'management', 'registrar', 'site_url', 'hosted_since', 'registered_at', 'registration_cost', 'currency', 'expires_at', 'auto_renew', 'email_management', 'email_notes', 'status', 'expiry_notified_at'])]
 class Domain extends Model
 {
     /** @use HasFactory<DomainFactory> */
