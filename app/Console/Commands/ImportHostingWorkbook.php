@@ -153,7 +153,6 @@ class ImportHostingWorkbook extends Command
             $client = $this->clientFor($name, $row['Nombre de contacto'] ?? '');
 
             $domain = $this->domainFor($client, $name, [
-                'hosted_since' => XlsxReader::date($row['Fecha de alta en VPS'] ?? null)?->toDateString(),
                 'registered_at' => XlsxReader::date($row['Fecha de alta de dominio'] ?? null)?->toDateString(),
                 'expires_at' => XlsxReader::date($row['Fecha Renovacion'] ?? null)?->toDateString(),
                 'status' => ($row['Estatus'] ?? '') === 'Activo' ? DomainStatus::Activo : DomainStatus::Expirado,

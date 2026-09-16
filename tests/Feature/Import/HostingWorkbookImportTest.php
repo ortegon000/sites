@@ -94,7 +94,6 @@ test('the workbook lands as client, domain, mailboxes and accesses', function ()
     $domain = $client->domains()->where('name', 'acme.mx')->firstOrFail();
 
     expect($domain->site_url)->toBe('https://acme.mx')
-        ->and($domain->hosted_since->toDateString())->toBe('2020-05-31')
         ->and($domain->emailAccounts()->count())->toBe(2)
         ->and($domain->credentials()->count())->toBe(3)
         ->and($client->contacts()->where('email', 'ana@acme.mx')->exists())->toBeTrue();

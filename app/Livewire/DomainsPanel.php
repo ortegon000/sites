@@ -59,8 +59,6 @@ class DomainsPanel extends Component
 
     public ?string $siteUrl = null;
 
-    public ?string $hostedSince = null;
-
     public ?string $registrationCost = null;
 
     public string $currency = 'MXN';
@@ -210,7 +208,6 @@ class DomainsPanel extends Component
 
         if ($domainId === null) {
             $this->siteUrl = null;
-            $this->hostedSince = null;
             $this->domainName = '';
             $this->management = DomainManagement::Managed->value;
             $this->registrar = null;
@@ -227,7 +224,6 @@ class DomainsPanel extends Component
             $domain = $this->client->domains()->findOrFail($domainId);
 
             $this->siteUrl = $domain->site_url;
-            $this->hostedSince = $domain->hosted_since?->toDateString();
             $this->domainName = $domain->name;
             $this->management = $domain->management->value;
             $this->registrar = $domain->registrar;
@@ -256,7 +252,6 @@ class DomainsPanel extends Component
                     ->ignore($this->editingDomainId),
             ],
             'siteUrl' => ['nullable', 'string', 'max:255'],
-            'hostedSince' => ['nullable', 'date'],
             'management' => ['required', Rule::enum(DomainManagement::class)],
             'registrar' => ['nullable', 'string', 'max:255'],
             'registeredAt' => ['nullable', 'date'],
@@ -275,7 +270,6 @@ class DomainsPanel extends Component
             'management' => DomainManagement::from($validated['management']),
             'registrar' => $validated['registrar'],
             'site_url' => $validated['siteUrl'],
-            'hosted_since' => $validated['hostedSince'],
             'registered_at' => $validated['registeredAt'],
             'registration_cost' => filled($validated['registrationCost']) ? $validated['registrationCost'] : null,
             'currency' => $validated['currency'],

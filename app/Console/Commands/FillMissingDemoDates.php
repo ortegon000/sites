@@ -41,7 +41,7 @@ class FillMissingDemoDates extends Command
 
     /**
      * Un dominio se renueva en el aniversario de su alta, así que esa es la
-     * fecha que se inventa cuando el libro traía cuándo entró al VPS. Los que
+     * fecha que se inventa cuando el libro traía cuándo se registró. Los que
      * no la traían se reparten a lo largo del año, para que el tablero tenga
      * casos cerca y lejos en vez de veinte vencimientos el mismo día.
      */
@@ -53,7 +53,7 @@ class FillMissingDemoDates extends Command
             ->whereNull('expires_at')
             ->orderBy('id')
             ->each(function (Domain $domain) use (&$filled): void {
-                $anchor = $domain->hosted_since ?? $domain->registered_at;
+                $anchor = $domain->registered_at;
 
                 $expiresAt = $anchor !== null
                     ? $this->nextAnniversary($anchor)

@@ -167,8 +167,6 @@
                 <flux:input wire:model="registrationCost" type="number" step="0.01" :label="__('Costo de registro')" />
 
                 <flux:input wire:model="currency" :label="__('Moneda')" maxlength="3" />
-
-                <flux:input wire:model="hostedSince" type="date" :label="__('Alojado desde')" />
             </div>
 
             <flux:input wire:model="siteUrl" :label="__('URL del sitio')" placeholder="https://acme.com" />
