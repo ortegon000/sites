@@ -330,10 +330,12 @@ class DomainsPanel extends Component
             'emailDomainId' => ['required', 'integer'],
             'emailProviderIdToAssign' => ['required', 'exists:email_providers,id'],
             'newEmailAddress' => ['required', 'email', 'max:255', 'unique:email_accounts,email_address'],
-            'newEmailPassword' => ['required', 'string', 'min:8'],
+            'newEmailPassword' => ['nullable', 'string', 'min:8'],
         ]);
 
         $domain = $this->client->domains()->findOrFail((int) $validated['emailDomainId']);
+        $provider = EmailProvider::findOrFail((int) $validated['emailProviderIdToAssign']);
+        $password = filled($validated['newEmailPassword']) ? $validated['newEmailPassword'] : null;
 
         if (! $domain->managesEmail()) {
             $this->addError('emailDomainId', __('Este dominio no tiene el correo activado.'));
@@ -341,12 +343,14 @@ class DomainsPanel extends Component
             return;
         }
 
-        $action->handle(
-            $domain,
-            EmailProvider::findOrFail((int) $validated['emailProviderIdToAssign']),
-            $validated['newEmailAddress'],
-            $validated['newEmailPassword'],
-        );
+        /** Un proveedor con API necesita la contraseña para crear el buzón; uno manual no llama a nada. */
+        if ($password === null && ! $provider->storesPasswordLocally()) {
+            $this->addError('newEmailPassword', __('Este proveedor necesita la contraseña para crear el buzón.'));
+
+            return;
+        }
+
+        $action->handle($domain, $provider, $validated['newEmailAddress'], $password);
 
         unset($this->domains);
 

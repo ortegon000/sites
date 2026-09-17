@@ -106,6 +106,42 @@ test('staff can provision an email account on a domain', function () {
     expect($domain->emailAccounts()->where('email_address', 'nueva@cliente.test')->exists())->toBeTrue();
 });
 
+test('a mailbox on a manual provider can be created without a password', function () {
+    $staff = User::factory()->staff()->create();
+    [$client, $domain] = clientWithEmailDomain();
+    $provider = EmailProvider::factory()->manual()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test(DomainsPanel::class, ['client' => $client])
+        ->call('openEmailModal', $domain->id)
+        ->set('emailProviderIdToAssign', $provider->id)
+        ->set('newEmailAddress', 'sin-password@cliente.test')
+        ->call('provisionEmailAccount')
+        ->assertHasNoErrors();
+
+    $account = $domain->emailAccounts()->where('email_address', 'sin-password@cliente.test')->firstOrFail();
+
+    expect($account->password)->toBeNull();
+});
+
+test('a mailbox on an API provider still needs a password', function () {
+    $staff = User::factory()->staff()->create();
+    [$client, $domain] = clientWithEmailDomain();
+    $provider = EmailProvider::factory()->create();
+
+    $this->actingAs($staff);
+
+    Livewire::test(DomainsPanel::class, ['client' => $client])
+        ->call('openEmailModal', $domain->id)
+        ->set('emailProviderIdToAssign', $provider->id)
+        ->set('newEmailAddress', 'sin-password@cliente.test')
+        ->call('provisionEmailAccount')
+        ->assertHasErrors('newEmailPassword');
+
+    expect($domain->emailAccounts()->where('email_address', 'sin-password@cliente.test')->exists())->toBeFalse();
+});
+
 test('provisioning is rejected on a domain that does not manage email', function () {
     $staff = User::factory()->staff()->create();
     [$client] = clientWithEmailDomain();

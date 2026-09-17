@@ -11,7 +11,7 @@ use RuntimeException;
 
 class ProvisionEmailAccount
 {
-    public function handle(Domain $domain, EmailProvider $provider, string $emailAddress, string $password): EmailAccount
+    public function handle(Domain $domain, EmailProvider $provider, string $emailAddress, ?string $password): EmailAccount
     {
         if (! $domain->managesEmail()) {
             throw new RuntimeException("El dominio [{$domain->name}] no tiene el correo activado.");

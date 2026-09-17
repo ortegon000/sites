@@ -21,7 +21,7 @@ class NullEmailProviderDriver implements EmailProviderDriver
      */
     private const SIMULATED_REMOTE_LOCAL_PARTS = ['info', 'ventas', 'soporte'];
 
-    public function createMailbox(EmailProvider $provider, string $emailAddress, string $password): void
+    public function createMailbox(EmailProvider $provider, string $emailAddress, ?string $password): void
     {
         // No-op: nothing to provision remotely yet.
     }

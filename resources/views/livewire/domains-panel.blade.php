@@ -196,7 +196,7 @@
         <form wire:submit="provisionEmailAccount" class="flex flex-col gap-6">
             <flux:heading size="lg">{{ __('Nueva cuenta de correo') }}</flux:heading>
 
-            <flux:select wire:model="emailProviderIdToAssign" :label="__('Proveedor')">
+            <flux:select wire:model.live="emailProviderIdToAssign" :label="__('Proveedor')">
                 <flux:select.option value="">{{ __('Selecciona un proveedor') }}</flux:select.option>
                 @foreach ($this->activeEmailProviders as $provider)
                     <flux:select.option value="{{ $provider->id }}">{{ $provider->name }}</flux:select.option>
@@ -205,7 +205,10 @@
 
             <flux:input wire:model="newEmailAddress" type="email" :label="__('Correo')" />
 
-            <flux:input wire:model="newEmailPassword" type="password" :label="__('Contraseña')" viewable />
+            @php $selectedProvider = $this->activeEmailProviders->firstWhere('id', (int) $emailProviderIdToAssign); @endphp
+
+            <flux:input wire:model="newEmailPassword" type="password" :label="__('Contraseña')" viewable
+                :description="$selectedProvider?->storesPasswordLocally() ? __('Opcional: puedes dejarla vacía y capturarla después.') : null" />
 
             <flux:error name="emailDomainId" />
 

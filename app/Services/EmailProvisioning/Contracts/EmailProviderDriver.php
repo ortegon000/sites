@@ -7,9 +7,12 @@ use App\Models\EmailProvider;
 interface EmailProviderDriver
 {
     /**
-     * Create a mailbox on the remote provider for the given address.
+     * Create a mailbox on the remote provider for the given address. Null
+     * only ever reaches a driver that doesn't store the password locally
+     * either — a manually administered provider, where nobody needs it to
+     * create anything remotely.
      */
-    public function createMailbox(EmailProvider $provider, string $emailAddress, string $password): void;
+    public function createMailbox(EmailProvider $provider, string $emailAddress, ?string $password): void;
 
     /**
      * Permanently remove a mailbox from the remote provider.

@@ -17,8 +17,12 @@ use RuntimeException;
  */
 class MxrouteEmailProviderDriver implements EmailProviderDriver
 {
-    public function createMailbox(EmailProvider $provider, string $emailAddress, string $password): void
+    public function createMailbox(EmailProvider $provider, string $emailAddress, ?string $password): void
     {
+        if ($password === null) {
+            throw new RuntimeException('MXroute necesita una contraseña para crear el buzón.');
+        }
+
         [$user, $domain] = $this->split($emailAddress);
 
         $this->client($provider)

@@ -15,7 +15,7 @@ use App\Services\EmailProvisioning\Contracts\EmailProviderDriver;
  */
 class ManualEmailProviderDriver implements EmailProviderDriver
 {
-    public function createMailbox(EmailProvider $provider, string $emailAddress, string $password): void
+    public function createMailbox(EmailProvider $provider, string $emailAddress, ?string $password): void
     {
         // No-op: a person creates the mailbox in the provider's panel.
     }
