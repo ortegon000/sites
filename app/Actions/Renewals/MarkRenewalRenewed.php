@@ -2,11 +2,14 @@
 
 namespace App\Actions\Renewals;
 
+use App\Actions\Charges\MarkChargeAsPaid;
 use App\Actions\Services\CreateServiceWithSchedule;
+use App\Enums\ChargeStatus;
 use App\Enums\RenewalStatus;
 use App\Enums\ServiceBillingFrequency;
 use App\Enums\ServiceCategory;
 use App\Enums\ServiceStatus;
+use App\Models\Charge;
 use App\Models\Domain;
 use App\Models\License;
 use App\Models\Renewal;
@@ -14,11 +17,15 @@ use App\Models\Service;
 
 class MarkRenewalRenewed
 {
-    public function __construct(private CreateServiceWithSchedule $createServiceWithSchedule) {}
+    public function __construct(
+        private CreateServiceWithSchedule $createServiceWithSchedule,
+        private MarkChargeAsPaid $markChargeAsPaid,
+    ) {}
 
     /**
      * El cliente renovó: se empuja la fecha de caducidad un año y se genera la
-     * línea cobrable de la renovación.
+     * línea cobrable de la renovación, ya cobrada, porque marcar la renovación
+     * es justo la confirmación de que el cliente pagó.
      *
      * Un servicio anual no genera línea: ya se cobra solo por su calendario, y
      * duplicarla cobraría dos veces lo mismo. Para dominios y licencias, en
@@ -29,6 +36,10 @@ class MarkRenewalRenewed
         $renewable = $renewal->renewable;
 
         $service = $this->billableLineFor($renewal);
+
+        if ($service !== null) {
+            $this->markChargeAsPaid->handle($this->chargeFor($service, $renewal));
+        }
 
         match (true) {
             $renewable instanceof Domain => $renewable->update([
@@ -68,6 +79,21 @@ class MarkRenewalRenewed
             'status' => ServiceStatus::Activo,
             'starts_on' => $renewal->due_date->toDateString(),
             'installments_count' => null,
+        ]);
+    }
+
+    /**
+     * `GenerateScheduledCharges` solo crea el cobro cuando su fecha ya llegó,
+     * así que una renovación con vencimiento futuro todavía no tiene uno: se
+     * crea aquí para poder marcarlo pagado de una vez.
+     */
+    private function chargeFor(Service $service, Renewal $renewal): Charge
+    {
+        return $service->charges()->first() ?? $service->charges()->create([
+            'amount' => $renewal->amount,
+            'currency' => $renewal->currency,
+            'status' => ChargeStatus::Pendiente,
+            'due_date' => $renewal->due_date,
         ]);
     }
 }

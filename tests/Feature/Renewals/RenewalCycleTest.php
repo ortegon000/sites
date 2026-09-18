@@ -3,6 +3,7 @@
 use App\Actions\Renewals\MarkRenewalNotRenewed;
 use App\Actions\Renewals\MarkRenewalRenewed;
 use App\Actions\Renewals\NotifyClientOfRenewal;
+use App\Enums\ChargeStatus;
 use App\Enums\DomainManagement;
 use App\Enums\DomainStatus;
 use App\Enums\LicenseStatus;
@@ -118,7 +119,7 @@ test('el correo al cliente lleva enlace al portal y ninguna credencial', functio
         ->and($rendered)->not->toContain('contraseña');
 });
 
-test('registrar que renovó empuja la fecha un año y genera la línea cobrable', function () {
+test('registrar que renovó empuja la fecha un año, genera la línea cobrable y la deja pagada', function () {
     $client = Client::factory()->client()->create();
     $domain = Domain::factory()->for($client)->create([
         'expires_at' => today()->addDays(20)->toDateString(),
@@ -142,7 +143,10 @@ test('registrar que renovó empuja la fecha un año y genera la línea cobrable'
         ->and($renewal->service)->not->toBeNull()
         ->and($renewal->service->project_id)->toBeNull()
         ->and((float) $renewal->service->amount)->toBe(4000.0)
-        ->and($renewal->service->domain_id)->toBe($domain->id);
+        ->and($renewal->service->domain_id)->toBe($domain->id)
+        ->and($renewal->service->charges()->count())->toBe(1)
+        ->and($renewal->service->charges()->first()->status)->toBe(ChargeStatus::Pagado)
+        ->and($renewal->service->charges()->first()->remainingAmount())->toBe(0.0);
 });
 
 test('renovar un servicio anual no genera línea: ya se cobra por su calendario', function () {
