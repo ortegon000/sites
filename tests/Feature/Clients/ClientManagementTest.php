@@ -165,26 +165,29 @@ test('moving the status switch on the client detail applies the change without a
         ->and($client->notes)->toHaveCount(2);
 });
 
-test('the client detail opens on the log tab and shows each panel in its own tab', function () {
+test('the client detail opens on domains and shows each panel in its own tab, with the log always visible', function () {
     $staff = User::factory()->staff()->create();
     $client = Client::factory()->client()->create();
 
     $this->actingAs($staff);
 
     Livewire::test('pages::clients.show', ['client' => $client])
-        ->assertSet('tab', 'bitacora')
+        ->assertSet('tab', 'dominios')
         ->assertSee('Bitácora')
+        ->assertSee('Dominios y correo')
+        ->assertSee('Licencias y suscripciones')
         ->assertDontSee('Proyectos')
         ->set('tab', 'trabajo')
+        ->assertSee('Bitácora')
         ->assertSee('Proyectos')
         ->assertSee('Cotizaciones')
         ->assertSee('Campañas de ads')
+        ->assertDontSee('Contratos')
         ->set('tab', 'cobros')
+        ->assertSee('Bitácora')
         ->assertSee('Todo lo cobrado y por cobrar del cliente', escape: false)
+        ->assertSee('Contratos')
         ->assertDontSee('Cotizaciones')
-        ->set('tab', 'dominios')
-        ->assertSee('Dominios y correo')
-        ->assertSee('Licencias y suscripciones')
         ->set('tab', 'renovaciones')
         ->assertSee('servicios anuales que caducan', escape: false)
         ->assertDontSee('Contratos');
@@ -209,9 +212,14 @@ test('a hand-typed section in the url falls back to the first tab', function () 
 
     $this->actingAs($staff);
 
-    Livewire::test('pages::clients.show', ['client' => $client])
-        ->set('tab', 'inventada')
-        ->assertSee('Bitácora');
+    /**
+     * Vía HTTP y no ->set(): cambiar a un tab inválido y de regreso al mismo
+     * valor por omisión no deja rastro en el diff de Livewire, así que sus
+     * componentes hijos (DomainsPanel, etc.) no se vuelven a pintar y la
+     * aserción saldría en falso positivo.
+     */
+    $this->get(route('clients.show', ['client' => $client, 'seccion' => 'inventada']))
+        ->assertSee('Dominios y correo');
 });
 
 test('the client detail lists the projects of that client only', function () {

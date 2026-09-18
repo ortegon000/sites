@@ -34,8 +34,8 @@ new class extends Component {
      * La pestaña abierta del expediente. Viaja en la URL (?seccion=trabajo)
      * para poder recargar o compartir el enlace de una sección concreta.
      */
-    #[Url(as: 'seccion', except: 'bitacora')]
-    public string $tab = 'bitacora';
+    #[Url(as: 'seccion', except: 'dominios')]
+    public string $tab = 'dominios';
 
     /**
      * The route this component was reached through on the initial page
@@ -121,7 +121,6 @@ new class extends Component {
     public function tabs(): array
     {
         return [
-            'bitacora' => ['label' => __('Bitácora'), 'icon' => 'clipboard-document-list'],
             'dominios' => ['label' => __('Dominios y licencias'), 'icon' => 'globe-alt'],
             'renovaciones' => ['label' => __('Renovaciones'), 'icon' => 'arrow-path'],
             'trabajo' => ['label' => __('Trabajo'), 'icon' => 'briefcase'],
@@ -382,6 +381,33 @@ new class extends Component {
                     @endif
                 @endcan
             </flux:card>
+
+            <flux:card class="flex flex-col gap-4">
+                <flux:heading size="lg">{{ __('Bitácora') }}</flux:heading>
+
+                <form wire:submit="addNote" class="flex flex-col gap-2">
+                    <flux:textarea wire:model="note" :placeholder="__('Agregar una nota...')" rows="3" />
+                    <div class="flex justify-end">
+                        <flux:button type="submit" size="sm" variant="primary">{{ __('Agregar nota') }}</flux:button>
+                    </div>
+                </form>
+
+                <flux:separator />
+
+                <div class="flex flex-col gap-4">
+                    @forelse ($client->notes as $note)
+                        <div wire:key="note-{{ $note->id }}" class="flex flex-col gap-1 border-b border-zinc-100 pb-3 last:border-0 dark:border-zinc-700">
+                            <div class="flex items-center justify-between text-xs text-zinc-400">
+                                <span>{{ $note->type->label() }} · {{ $note->author?->name ?? __('Sistema') }}</span>
+                                <span>{{ $note->created_at->diffForHumans() }}</span>
+                            </div>
+                            <p class="text-sm">{{ $note->body }}</p>
+                        </div>
+                    @empty
+                        <flux:text class="text-zinc-400">{{ __('Sin actividad todavía.') }}</flux:text>
+                    @endforelse
+                </div>
+            </flux:card>
         </div>
 
         <div class="flex flex-col gap-4 md:col-span-2">
@@ -400,38 +426,7 @@ new class extends Component {
 
             @php($staffCanSeePanels = auth()->user()->isAdmin() || auth()->user()->isStaff())
 
-            @if ($this->activeTab === 'bitacora')
-                <flux:card class="flex flex-col gap-4">
-                    <flux:heading size="lg">{{ __('Bitácora') }}</flux:heading>
-
-                    <form wire:submit="addNote" class="flex flex-col gap-2">
-                        <flux:textarea wire:model="note" :placeholder="__('Agregar una nota...')" rows="3" />
-                        <div class="flex justify-end">
-                            <flux:button type="submit" size="sm" variant="primary">{{ __('Agregar nota') }}</flux:button>
-                        </div>
-                    </form>
-
-                    <flux:separator />
-
-                    <div class="flex flex-col gap-4">
-                        @forelse ($client->notes as $note)
-                            <div wire:key="note-{{ $note->id }}" class="flex flex-col gap-1 border-b border-zinc-100 pb-3 last:border-0 dark:border-zinc-700">
-                                <div class="flex items-center justify-between text-xs text-zinc-400">
-                                    <span>{{ $note->type->label() }} · {{ $note->author?->name ?? __('Sistema') }}</span>
-                                    <span>{{ $note->created_at->diffForHumans() }}</span>
-                                </div>
-                                <p class="text-sm">{{ $note->body }}</p>
-                            </div>
-                        @empty
-                            <flux:text class="text-zinc-400">{{ __('Sin actividad todavía.') }}</flux:text>
-                        @endforelse
-                    </div>
-                </flux:card>
-
-                @if ($staffCanSeePanels)
-                    <livewire:contracts-panel :client="$client" :key="'contracts-panel-client-'.$client->id" />
-                @endif
-            @elseif ($this->activeTab === 'trabajo')
+            @if ($this->activeTab === 'trabajo')
                 @if ($staffCanSeePanels)
                     <livewire:quotes-panel :client="$client" :key="'quotes-panel-client-'.$client->id" />
                 @endif
@@ -446,6 +441,8 @@ new class extends Component {
             @elseif ($this->activeTab === 'cobros')
                 @if ($staffCanSeePanels)
                     <livewire:charges-panel :client="$client" :key="'charges-panel-client-'.$client->id" />
+
+                    <livewire:contracts-panel :client="$client" :key="'contracts-panel-client-'.$client->id" />
                 @endif
             @elseif ($this->activeTab === 'dominios')
                 @if ($staffCanSeePanels)
