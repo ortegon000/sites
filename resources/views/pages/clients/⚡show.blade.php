@@ -20,6 +20,8 @@ new class extends Component {
 
     public string $status = '';
 
+    public ?int $assignedTo = null;
+
     public string $newContactName = '';
 
     public ?string $newContactEmail = null;
@@ -27,8 +29,6 @@ new class extends Component {
     public ?string $newContactPhone = null;
 
     public ?string $newContactRole = null;
-
-    public bool $addingContact = false;
 
     /**
      * La pestaña abierta del expediente. Viaja en la URL (?seccion=trabajo)
@@ -52,6 +52,7 @@ new class extends Component {
 
         $this->client = $client;
         $this->status = $client->status->value;
+        $this->assignedTo = $client->assigned_to_user_id;
         $this->routeName = request()->route()?->getName();
 
         $this->redirectToCanonicalRoute();
@@ -84,6 +85,32 @@ new class extends Component {
                 ...($this->tab === array_key_first($this->tabs) ? [] : ['seccion' => $this->tab]),
             ]), navigate: true);
         }
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, \App\Models\User>
+     */
+    #[Computed]
+    public function assignableUsers(): \Illuminate\Database\Eloquent\Collection
+    {
+        return \App\Models\User::internal()->orderBy('name')->get();
+    }
+
+    /**
+     * Como el estatus, el responsable se guarda en cuanto se elige.
+     */
+    public function updatedAssignedTo(): void
+    {
+        Gate::authorize('update', $this->client);
+
+        $validated = $this->validate([
+            'assignedTo' => ['nullable', \Illuminate\Validation\Rule::exists('users', 'id')->whereIn('role', [\App\Enums\UserRole::Admin->value, \App\Enums\UserRole::Staff->value])],
+        ]);
+
+        $this->client->update(['assigned_to_user_id' => $validated['assignedTo']]);
+        $this->client->unsetRelation('assignedTo');
+
+        Flux::toast(variant: 'success', text: __('Responsable actualizado.'));
     }
 
     #[Computed]
@@ -152,13 +179,15 @@ new class extends Component {
     {
         Gate::authorize('update', $this->client);
 
-        $this->addingContact = true;
+        $this->resetValidation();
+        $this->modal('add-contact')->show();
     }
 
     public function cancelAddingContact(): void
     {
-        $this->reset(['newContactName', 'newContactEmail', 'newContactPhone', 'newContactRole', 'addingContact']);
+        $this->reset(['newContactName', 'newContactEmail', 'newContactPhone', 'newContactRole']);
         $this->resetValidation();
+        $this->modal('add-contact')->close();
     }
 
     public function addContact(LinkContactToClient $action): void
@@ -179,8 +208,10 @@ new class extends Component {
             'role' => $validated['newContactRole'],
         ], isPrimary: $this->contacts->isEmpty());
 
-        $this->reset(['newContactName', 'newContactEmail', 'newContactPhone', 'newContactRole', 'addingContact']);
+        $this->reset(['newContactName', 'newContactEmail', 'newContactPhone', 'newContactRole']);
         unset($this->contacts);
+
+        $this->modal('add-contact')->close();
 
         Flux::toast(variant: 'success', text: __('Contacto agregado.'));
     }
@@ -268,6 +299,8 @@ new class extends Component {
 
     public function render()
     {
+        $this->client->loadMissing('notes.author');
+
         return $this->view()->title($this->client->name);
     }
 }; ?>
@@ -295,118 +328,174 @@ new class extends Component {
     <div class="grid gap-6 md:grid-cols-3">
         <div class="flex flex-col gap-6 md:col-span-1">
             <flux:card class="flex flex-col gap-4">
-                <flux:heading size="lg">{{ __('Datos generales') }}</flux:heading>
+                <div class="flex items-center justify-between gap-2">
+                    <flux:heading size="lg">{{ __('Datos generales') }}</flux:heading>
+                    <flux:badge size="sm" :color="$client->type === \App\Enums\ClientType::Client ? 'green' : 'zinc'">
+                        {{ $client->type->label() }}
+                    </flux:badge>
+                </div>
 
-                <div class="flex flex-col gap-1 text-sm">
-                    <span class="text-zinc-400">{{ __('Agencia') }}</span>
-                    <span>{{ $client->agency?->name ?? __('Sin agencia (contacto directo)') }}</span>
-                </div>
-                <div class="flex flex-col gap-1 text-sm">
-                    <span class="text-zinc-400">{{ __('Fuente') }}</span>
-                    <span>{{ $client->source ?? '—' }}</span>
-                </div>
-                <div class="flex flex-col gap-1 text-sm">
-                    <span class="text-zinc-400">{{ __('Moneda') }}</span>
-                    <span>{{ $client->currency }}</span>
-                </div>
+                <dl class="flex flex-col divide-y divide-zinc-200 text-sm dark:divide-white/10">
+                    @php
+                        $details = [
+                            ['icon' => 'building-office-2', 'label' => __('Agencia'), 'value' => $client->agency?->name, 'empty' => __('Contacto directo')],
+                            ['icon' => 'megaphone', 'label' => __('Fuente'), 'value' => $client->source, 'empty' => __('Sin registrar')],
+                            ['icon' => 'banknotes', 'label' => __('Moneda'), 'value' => $client->currency, 'empty' => '—'],
+                            ['icon' => 'calendar-days', 'label' => $client->won_at ? __('Cliente desde') : __('Registrado'), 'value' => ($client->won_at ?? $client->created_at)?->translatedFormat('j M Y'), 'empty' => '—'],
+                        ];
+                    @endphp
+
+                    <div class="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+                        <dt class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
+                            <flux:icon name="user-circle" variant="outline" class="size-4" />
+                            {{ __('Responsable') }}
+                        </dt>
+                        <dd class="text-right font-medium">
+                            @can('update', $client)
+                                <flux:select wire:model.live="assignedTo" size="sm" class="w-44" :aria-label="__('Responsable')">
+                                    <flux:select.option value="">{{ __('Sin asignar') }}</flux:select.option>
+                                    @foreach ($this->assignableUsers as $user)
+                                        <flux:select.option value="{{ $user->id }}">{{ $user->name }}</flux:select.option>
+                                    @endforeach
+                                </flux:select>
+                            @else
+                                <span @class(['font-normal text-zinc-400' => ! $client->assignedTo])>{{ $client->assignedTo?->name ?? __('Sin asignar') }}</span>
+                            @endcan
+                        </dd>
+                    </div>
+
+                    @foreach ($details as $detail)
+                        <div class="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+                            <dt class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
+                                <flux:icon :name="$detail['icon']" variant="outline" class="size-4" />
+                                {{ $detail['label'] }}
+                            </dt>
+                            <dd @class(['text-right font-medium', 'font-normal text-zinc-400' => blank($detail['value'])])>
+                                {{ filled($detail['value']) ? $detail['value'] : $detail['empty'] }}
+                            </dd>
+                        </div>
+                    @endforeach
+                </dl>
             </flux:card>
 
             <flux:card class="flex flex-col gap-4">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                    <flux:heading size="lg">{{ __('Contactos') }}</flux:heading>
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <flux:heading size="lg">{{ __('Contactos') }}</flux:heading>
+                        @if ($this->contacts->isNotEmpty())
+                            <flux:badge size="sm" color="zinc">{{ $this->contacts->count() }}</flux:badge>
+                        @endif
+                    </div>
 
                     @can('update', $client)
-                        @unless ($addingContact)
-                            <flux:button size="sm" variant="ghost" icon="plus" wire:click="startAddingContact">
-                                {{ __('Agregar contacto') }}
-                            </flux:button>
-                        @endunless
+                        <flux:button size="sm" variant="ghost" icon="plus" wire:click="startAddingContact">
+                            {{ __('Agregar') }}
+                        </flux:button>
                     @endcan
                 </div>
 
-                <div class="flex flex-col gap-3">
+                <div class="flex flex-col divide-y divide-zinc-200 dark:divide-white/10">
                     @forelse ($this->contacts as $contact)
-                        <div wire:key="client-contact-{{ $contact->id }}" class="flex items-start justify-between gap-2">
-                            <div class="flex flex-col text-sm">
-                                <a href="{{ route('contacts.show', $contact) }}" wire:navigate class="font-medium hover:underline">
-                                    {{ $contact->name }}
-                                </a>
-                                <span class="text-xs text-zinc-400">
-                                    {{ $contact->email ?? '—' }}
-                                    @if ($contact->phone)
-                                        · {{ $contact->phone }}
+                        <div wire:key="client-contact-{{ $contact->id }}" class="group flex items-start gap-2 py-4 first:pt-0 last:pb-0">
+
+                            <div class="flex min-w-0 flex-1 flex-col gap-1 text-sm">
+                                <div class="flex flex-wrap items-center gap-x-2">
+                                    <a href="{{ route('contacts.show', $contact) }}" wire:navigate class="font-medium hover:underline">
+                                        {{ $contact->name }}
+                                    </a>
+                                    @if ($contact->pivot->is_primary)
+                                        <flux:badge size="sm" color="amber" icon="star" inset="top bottom">{{ __('Principal') }}</flux:badge>
                                     @endif
-                                </span>
+                                </div>
+
                                 @if ($contact->pivot->role)
-                                    <span class="text-xs text-zinc-400">{{ $contact->pivot->role }}</span>
+                                    <span class="text-xs text-zinc-500 dark:text-zinc-400">{{ $contact->pivot->role }}</span>
                                 @endif
+
+                                <div class="mt-1.5 flex flex-col gap-1.5">
+                                @if ($contact->email)
+                                    <a href="mailto:{{ $contact->email }}" class="flex items-center gap-2 truncate text-xs text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white">
+                                        <flux:icon name="envelope" variant="micro" class="shrink-0" />
+                                        <span class="truncate">{{ $contact->email }}</span>
+                                    </a>
+                                @endif
+                                @if ($contact->phone)
+                                    <a href="tel:{{ $contact->phone }}" class="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white">
+                                        <flux:icon name="phone" variant="micro" class="shrink-0" />
+                                        {{ $contact->phone }}
+                                    </a>
+                                @endif
+                                </div>
                             </div>
 
-                            <div class="flex shrink-0 items-center gap-1">
-                                @if ($contact->pivot->is_primary)
-                                    <flux:badge size="sm">{{ __('Principal') }}</flux:badge>
-                                @else
-                                    <flux:button size="xs" variant="ghost" icon="star"
-                                        :tooltip="__('Hacer contacto principal')"
-                                        wire:click="makeContactPrimary({{ $contact->id }})" />
-                                @endif
-                                <flux:button size="xs" variant="ghost" icon="x-mark"
-                                    :tooltip="__('Desvincular de esta empresa')"
-                                    wire:click="detachContact({{ $contact->id }})"
-                                    wire:confirm="{{ __('¿Desvincular este contacto de esta empresa? La persona se conserva y sigue ligada a sus demás empresas.') }}" />
-                            </div>
+                            @can('update', $client)
+                                <div class="flex shrink-0 items-center gap-0.5 sm:opacity-0 sm:transition-opacity sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+                                    @unless ($contact->pivot->is_primary)
+                                        <flux:button size="xs" variant="ghost" icon="star"
+                                            :tooltip="__('Hacer contacto principal')"
+                                            wire:click="makeContactPrimary({{ $contact->id }})" />
+                                    @endunless
+                                    <flux:button size="xs" variant="ghost" icon="x-mark"
+                                        :tooltip="__('Desvincular de esta empresa')"
+                                        wire:click="detachContact({{ $contact->id }})"
+                                        wire:confirm="{{ __('¿Desvincular este contacto de esta empresa? La persona se conserva y sigue ligada a sus demás empresas.') }}" />
+                                </div>
+                            @endcan
                         </div>
                     @empty
                         <flux:text class="text-zinc-400">{{ __('Sin contactos todavía.') }}</flux:text>
                     @endforelse
                 </div>
-
-                @can('update', $client)
-                    @if ($addingContact)
-                        <flux:separator />
-
-                        <form wire:submit="addContact" class="flex flex-col gap-2">
-                            <flux:input wire:model="newContactName" size="sm" :placeholder="__('Nombre')" />
-                            <flux:input wire:model="newContactEmail" type="email" size="sm" :placeholder="__('Correo')" />
-                            <flux:input wire:model="newContactPhone" size="sm" :placeholder="__('Teléfono')" />
-                            <flux:input wire:model="newContactRole" size="sm" :placeholder="__('Cargo (opcional)')" />
-
-                            <div class="flex items-center justify-end gap-2">
-                                <flux:button size="sm" variant="ghost" wire:click="cancelAddingContact">
-                                    {{ __('Cancelar') }}
-                                </flux:button>
-                                <flux:button type="submit" size="sm" variant="primary">{{ __('Guardar contacto') }}</flux:button>
-                            </div>
-                        </form>
-                    @endif
-                @endcan
             </flux:card>
 
             <flux:card class="flex flex-col gap-4">
                 <flux:heading size="lg">{{ __('Bitácora') }}</flux:heading>
 
                 <form wire:submit="addNote" class="flex flex-col gap-2">
-                    <flux:textarea wire:model="note" :placeholder="__('Agregar una nota...')" rows="3" />
+                    <flux:textarea wire:model="note" :placeholder="__('Escribe una nota sobre este cliente...')" rows="2" resize="none" />
+                    <flux:error name="note" />
                     <div class="flex justify-end">
-                        <flux:button type="submit" size="sm" variant="primary">{{ __('Agregar nota') }}</flux:button>
+                        <flux:button type="submit" size="sm" variant="primary" icon="paper-airplane">{{ __('Agregar nota') }}</flux:button>
                     </div>
                 </form>
 
-                <flux:separator />
+                @if ($client->notes->isEmpty())
+                    <flux:text class="text-zinc-400">{{ __('Sin actividad todavía.') }}</flux:text>
+                @else
+                    <ol class="relative flex flex-col gap-5 border-t border-zinc-200 pt-5 dark:border-white/10">
+                        @foreach ($client->notes as $note)
+                            @php($isEvent = $note->type === \App\Enums\ClientNoteType::StatusChange)
+                            <li wire:key="note-{{ $note->id }}" class="relative flex gap-3">
+                                @unless ($loop->last)
+                                    <span class="absolute top-7 -bottom-5 left-3 w-px bg-zinc-200 dark:bg-white/10" aria-hidden="true"></span>
+                                @endunless
 
-                <div class="flex flex-col gap-4">
-                    @forelse ($client->notes as $note)
-                        <div wire:key="note-{{ $note->id }}" class="flex flex-col gap-1 border-b border-zinc-100 pb-3 last:border-0 dark:border-zinc-700">
-                            <div class="flex items-center justify-between text-xs text-zinc-400">
-                                <span>{{ $note->type->label() }} · {{ $note->author?->name ?? __('Sistema') }}</span>
-                                <span>{{ $note->created_at->diffForHumans() }}</span>
-                            </div>
-                            <p class="text-sm">{{ $note->body }}</p>
-                        </div>
-                    @empty
-                        <flux:text class="text-zinc-400">{{ __('Sin actividad todavía.') }}</flux:text>
-                    @endforelse
-                </div>
+                                <span @class([
+                                    'relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full',
+                                    'bg-zinc-100 text-zinc-500 dark:bg-white/10 dark:text-zinc-400' => $isEvent,
+                                    'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300' => ! $isEvent,
+                                ])>
+                                    <flux:icon :name="$note->type->icon()" variant="micro" />
+                                </span>
+
+                                <div class="flex min-w-0 flex-1 flex-col gap-1">
+                                    <div class="flex flex-wrap items-baseline justify-between gap-x-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                        <span>
+                                            <span class="font-medium text-zinc-700 dark:text-zinc-200">{{ $note->author?->name ?? __('Sistema') }}</span>
+                                            @unless ($note->type === \App\Enums\ClientNoteType::Note)
+                                                · {{ $note->type->label() }}
+                                            @endunless
+                                        </span>
+                                        <time datetime="{{ $note->created_at->toIso8601String() }}" title="{{ $note->created_at->translatedFormat('j M Y, H:i') }}">
+                                            {{ $note->created_at->diffForHumans() }}
+                                        </time>
+                                    </div>
+                                    <p @class(['text-sm whitespace-pre-line', 'text-zinc-500 dark:text-zinc-400' => $isEvent])>{{ $note->body }}</p>
+                                </div>
+                            </li>
+                        @endforeach
+                    </ol>
+                @endif
             </flux:card>
         </div>
 
@@ -458,4 +547,26 @@ new class extends Component {
         </div>
     </div>
 
+    @can('update', $client)
+        <flux:modal name="add-contact" class="md:w-96">
+            <form wire:submit="addContact" class="flex flex-col gap-4">
+                <div class="flex flex-col gap-1">
+                    <flux:heading size="lg">{{ __('Agregar contacto') }}</flux:heading>
+                    <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">
+                        {{ __('Se guarda como persona. Si ya existe, se reutiliza y queda ligada también a esta empresa.') }}
+                    </flux:text>
+                </div>
+
+                <flux:input wire:model="newContactName" :label="__('Nombre')" required autofocus />
+                <flux:input wire:model="newContactEmail" type="email" :label="__('Correo')" />
+                <flux:input wire:model="newContactPhone" :label="__('Teléfono')" />
+                <flux:input wire:model="newContactRole" :label="__('Cargo')" :placeholder="__('Opcional')" />
+
+                <div class="flex justify-end gap-2">
+                    <flux:button variant="ghost" wire:click="cancelAddingContact">{{ __('Cancelar') }}</flux:button>
+                    <flux:button type="submit" variant="primary">{{ __('Guardar contacto') }}</flux:button>
+                </div>
+            </form>
+        </flux:modal>
+    @endcan
 </div>

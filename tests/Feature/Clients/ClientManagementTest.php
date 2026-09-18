@@ -247,3 +247,82 @@ test('a client with no projects says so instead of looking broken', function () 
         ->set('tab', 'trabajo')
         ->assertSee('No todos los clientes necesitan uno', escape: false);
 });
+
+test('the general data card shows agency, owner and currency, and says so when they are missing', function () {
+    $admin = User::factory()->admin()->create();
+    $agency = Agency::factory()->create(['name' => 'Agencia Norte']);
+    $client = Client::factory()->client()->create([
+        'agency_id' => $agency->id,
+        'assigned_to_user_id' => $admin->id,
+        'currency' => 'MXN',
+    ]);
+    $direct = Client::factory()->client()->create(['agency_id' => null, 'assigned_to_user_id' => null, 'source' => null]);
+
+    $this->actingAs($admin);
+
+    Livewire::test('pages::clients.show', ['client' => $client])
+        ->assertSee('Agencia Norte')
+        ->assertSee($admin->name)
+        ->assertSee('MXN');
+
+    Livewire::test('pages::clients.show', ['client' => $direct])
+        ->assertSee('Contacto directo')
+        ->assertSee('Sin asignar')
+        ->assertSee('Sin registrar');
+});
+
+test('the owner can be changed from the client detail and from the edit modal', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create(['assigned_to_user_id' => null]);
+
+    $this->actingAs($admin);
+
+    Livewire::test('pages::clients.show', ['client' => $client])
+        ->set('assignedTo', $staff->id)
+        ->assertHasNoErrors();
+
+    expect($client->refresh()->assigned_to_user_id)->toBe($staff->id);
+
+    Livewire::test('pages::clients.index')
+        ->call('openEditModal', $client->id)
+        ->set('assigned_to_user_id', $admin->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($client->refresh()->assigned_to_user_id)->toBe($admin->id);
+});
+
+test('an owner must be an internal user', function () {
+    $admin = User::factory()->admin()->create();
+    $collaborator = User::factory()->collaborator()->create();
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($admin);
+
+    Livewire::test('pages::clients.show', ['client' => $client])
+        ->set('assignedTo', $collaborator->id)
+        ->assertHasErrors('assignedTo');
+
+    expect($client->refresh()->assigned_to_user_id)->not->toBe($collaborator->id);
+});
+
+test('the log shows notes and status changes with their author, and the empty state until there is activity', function () {
+    $admin = User::factory()->admin()->create(['name' => 'Laura Méndez']);
+    $client = Client::factory()->client()->create();
+
+    $this->actingAs($admin);
+
+    $component = Livewire::test('pages::clients.show', ['client' => $client])
+        ->assertSee('Sin actividad todavía.')
+        ->set('note', 'Pidió factura')
+        ->call('addNote')
+        ->assertHasNoErrors()
+        ->assertSee('Pidió factura')
+        ->assertSee('Laura Méndez')
+        ->assertDontSee('Sin actividad todavía.');
+
+    $component->set('status', ClientStatus::Inactivo->value)
+        ->assertSee('Cambio de estatus')
+        ->assertSee('Estatus cambiado de');
+});

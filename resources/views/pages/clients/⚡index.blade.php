@@ -5,8 +5,10 @@ use App\Actions\Clients\LinkContactToClient;
 use App\Enums\AgencyStatus;
 use App\Enums\ClientStatus;
 use App\Enums\ClientType;
+use App\Enums\UserRole;
 use App\Models\Agency;
 use App\Models\Client;
+use App\Models\User;
 use Flux\Flux;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -39,6 +41,8 @@ new class extends Component {
 
     public ?int $agency_id = null;
 
+    public ?int $assigned_to_user_id = null;
+
     public string $currency = 'MXN';
 
     public string $status = '';
@@ -56,6 +60,15 @@ new class extends Component {
     public function statusOptions(): array
     {
         return ClientStatus::forType($this->type);
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, User>
+     */
+    #[Computed]
+    public function assignableUsers()
+    {
+        return User::internal()->orderBy('name')->get();
     }
 
     /**
@@ -138,6 +151,7 @@ new class extends Component {
         $this->phone = $contact?->phone;
         $this->source = $client->source;
         $this->agency_id = $client->agency_id;
+        $this->assigned_to_user_id = $client->assigned_to_user_id;
         $this->currency = $client->currency;
         $this->status = $client->status->value;
         $this->resetValidation();
@@ -159,6 +173,7 @@ new class extends Component {
             'phone' => ['nullable', 'string', 'max:50'],
             'source' => ['nullable', 'string', 'max:255'],
             'agency_id' => ['nullable', 'exists:agencies,id'],
+            'assigned_to_user_id' => ['nullable', Rule::exists('users', 'id')->whereIn('role', [UserRole::Admin->value, UserRole::Staff->value])],
             'currency' => ['required', 'string', 'size:3'],
             'status' => ['required', Rule::enum(ClientStatus::class)],
         ]);
@@ -182,7 +197,7 @@ new class extends Component {
         } else {
             $validated['type'] = $this->type;
             $validated['status'] = $status;
-            $validated['assigned_to_user_id'] = auth()->id();
+            $validated['assigned_to_user_id'] ??= auth()->id();
             $client = Client::create($validated);
         }
 
@@ -301,6 +316,13 @@ new class extends Component {
                 </flux:select>
 
                 <flux:input wire:model="source" :label="__('Fuente')" />
+
+                <flux:select wire:model="assigned_to_user_id" :label="__('Responsable')">
+                    <flux:select.option value="">{{ __('Sin asignar') }}</flux:select.option>
+                    @foreach ($this->assignableUsers as $user)
+                        <flux:select.option value="{{ $user->id }}">{{ $user->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
 
                 <div class="grid grid-cols-2 gap-4">
                     <flux:input wire:model="currency" :label="__('Moneda')" maxlength="3" />

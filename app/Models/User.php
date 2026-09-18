@@ -7,6 +7,8 @@ use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -83,6 +85,18 @@ class User extends Authenticatable implements PasskeyUser
     public function projects(): BelongsToMany
     {
         return $this->belongsToMany(Project::class);
+    }
+
+    /**
+     * Quienes llevan la operación del CRM: a ellos se les puede encargar un
+     * cliente. Colaboradores externos y clientes del portal quedan fuera.
+     *
+     * @param  Builder<User>  $query
+     */
+    #[Scope]
+    protected function internal(Builder $query): void
+    {
+        $query->whereIn('role', [UserRole::Admin, UserRole::Staff]);
     }
 
     public function isAdmin(): bool

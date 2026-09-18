@@ -18,4 +18,14 @@ enum ClientNoteType: string
             self::StatusChange => 'Cambio de estatus',
         };
     }
+
+    public function icon(): string
+    {
+        return match ($this) {
+            self::Note => 'chat-bubble-left-ellipsis',
+            self::Call => 'phone',
+            self::Email => 'envelope',
+            self::StatusChange => 'arrow-path',
+        };
+    }
 }
