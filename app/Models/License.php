@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\LicenseBillingFrequency;
 use App\Enums\LicenseStatus;
 use Carbon\CarbonImmutable;
 use Database\Factories\LicenseFactory;
@@ -20,6 +21,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * particular —Brevo es del cliente— aunque otras sí, así que el dominio es
  * opcional. Como todo activo, caduca y avisa antes de hacerlo.
  *
+ * El aviso depende de `billing_frequency`: una anual entra al ciclo de
+ * `Renewal` y se le avisa al cliente, igual que un dominio. Una mensual no
+ * —correo mensual al cliente sería spam—, así que solo genera un recordatorio
+ * interno (`ProcessMonthlyLicenseRenewals`) y `renewal_date` avanza sola mes
+ * con mes en vez de esperar a que alguien la marque renovada.
+ *
  * @property int $id
  * @property int $client_id
  * @property int|null $domain_id
@@ -31,6 +38,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $cost
  * @property string $currency
  * @property CarbonImmutable|null $renewal_date
+ * @property LicenseBillingFrequency $billing_frequency
  * @property bool $auto_renew
  * @property LicenseStatus $status
  * @property CarbonImmutable|null $expiry_notified_at
@@ -38,7 +46,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
-#[Fillable(['client_id', 'domain_id', 'name', 'vendor', 'url', 'username', 'password', 'cost', 'currency', 'renewal_date', 'auto_renew', 'status', 'expiry_notified_at', 'notes'])]
+#[Fillable(['client_id', 'domain_id', 'name', 'vendor', 'url', 'username', 'password', 'cost', 'currency', 'renewal_date', 'billing_frequency', 'auto_renew', 'status', 'expiry_notified_at', 'notes'])]
 class License extends Model
 {
     /** @use HasFactory<LicenseFactory> */
@@ -64,6 +72,7 @@ class License extends Model
             'status' => LicenseStatus::class,
             'password' => 'encrypted',
             'renewal_date' => 'date',
+            'billing_frequency' => LicenseBillingFrequency::class,
             'auto_renew' => 'boolean',
             'expiry_notified_at' => 'datetime',
         ];

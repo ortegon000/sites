@@ -4,6 +4,7 @@ namespace App\Actions\Renewals;
 
 use App\Enums\DomainManagement;
 use App\Enums\DomainStatus;
+use App\Enums\LicenseBillingFrequency;
 use App\Enums\LicenseStatus;
 use App\Enums\RenewalStatus;
 use App\Enums\ServiceBillingFrequency;
@@ -24,9 +25,12 @@ class OpenRenewalCycles
 
     /**
      * Abre el ciclo de todo lo que caduca dentro del horizonte y todavía no lo
-     * tiene abierto: dominios que renovamos nosotros, licencias vigentes y
-     * servicios anuales. Es idempotente —la llave única por vencimiento evita
-     * que la corrida diaria duplique ciclos— y devuelve cuántos abrió.
+     * tiene abierto: dominios que renovamos nosotros, licencias anuales y
+     * servicios anuales. Las licencias mensuales no entran aquí —correo al
+     * cliente cada mes sería spam—; su aviso es interno y vive en
+     * `ProcessMonthlyLicenseRenewals`. Es idempotente —la llave única por
+     * vencimiento evita que la corrida diaria duplique ciclos— y devuelve
+     * cuántos abrió.
      */
     public function handle(): int
     {
@@ -43,6 +47,7 @@ class OpenRenewalCycles
 
         License::query()
             ->where('status', LicenseStatus::Activa)
+            ->where('billing_frequency', LicenseBillingFrequency::Anual)
             ->whereNotNull('renewal_date')
             ->whereBetween('renewal_date', [today(), today()->addDays(self::HORIZON_DAYS)])
             ->each(function (License $license) use (&$opened): void {

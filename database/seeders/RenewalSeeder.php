@@ -51,6 +51,16 @@ class RenewalSeeder extends Seeder
             'auto_renew' => false,
         ]);
 
+        /** Mensual: recordatorio interno, no entra al tablero de renovaciones. */
+        License::factory()->for($demo)->monthly()->create([
+            'name' => 'ChatGPT Team',
+            'vendor' => 'OpenAI',
+            'cost' => '600.00',
+            'currency' => $demo->currency,
+            'renewal_date' => now()->addDays(2)->toDateString(),
+            'auto_renew' => true,
+        ]);
+
         app(OpenRenewalCycles::class)->handle();
 
         /** Uno ya avisado, esperando respuesta: el estado que antes no existía. */

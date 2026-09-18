@@ -23,6 +23,7 @@ return new class extends Migration
             $table->decimal('cost', 10, 2)->nullable();
             $table->char('currency', 3)->default('MXN');
             $table->date('renewal_date')->nullable();
+            $table->string('billing_frequency')->default('anual');
             $table->boolean('auto_renew')->default(false);
             $table->string('status');
             $table->timestamp('expiry_notified_at')->nullable();

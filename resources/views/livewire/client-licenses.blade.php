@@ -3,7 +3,7 @@
         <div class="flex flex-col gap-1">
             <flux:heading size="lg">{{ __('Licencias y suscripciones') }}</flux:heading>
             <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">
-                {{ __('Brevo, Elementor, WhatsApp Business… avisan antes de caducar, igual que los dominios.') }}
+                {{ __('Brevo, Elementor, WhatsApp Business… la anual avisa al cliente, igual que un dominio; la mensual solo nos recuerda a nosotros.') }}
             </flux:text>
         </div>
 
@@ -24,7 +24,7 @@
                                 · {{ $license->domain->name }}
                             @endif
                             @if ($license->renewal_date)
-                                · {{ __('Renueva') }} {{ $license->renewal_date->format('d/m/Y') }}
+                                · {{ __('Renueva') }} {{ $license->renewal_date->format('d/m/Y') }} ({{ $license->billing_frequency->label() }})
                             @endif
                         </span>
                     </div>
@@ -94,9 +94,17 @@
                 <div class="grid grid-cols-2 gap-4">
                     <flux:input wire:model="cost" type="number" step="0.01" :label="__('Costo')" />
                     <flux:input wire:model="currency" :label="__('Moneda')" maxlength="3" />
+
                     <flux:input wire:model="renewalDate" type="date" :label="__('Renueva el')" />
 
-                    <flux:select wire:model="status" :label="__('Estatus')">
+                    <flux:select wire:model="billingFrequency" :label="__('Facturación')"
+                        :description="__('Mensual solo avisa por dentro; anual le avisa al cliente.')">
+                        @foreach ($this->billingFrequencyOptions as $option)
+                            <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+
+                    <flux:select wire:model="status" :label="__('Estatus')" class="col-span-2">
                         @foreach ($this->statusOptions as $option)
                             <flux:select.option value="{{ $option->value }}">{{ $option->label() }}</flux:select.option>
                         @endforeach

@@ -6,6 +6,7 @@ use App\Actions\Charges\GenerateScheduledCharges;
 use App\Actions\Charges\MarkOverdueCharges;
 use App\Actions\Charges\SendChargeReminders;
 use App\Actions\Domains\SendDomainExpiryReminders;
+use App\Actions\Licenses\ProcessMonthlyLicenseRenewals;
 use App\Actions\Quotes\ExpireStaleQuotes;
 use App\Actions\Renewals\OpenRenewalCycles;
 use App\Actions\Renewals\SendRenewalNotices;
@@ -32,6 +33,7 @@ class ProcessScheduledCharges extends Command
         MarkOverdueCharges $markOverdueCharges,
         SendChargeReminders $sendChargeReminders,
         SendDomainExpiryReminders $sendDomainExpiryReminders,
+        ProcessMonthlyLicenseRenewals $processMonthlyLicenseRenewals,
         OpenRenewalCycles $openRenewalCycles,
         SendRenewalNotices $sendRenewalNotices,
         ExpireStaleQuotes $expireStaleQuotes,
@@ -43,6 +45,8 @@ class ProcessScheduledCharges extends Command
         $sendChargeReminders->handle();
 
         $sendDomainExpiryReminders->handle();
+
+        $processMonthlyLicenseRenewals->handle();
 
         $openedCycles = $openRenewalCycles->handle();
 

@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Enums\LicenseBillingFrequency;
 use App\Enums\LicenseStatus;
 use App\Models\Client;
 use App\Models\Domain;
@@ -45,6 +46,8 @@ class ClientLicenses extends Component
     public string $currency = 'MXN';
 
     public ?string $renewalDate = null;
+
+    public string $billingFrequency = '';
 
     public bool $autoRenew = false;
 
@@ -97,6 +100,15 @@ class ClientLicenses extends Component
     }
 
     /**
+     * @return array<int, LicenseBillingFrequency>
+     */
+    #[Computed]
+    public function billingFrequencyOptions(): array
+    {
+        return LicenseBillingFrequency::cases();
+    }
+
+    /**
      * Una licencia guarda credenciales del proveedor, así que se rige por el
      * mismo criterio que los accesos de servidor: solo admin.
      */
@@ -123,6 +135,7 @@ class ClientLicenses extends Component
             $this->cost = null;
             $this->currency = $this->client->currency;
             $this->renewalDate = null;
+            $this->billingFrequency = LicenseBillingFrequency::Anual->value;
             $this->autoRenew = false;
             $this->status = LicenseStatus::Activa->value;
             $this->notes = null;
@@ -138,6 +151,7 @@ class ClientLicenses extends Component
             $this->cost = $license->cost;
             $this->currency = $license->currency;
             $this->renewalDate = $license->renewal_date?->toDateString();
+            $this->billingFrequency = $license->billing_frequency->value;
             $this->autoRenew = $license->auto_renew;
             $this->status = $license->status->value;
             $this->notes = $license->notes;
@@ -160,6 +174,7 @@ class ClientLicenses extends Component
             'cost' => ['nullable', 'numeric', 'min:0'],
             'currency' => ['required', 'string', 'size:3'],
             'renewalDate' => ['nullable', 'date'],
+            'billingFrequency' => ['required', Rule::enum(LicenseBillingFrequency::class)],
             'autoRenew' => ['boolean'],
             'status' => ['required', Rule::enum(LicenseStatus::class)],
             'notes' => ['nullable', 'string', 'max:2000'],
@@ -174,6 +189,7 @@ class ClientLicenses extends Component
             'cost' => filled($validated['cost']) ? $validated['cost'] : null,
             'currency' => $validated['currency'],
             'renewal_date' => $validated['renewalDate'],
+            'billing_frequency' => LicenseBillingFrequency::from($validated['billingFrequency']),
             'auto_renew' => $validated['autoRenew'],
             'status' => LicenseStatus::from($validated['status']),
             'notes' => $validated['notes'],

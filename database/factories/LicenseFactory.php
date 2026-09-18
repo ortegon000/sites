@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\LicenseBillingFrequency;
 use App\Enums\LicenseStatus;
 use App\Models\Client;
 use App\Models\License;
@@ -30,6 +31,7 @@ class LicenseFactory extends Factory
             'cost' => fake()->randomFloat(2, 500, 6000),
             'currency' => 'MXN',
             'renewal_date' => now()->addMonths(fake()->numberBetween(1, 11))->toDateString(),
+            'billing_frequency' => LicenseBillingFrequency::Anual,
             'auto_renew' => false,
             'status' => LicenseStatus::Activa,
             'notes' => null,
@@ -40,6 +42,14 @@ class LicenseFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'renewal_date' => now()->addDays(10)->toDateString(),
+        ]);
+    }
+
+    public function monthly(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'billing_frequency' => LicenseBillingFrequency::Mensual,
+            'renewal_date' => now()->addDays(fake()->numberBetween(1, 28))->toDateString(),
         ]);
     }
 
