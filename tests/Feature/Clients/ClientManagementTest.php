@@ -178,7 +178,7 @@ test('the client detail opens on the log tab and shows each panel in its own tab
         ->set('tab', 'trabajo')
         ->assertSee('Proyectos')
         ->assertSee('Cotizaciones')
-        ->assertDontSee('Campañas de ads')
+        ->assertSee('Campañas de ads')
         ->set('tab', 'cobros')
         ->assertSee('Todo lo cobrado y por cobrar del cliente', escape: false)
         ->assertDontSee('Cotizaciones')
@@ -187,8 +187,6 @@ test('the client detail opens on the log tab and shows each panel in its own tab
         ->assertSee('Licencias y suscripciones')
         ->set('tab', 'renovaciones')
         ->assertSee('servicios anuales que caducan', escape: false)
-        ->set('tab', 'campanas')
-        ->assertSee('Campañas de ads')
         ->assertDontSee('Contratos');
 });
 
