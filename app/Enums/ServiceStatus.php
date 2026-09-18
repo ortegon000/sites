@@ -4,18 +4,18 @@ namespace App\Enums;
 
 enum ServiceStatus: string
 {
+    case Pendiente = 'pendiente';
     case Activo = 'activo';
-    case Pausado = 'pausado';
     case Cancelado = 'cancelado';
-    case Completado = 'completado';
+    case Terminado = 'terminado';
 
     public function label(): string
     {
         return match ($this) {
+            self::Pendiente => 'Pendiente',
             self::Activo => 'Activo',
-            self::Pausado => 'Pausado',
             self::Cancelado => 'Cancelado',
-            self::Completado => 'Completado',
+            self::Terminado => 'Terminado',
         };
     }
 }

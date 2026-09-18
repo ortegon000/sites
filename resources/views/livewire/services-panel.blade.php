@@ -74,7 +74,32 @@
                         @endif
                     </flux:table.cell>
                     <flux:table.cell>
-                        <flux:badge size="sm">{{ $service->status->label() }}</flux:badge>
+                        @can('update', $client)
+                            <flux:dropdown>
+                                <flux:button size="xs" variant="ghost">{{ $service->status->label() }}</flux:button>
+
+                                <flux:menu>
+                                    @foreach ($this->serviceStatusOptions as $option)
+                                        @continue($option === $service->status)
+
+                                        @if ($option === \App\Enums\ServiceStatus::Cancelado)
+                                            <flux:menu.item
+                                                wire:click="updateServiceStatus({{ $service->id }}, '{{ $option->value }}')"
+                                                wire:confirm="{{ __('¿Cancelar este servicio? Dejará de generar cobros y conservará los que ya tiene.') }}"
+                                            >
+                                                {{ $option->label() }}
+                                            </flux:menu.item>
+                                        @else
+                                            <flux:menu.item wire:click="updateServiceStatus({{ $service->id }}, '{{ $option->value }}')">
+                                                {{ $option->label() }}
+                                            </flux:menu.item>
+                                        @endif
+                                    @endforeach
+                                </flux:menu>
+                            </flux:dropdown>
+                        @else
+                            <flux:badge size="sm">{{ $service->status->label() }}</flux:badge>
+                        @endcan
                     </flux:table.cell>
                     <flux:table.cell>
                         <div class="flex justify-end gap-2">
@@ -83,13 +108,6 @@
                                 wire:click="openItemsModal({{ $service->id }})" />
 
                             @can('update', $client)
-                                @if ($service->status !== \App\Enums\ServiceStatus::Cancelado)
-                                    <flux:button size="xs" variant="ghost" icon="no-symbol"
-                                        :tooltip="__('Cancelar servicio')"
-                                        wire:click="cancelService({{ $service->id }})"
-                                        wire:confirm="{{ __('¿Cancelar este servicio? Dejará de generar cobros y conservará los que ya tiene.') }}" />
-                                @endif
-
                                 <flux:button size="xs" variant="ghost" icon="trash"
                                     :tooltip="__('Eliminar servicio')"
                                     wire:click="deleteService({{ $service->id }})"

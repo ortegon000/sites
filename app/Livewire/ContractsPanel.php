@@ -81,7 +81,7 @@ class ContractsPanel extends Component
     public function contractableServices(): Collection
     {
         return $this->client->services()
-            ->whereIn('status', [ServiceStatus::Activo, ServiceStatus::Pausado])
+            ->whereIn('status', [ServiceStatus::Pendiente, ServiceStatus::Activo])
             ->when($this->project, fn ($query) => $query->where('project_id', $this->project->id))
             ->orderBy('name')
             ->get();

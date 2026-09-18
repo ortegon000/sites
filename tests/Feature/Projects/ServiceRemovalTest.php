@@ -61,9 +61,9 @@ test('cancelling a service keeps its charges and stops the schedule', function (
 test('only active services generate charges', function () {
     $project = Project::factory()->create();
 
-    $paused = Service::factory()->for($project)->monthly()->create(['status' => ServiceStatus::Pausado]);
+    $pending = Service::factory()->for($project)->monthly()->create(['status' => ServiceStatus::Pendiente]);
     $oneTime = Service::factory()->for($project)->oneTime()->create(['status' => ServiceStatus::Cancelado]);
-    $installment = Service::factory()->for($project)->installment()->create(['status' => ServiceStatus::Completado]);
+    $installment = Service::factory()->for($project)->installment()->create(['status' => ServiceStatus::Terminado]);
     ServiceInstallment::factory()->for($installment)->create([
         'installment_number' => 1,
         'due_date' => today()->toDateString(),
@@ -71,9 +71,37 @@ test('only active services generate charges', function () {
 
     app(GenerateScheduledCharges::class)->handle();
 
-    expect($paused->charges()->count())->toBe(0)
+    expect($pending->charges()->count())->toBe(0)
         ->and($oneTime->charges()->count())->toBe(0)
         ->and($installment->charges()->count())->toBe(0);
+});
+
+test('changing the status to cancelado routes through cancelService and stops the schedule', function () {
+    $staff = User::factory()->staff()->create();
+    $project = Project::factory()->create();
+    $service = Service::factory()->for($project)->monthly()->create(['status' => ServiceStatus::Activo]);
+
+    $this->actingAs($staff);
+
+    Livewire::test(ServicesPanel::class, ['client' => $project->client, 'project' => $project])
+        ->call('updateServiceStatus', $service->id, ServiceStatus::Cancelado->value);
+
+    expect($service->fresh()->status)->toBe(ServiceStatus::Cancelado)
+        ->and($service->fresh()->next_charge_date)->toBeNull();
+});
+
+test('changing the status to terminado just updates the label', function () {
+    $staff = User::factory()->staff()->create();
+    $project = Project::factory()->create();
+    $service = Service::factory()->for($project)->monthly()->create(['status' => ServiceStatus::Activo]);
+
+    $this->actingAs($staff);
+
+    Livewire::test(ServicesPanel::class, ['client' => $project->client, 'project' => $project])
+        ->call('updateServiceStatus', $service->id, ServiceStatus::Terminado->value);
+
+    expect($service->fresh()->status)->toBe(ServiceStatus::Terminado)
+        ->and($service->fresh()->next_charge_date)->not->toBeNull();
 });
 
 test('a collaborator cannot reach the services panel of a project', function () {

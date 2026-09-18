@@ -285,6 +285,29 @@ class ServicesPanel extends Component
         Flux::toast(variant: 'success', text: __('Servicio cancelado.'));
     }
 
+    /**
+     * Cancelado pasa por `CancelService` para limpiar `next_charge_date` y no
+     * seguir generando cobros; los demás estatus son solo la etiqueta del
+     * avance del trabajo y no tocan el calendario de cobro.
+     */
+    public function updateServiceStatus(int $serviceId, string $status, CancelService $cancelService): void
+    {
+        Gate::authorize('update', $this->client);
+
+        $service = $this->findService($serviceId);
+        $newStatus = ServiceStatus::from($status);
+
+        if ($newStatus === ServiceStatus::Cancelado) {
+            $cancelService->handle($service);
+        } else {
+            $service->update(['status' => $newStatus]);
+        }
+
+        unset($this->services);
+
+        Flux::toast(variant: 'success', text: __('Estatus actualizado.'));
+    }
+
     public function deleteService(int $serviceId, DeleteService $action): void
     {
         Gate::authorize('update', $this->client);

@@ -130,7 +130,7 @@ class ProjectSeeder extends Seeder
         ]);
 
         $website = $this->service($project, 'Sitio web', ServiceCategory::Website, ServiceBillingFrequency::OneTime, '45000.00', [
-            'status' => ServiceStatus::Completado,
+            'status' => ServiceStatus::Terminado,
             'next_charge_date' => null,
         ]);
         Charge::factory()->for($website)->paid()->create(['amount' => '45000.00']);
@@ -324,7 +324,7 @@ class ProjectSeeder extends Seeder
 
         $redesign = $this->service($project, 'Rediseño', ServiceCategory::Website, ServiceBillingFrequency::Installment, '1500.00', [
             'currency' => 'USD',
-            'status' => ServiceStatus::Completado,
+            'status' => ServiceStatus::Terminado,
             'next_charge_date' => null,
             'installments_count' => 4,
             'starts_on' => now()->subMonths(7)->toDateString(),
@@ -365,7 +365,7 @@ class ProjectSeeder extends Seeder
 
         $this->service($project, 'Hosting', ServiceCategory::Hosting, ServiceBillingFrequency::Annual, '95.00', [
             'currency' => 'USD',
-            'status' => ServiceStatus::Pausado,
+            'status' => ServiceStatus::Pendiente,
         ]);
     }
 
