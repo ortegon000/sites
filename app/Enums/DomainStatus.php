@@ -16,4 +16,13 @@ enum DomainStatus: string
             self::Transferido => 'Transferido',
         };
     }
+
+    public function color(): string
+    {
+        return match ($this) {
+            self::Activo => 'green',
+            self::Expirado => 'red',
+            self::Transferido => 'zinc',
+        };
+    }
 }

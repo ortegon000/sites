@@ -14,4 +14,12 @@ enum EmailAccountStatus: string
             self::Suspendida => 'Suspendida',
         };
     }
+
+    public function color(): string
+    {
+        return match ($this) {
+            self::Activa => 'green',
+            self::Suspendida => 'amber',
+        };
+    }
 }

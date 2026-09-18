@@ -1,139 +1,179 @@
-<flux:card class="flex flex-col gap-4">
+<flux:card class="flex flex-col gap-5">
     <div class="flex items-center justify-between gap-4">
-        <flux:heading size="lg">{{ __('Dominios y correo') }}</flux:heading>
+        <div class="flex items-center gap-2">
+            <flux:heading size="lg">{{ __('Dominios y correo') }}</flux:heading>
+            @if ($this->domains->isNotEmpty())
+                <flux:badge size="sm" color="zinc">{{ $this->domains->count() }}</flux:badge>
+            @endif
+        </div>
 
         <flux:button size="sm" icon="plus" wire:click="openDomainModal">{{ __('Agregar dominio') }}</flux:button>
     </div>
 
     <div class="flex flex-col gap-4">
         @forelse ($this->domains as $domain)
-            <div wire:key="domain-{{ $domain->id }}" class="flex flex-col gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                    <div class="flex flex-col">
-                        <span class="font-medium">{{ $domain->name }}</span>
-                        <span class="text-xs text-zinc-400">
-                            {{ $domain->management->label() }}
+            @php
+                $daysLeft = $domain->expires_at ? (int) now()->startOfDay()->diffInDays($domain->expires_at, false) : null;
+            @endphp
+            <div wire:key="domain-{{ $domain->id }}" class="flex flex-col gap-4 rounded-xl border border-zinc-200 p-4 dark:border-white/10">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="flex min-w-0 flex-col gap-2">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <flux:icon name="globe-alt" variant="outline" class="size-5 shrink-0 text-zinc-400" />
+                            <span class="text-base font-semibold">{{ $domain->name }}</span>
+                            <flux:badge size="sm" :color="$domain->status->color()">{{ $domain->status->label() }}</flux:badge>
+                            @if ($daysLeft !== null)
+                                <flux:badge size="sm" :color="$daysLeft < 0 ? 'red' : ($daysLeft <= 30 ? 'amber' : 'zinc')" icon="clock">
+                                    @if ($daysLeft < 0)
+                                        {{ __('Expiró hace :days días', ['days' => abs($daysLeft)]) }}
+                                    @elseif ($daysLeft === 0)
+                                        {{ __('Expira hoy') }}
+                                    @else
+                                        {{ __('Expira en :days días', ['days' => $daysLeft]) }}
+                                    @endif
+                                </flux:badge>
+                            @endif
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            <span>{{ $domain->management->label() }}</span>
                             @if ($domain->registrar)
-                                · {{ $domain->registrar }}
+                                <span>{{ $domain->registrar }}</span>
                             @endif
                             @if ($domain->expires_at)
-                                · {{ __('Expira') }} {{ $domain->expires_at->format('d/m/Y') }}
+                                <span>{{ __('Vence') }} {{ $domain->expires_at->format('d/m/Y') }}</span>
                             @endif
                             @if ($domain->registration_cost !== null)
-                                · {{ __('Registro') }} {{ number_format((float) $domain->registration_cost, 2) }} {{ $domain->currency }}
+                                <span>{{ __('Registro') }} {{ number_format((float) $domain->registration_cost, 2) }} {{ $domain->currency }}</span>
                             @endif
-                        </span>
-                        @if ($domain->site_url)
-                            <a href="{{ $domain->site_url }}" target="_blank" rel="noopener" class="text-xs text-zinc-400 hover:underline">
-                                {{ $domain->site_url }}
-                            </a>
-                        @endif
+                            @if ($domain->auto_renew)
+                                <span class="flex items-center gap-1"><flux:icon name="arrow-path" variant="micro" />{{ __('Renovación automática') }}</span>
+                            @endif
+                            @if ($domain->site_url)
+                                <a href="{{ $domain->site_url }}" target="_blank" rel="noopener" class="flex items-center gap-1 hover:text-zinc-900 hover:underline dark:hover:text-white">
+                                    <flux:icon name="arrow-top-right-on-square" variant="micro" />{{ preg_replace('#^https?://#', '', rtrim($domain->site_url, '/')) }}
+                                </a>
+                            @endif
+                        </div>
                     </div>
 
-                    <div class="flex items-center gap-2">
-                        <flux:badge size="sm">{{ $domain->status->label() }}</flux:badge>
-                        <flux:button size="xs" variant="ghost" icon="pencil-square" wire:click="openDomainModal({{ $domain->id }})" />
-                        <flux:button size="xs" variant="ghost" icon="trash" wire:click="deleteDomain({{ $domain->id }})" wire:confirm="{{ __('¿Eliminar este dominio y sus cuentas de correo?') }}" />
+                    <div class="flex shrink-0 items-center gap-1">
+                        <flux:button size="xs" variant="ghost" icon="pencil-square" :tooltip="__('Editar dominio')" wire:click="openDomainModal({{ $domain->id }})" />
+                        <flux:button size="xs" variant="ghost" icon="trash" :tooltip="__('Eliminar dominio')" wire:click="deleteDomain({{ $domain->id }})" wire:confirm="{{ __('¿Eliminar este dominio y sus cuentas de correo?') }}" />
                     </div>
                 </div>
 
                 @if ($domain->managesEmail())
-                    <flux:separator />
+                    <div class="flex flex-col gap-2 rounded-lg bg-zinc-50 p-3 dark:bg-white/5">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 text-xs font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
+                                <flux:icon name="envelope" variant="micro" />
+                                {{ __('Cuentas de correo') }}
+                                <span class="font-normal">{{ $domain->emailAccounts->count() }}</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <flux:button size="xs" icon="arrow-down-tray" variant="ghost" wire:click="openImportModal({{ $domain->id }})">
+                                    {{ __('Importar') }}
+                                </flux:button>
+                                <flux:button size="xs" icon="plus" variant="ghost" wire:click="openEmailModal({{ $domain->id }})">
+                                    {{ __('Agregar') }}
+                                </flux:button>
+                            </div>
+                        </div>
 
-                    <div class="flex items-center justify-between gap-2">
-                        <flux:text class="text-xs text-zinc-400">{{ __('Cuentas de correo') }}</flux:text>
-                        <div class="flex items-center gap-1">
-                            <flux:button size="xs" icon="arrow-down-tray" variant="ghost" wire:click="openImportModal({{ $domain->id }})">
-                                {{ __('Importar') }}
-                            </flux:button>
-                            <flux:button size="xs" icon="plus" variant="ghost" wire:click="openEmailModal({{ $domain->id }})">
-                                {{ __('Agregar') }}
-                            </flux:button>
+                        <div class="flex flex-col divide-y divide-zinc-200 dark:divide-white/10">
+                            @forelse ($domain->emailAccounts as $emailAccount)
+                                <div wire:key="email-account-{{ $emailAccount->id }}" class="flex items-center justify-between gap-3 py-2 text-sm first:pt-0 last:pb-0">
+                                    <div class="flex min-w-0 flex-col">
+                                        <span class="truncate font-medium">{{ $emailAccount->email_address }}</span>
+                                        <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                                            {{ $emailAccount->provider->name }} · {{ $emailAccount->origin->label() }}
+                                        </span>
+                                    </div>
+                                    <div class="flex shrink-0 items-center gap-1">
+                                        <flux:badge size="sm" :color="$emailAccount->status->color()">{{ $emailAccount->status->label() }}</flux:badge>
+                                        <flux:button size="xs" variant="ghost" icon="key"
+                                            :tooltip="$emailAccount->password === null ? __('Registrar contraseña existente') : __('Cambiar contraseña')"
+                                            wire:click="openPasswordModal({{ $emailAccount->id }})" />
+                                        <flux:button size="xs" variant="ghost" icon="trash" wire:click="deleteEmailAccount({{ $emailAccount->id }})" wire:confirm="{{ __('¿Eliminar esta cuenta de correo?') }}" />
+                                    </div>
+                                </div>
+                            @empty
+                                <flux:text class="text-sm text-zinc-400">{{ __('Sin cuentas de correo todavía.') }}</flux:text>
+                            @endforelse
                         </div>
                     </div>
-
-                    <div class="flex flex-col gap-2">
-                        @forelse ($domain->emailAccounts as $emailAccount)
-                            <div wire:key="email-account-{{ $emailAccount->id }}" class="flex items-center justify-between gap-2 text-sm">
-                                <div class="flex flex-col">
-                                    <span>{{ $emailAccount->email_address }}</span>
-                                    <span class="text-xs text-zinc-400">
-                                        {{ $emailAccount->provider->name }} · {{ $emailAccount->origin->label() }}
-                                    </span>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <flux:badge size="sm">{{ $emailAccount->status->label() }}</flux:badge>
-                                    <flux:button size="xs" variant="ghost" icon="key"
-                                        :tooltip="$emailAccount->password === null ? __('Registrar contraseña existente') : __('Cambiar contraseña')"
-                                        wire:click="openPasswordModal({{ $emailAccount->id }})" />
-                                    <flux:button size="xs" variant="ghost" icon="trash" wire:click="deleteEmailAccount({{ $emailAccount->id }})" wire:confirm="{{ __('¿Eliminar esta cuenta de correo?') }}" />
-                                </div>
-                            </div>
-                        @empty
-                            <flux:text class="text-zinc-400">{{ __('Sin cuentas de correo todavía.') }}</flux:text>
-                        @endforelse
-                    </div>
                 @elseif ($domain->email_notes)
-                    <flux:text class="text-xs text-zinc-400">{{ __('Correo') }}: {{ $domain->email_notes }}</flux:text>
+                    <div class="flex items-center gap-2 rounded-lg bg-zinc-50 p-3 text-xs text-zinc-500 dark:bg-white/5 dark:text-zinc-400">
+                        <flux:icon name="envelope" variant="micro" class="shrink-0" />
+                        <span>{{ __('Correo') }}: {{ $domain->email_notes }}</span>
+                    </div>
                 @endif
 
                 @if ($this->canSeeCredentials)
-                    <flux:separator />
+                    <div class="flex flex-col gap-2 rounded-lg bg-zinc-50 p-3 dark:bg-white/5">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 text-xs font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
+                                <flux:icon name="lock-closed" variant="micro" />
+                                {{ __('Accesos') }}
+                                <span class="font-normal">{{ $domain->credentials->count() }}</span>
+                            </div>
+                            <flux:button size="xs" icon="plus" variant="ghost" wire:click="openCredentialModal({{ $domain->id }})">
+                                {{ __('Agregar') }}
+                            </flux:button>
+                        </div>
 
-                    <div class="flex items-center justify-between gap-2">
-                        <flux:text class="text-xs text-zinc-400">{{ __('Accesos') }}</flux:text>
-                        <flux:button size="xs" icon="plus" variant="ghost" wire:click="openCredentialModal({{ $domain->id }})">
-                            {{ __('Agregar') }}
-                        </flux:button>
-                    </div>
-
-                    <div class="flex flex-col gap-2">
-                        @forelse ($domain->credentials as $credential)
-                            <div wire:key="credential-{{ $credential->id }}" class="flex items-start justify-between gap-2 text-sm">
-                                <div class="flex min-w-0 flex-col">
-                                    <span>
-                                        {{ $credential->kind->label() }}
-                                        @if ($credential->label)
-                                            <span class="text-zinc-400">· {{ $credential->label }}</span>
-                                        @endif
-                                    </span>
-                                    <span class="truncate text-xs text-zinc-400">
-                                        {{ $credential->username ?? '—' }}
-                                        @if ($credential->url)
-                                            · {{ $credential->url }}
-                                        @endif
-                                    </span>
-                                    @if ($credential->password)
-                                        <span class="flex items-center gap-2 text-xs">
-                                            @if (array_key_exists($credential->id, $revealedCredentials))
-                                                <span class="font-mono">{{ $revealedCredentials[$credential->id] }}</span>
-                                                <flux:button size="xs" variant="ghost" icon="eye-slash"
-                                                    wire:click="hideCredential({{ $credential->id }})" />
-                                            @else
-                                                <span class="text-zinc-400">••••••••</span>
-                                                <flux:button size="xs" variant="ghost" icon="eye"
-                                                    wire:click="revealCredential({{ $credential->id }})" />
+                        <div class="flex flex-col divide-y divide-zinc-200 dark:divide-white/10">
+                            @forelse ($domain->credentials as $credential)
+                                <div wire:key="credential-{{ $credential->id }}" class="flex items-start justify-between gap-3 py-2 text-sm first:pt-0 last:pb-0">
+                                    <div class="flex min-w-0 flex-col gap-0.5">
+                                        <span class="font-medium">
+                                            {{ $credential->kind->label() }}
+                                            @if ($credential->label)
+                                                <span class="font-normal text-zinc-500 dark:text-zinc-400">· {{ $credential->label }}</span>
                                             @endif
                                         </span>
-                                    @endif
-                                </div>
+                                        <span class="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                                            {{ $credential->username ?? '—' }}
+                                            @if ($credential->url)
+                                                · {{ $credential->url }}
+                                            @endif
+                                        </span>
+                                        @if ($credential->password)
+                                            <span class="flex items-center gap-1 text-xs">
+                                                @if (array_key_exists($credential->id, $revealedCredentials))
+                                                    <span class="font-mono">{{ $revealedCredentials[$credential->id] }}</span>
+                                                    <flux:button size="xs" variant="ghost" icon="eye-slash"
+                                                        wire:click="hideCredential({{ $credential->id }})" />
+                                                @else
+                                                    <span class="text-zinc-400">••••••••</span>
+                                                    <flux:button size="xs" variant="ghost" icon="eye"
+                                                        wire:click="revealCredential({{ $credential->id }})" />
+                                                @endif
+                                            </span>
+                                        @endif
+                                    </div>
 
-                                <div class="flex shrink-0 items-center gap-1">
-                                    <flux:button size="xs" variant="ghost" icon="pencil-square"
-                                        wire:click="openCredentialModal({{ $domain->id }}, {{ $credential->id }})" />
-                                    <flux:button size="xs" variant="ghost" icon="trash"
-                                        wire:click="deleteCredential({{ $credential->id }})"
-                                        wire:confirm="{{ __('¿Eliminar este acceso?') }}" />
+                                    <div class="flex shrink-0 items-center gap-1">
+                                        <flux:button size="xs" variant="ghost" icon="pencil-square"
+                                            wire:click="openCredentialModal({{ $domain->id }}, {{ $credential->id }})" />
+                                        <flux:button size="xs" variant="ghost" icon="trash"
+                                            wire:click="deleteCredential({{ $credential->id }})"
+                                            wire:confirm="{{ __('¿Eliminar este acceso?') }}" />
+                                    </div>
                                 </div>
-                            </div>
-                        @empty
-                            <flux:text class="text-zinc-400">{{ __('Sin accesos registrados.') }}</flux:text>
-                        @endforelse
+                            @empty
+                                <flux:text class="text-sm text-zinc-400">{{ __('Sin accesos registrados.') }}</flux:text>
+                            @endforelse
+                        </div>
                     </div>
                 @endif
             </div>
         @empty
-            <flux:text class="text-zinc-400">{{ __('Sin dominios todavía.') }}</flux:text>
+            <div class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-zinc-300 py-8 text-center dark:border-white/15">
+                <flux:icon name="globe-alt" variant="outline" class="size-8 text-zinc-300 dark:text-zinc-600" />
+                <flux:text class="text-zinc-400">{{ __('Sin dominios todavía.') }}</flux:text>
+            </div>
         @endforelse
     </div>
 

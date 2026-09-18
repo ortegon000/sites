@@ -16,4 +16,13 @@ enum LicenseStatus: string
             self::Cancelada => 'Cancelada',
         };
     }
+
+    public function color(): string
+    {
+        return match ($this) {
+            self::Activa => 'green',
+            self::Vencida => 'red',
+            self::Cancelada => 'zinc',
+        };
+    }
 }
