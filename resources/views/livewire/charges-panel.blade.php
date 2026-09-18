@@ -1,8 +1,13 @@
-<flux:card class="flex flex-col gap-4">
-    <div class="flex flex-col">
-        <flux:heading size="lg">{{ $project ? __('Cobros del proyecto') : __('Cobros') }}</flux:heading>
+<flux:card class="flex flex-col gap-5">
+    <div class="flex flex-col gap-1">
+        <div class="flex items-center gap-2">
+            <flux:heading size="lg">{{ $project ? __('Cobros del proyecto') : __('Cobros') }}</flux:heading>
+            @if ($this->charges->isNotEmpty())
+                <flux:badge size="sm" color="zinc">{{ $this->charges->count() }}</flux:badge>
+            @endif
+        </div>
         @unless ($project)
-            <flux:text class="text-xs text-zinc-400">{{ __('Todo lo cobrado y por cobrar del cliente, con o sin proyecto.') }}</flux:text>
+            <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('Todo lo cobrado y por cobrar del cliente, con o sin proyecto.') }}</flux:text>
         @endunless
     </div>
 
@@ -24,7 +29,7 @@
                 <flux:table.row wire:key="charge-{{ $charge->id }}">
                     <flux:table.cell>
                         <div class="flex flex-col">
-                            <span>{{ $charge->conceptLabel() }}</span>
+                            <span class="font-medium">{{ $charge->conceptLabel() }}</span>
                             @if ($charge->concept)
                                 <span class="text-xs text-zinc-400">{{ $charge->service->name }}</span>
                             @endif
@@ -42,10 +47,10 @@
                             </flux:table.cell>
                         @endunless
                         <flux:table.cell>{{ $charge->due_date->format('d/m/Y') }}</flux:table.cell>
-                    <flux:table.cell>{{ number_format((float) $charge->amount, 2) }} {{ $charge->currency }}</flux:table.cell>
-                    <flux:table.cell>
+                    <flux:table.cell class="tabular-nums">{{ number_format((float) $charge->amount, 2) }} {{ $charge->currency }}</flux:table.cell>
+                    <flux:table.cell class="tabular-nums">
                         <div class="flex flex-col">
-                            <span>{{ number_format($charge->remainingAmount(), 2) }}</span>
+                            <span @class(['font-semibold' => $charge->remainingAmount() > 0, 'text-zinc-400' => $charge->remainingAmount() <= 0])>{{ number_format($charge->remainingAmount(), 2) }}</span>
                             @if ($charge->payments->isNotEmpty())
                                 <span class="text-xs text-zinc-400">
                                     {{ __('abonado :amount', ['amount' => number_format($charge->paidAmount(), 2)]) }}
@@ -80,7 +85,7 @@
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell :colspan="$project ? 6 : 7" class="text-center text-zinc-400">
+                    <flux:table.cell :colspan="$project ? 6 : 7" class="py-8 text-center text-zinc-400">
                         {{ __('Sin cobros todavía.') }}
                     </flux:table.cell>
                 </flux:table.row>

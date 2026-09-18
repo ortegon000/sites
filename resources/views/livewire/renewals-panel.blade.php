@@ -1,8 +1,8 @@
-<flux:card class="flex flex-col gap-4">
+<flux:card class="flex flex-col gap-5">
     <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex flex-col">
+        <div class="flex flex-col gap-1">
             <flux:heading size="lg">{{ __('Renovaciones') }}</flux:heading>
-            <flux:text class="text-xs text-zinc-400">{{ __('Dominios, licencias y servicios anuales que caducan, y qué se le dijo al cliente.') }}</flux:text>
+            <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('Dominios, licencias y servicios anuales que caducan, y qué se le dijo al cliente.') }}</flux:text>
         </div>
     </div>
 
@@ -25,7 +25,7 @@
                 <flux:table.row wire:key="client-renewal-{{ $renewal->id }}">
                     <flux:table.cell>
                         <div class="flex flex-col">
-                            <span>{{ $renewal->subject() }}</span>
+                            <span class="font-medium">{{ $renewal->subject() }}</span>
                             <span class="text-xs text-zinc-400">
                                 {{ $renewal->kindLabel() }}
                                 @if ($renewal->notes)
@@ -38,7 +38,12 @@
                         <div class="flex flex-col">
                             <span>{{ $renewal->due_date->format('d/m/Y') }}</span>
                             @if ($renewal->isOpen())
-                                <span class="text-xs {{ $renewal->daysLeft() < 0 ? 'text-red-500' : 'text-zinc-400' }}">
+                                <span @class([
+                                    'text-xs',
+                                    'font-medium text-red-600 dark:text-red-400' => $renewal->daysLeft() < 0,
+                                    'font-medium text-amber-600 dark:text-amber-500' => $renewal->daysLeft() >= 0 && $renewal->daysLeft() <= 30,
+                                    'text-zinc-500 dark:text-zinc-400' => $renewal->daysLeft() > 30,
+                                ])>
                                     {{ $renewal->daysLeft() < 0
                                         ? __('venció hace :days días', ['days' => abs($renewal->daysLeft())])
                                         : __('en :days días', ['days' => $renewal->daysLeft()]) }}
@@ -46,7 +51,7 @@
                             @endif
                         </div>
                     </flux:table.cell>
-                    <flux:table.cell>
+                    <flux:table.cell class="font-medium tabular-nums">
                         {{ $renewal->amount !== null ? number_format((float) $renewal->amount, 2).' '.$renewal->currency : '—' }}
                     </flux:table.cell>
                     <flux:table.cell>
@@ -89,7 +94,7 @@
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="5" class="text-center text-zinc-400">
+                    <flux:table.cell colspan="5" class="py-8 text-center text-zinc-400">
                         {{ $renewalsTab === 'historial'
                             ? __('Sin ciclos cerrados todavía.')
                             : __('Nada por renovar. Los ciclos se abren solos dos meses antes: si esperabas algo aquí, revisa que el dominio o la licencia tenga capturada su fecha.') }}

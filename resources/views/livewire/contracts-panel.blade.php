@@ -1,8 +1,8 @@
-<flux:card class="flex flex-col gap-4">
+<flux:card class="flex flex-col gap-5">
     <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex flex-col">
+        <div class="flex flex-col gap-1">
             <flux:heading size="lg">{{ __('Contratos') }}</flux:heading>
-            <flux:text class="text-xs text-zinc-400">{{ __('Se generan con los servicios y montos que ya están capturados.') }}</flux:text>
+            <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('Se generan con los servicios y montos que ya están capturados.') }}</flux:text>
         </div>
 
         @can('update', $client)
@@ -23,10 +23,10 @@
         <flux:table.rows>
             @forelse ($this->contracts as $contract)
                 <flux:table.row wire:key="contract-{{ $contract->id }}">
-                    <flux:table.cell>{{ $contract->number }}</flux:table.cell>
+                    <flux:table.cell class="font-mono text-xs whitespace-nowrap">{{ $contract->number }}</flux:table.cell>
                     <flux:table.cell>
                         <div class="flex flex-col">
-                            <span>{{ $contract->title }}</span>
+                            <span class="font-medium">{{ $contract->title }}</span>
                             @if (! $project && $contract->project)
                                 <span class="text-xs text-zinc-400">{{ $contract->project->name }}</span>
                             @endif
@@ -86,7 +86,7 @@
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="6" class="text-center text-zinc-400">
+                    <flux:table.cell colspan="6" class="py-8 text-center text-zinc-400">
                         {{ __('Sin contratos. Se generan con los servicios que ya tiene capturados.') }}
                     </flux:table.cell>
                 </flux:table.row>
