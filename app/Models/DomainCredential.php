@@ -12,11 +12,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * Un acceso técnico del sitio que vive en este dominio: panel de hosting, base
- * de datos, FTP o gestor de contenido.
+ * Un acceso técnico de este dominio: la cuenta del registrador (Namecheap,
+ * GoDaddy...) o algo del sitio que vive en él —panel de hosting, base de
+ * datos, FTP, gestor de contenido—.
  *
  * Es una fila por acceso en vez de columnas fijas porque no todos los sitios
  * tienen WordPress ni FTP, y alguno tiene dos bases de datos.
+ *
+ * Distinto de `License`: aquí no hay costo ni fecha de renovación porque un
+ * acceso no es un producto que se paga, es solo la llave para entrar. Si lo
+ * que quieres registrar es algo que el cliente paga y caduca —Brevo,
+ * Elementor, WhatsApp Business—, esa es una `License`, no un acceso.
  *
  * @property int $id
  * @property int $domain_id
