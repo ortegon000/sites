@@ -122,11 +122,11 @@ new class extends Component {
     {
         return [
             'bitacora' => ['label' => __('Bitácora'), 'icon' => 'clipboard-document-list'],
-            'trabajo' => ['label' => __('Trabajo'), 'icon' => 'briefcase'],
-            'cobros' => ['label' => __('Cobros'), 'icon' => 'banknotes'],
             'dominios' => ['label' => __('Dominios y licencias'), 'icon' => 'globe-alt'],
             'renovaciones' => ['label' => __('Renovaciones'), 'icon' => 'arrow-path'],
+            'trabajo' => ['label' => __('Trabajo'), 'icon' => 'briefcase'],
             'campanas' => ['label' => __('Campañas'), 'icon' => 'megaphone'],
+            'cobros' => ['label' => __('Cobros'), 'icon' => 'banknotes'],
         ];
     }
 
