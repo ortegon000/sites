@@ -123,6 +123,7 @@ new class extends Component {
         return [
             'bitacora' => ['label' => __('Bitácora'), 'icon' => 'clipboard-document-list'],
             'trabajo' => ['label' => __('Trabajo'), 'icon' => 'briefcase'],
+            'cobros' => ['label' => __('Cobros'), 'icon' => 'banknotes'],
             'dominios' => ['label' => __('Dominios y licencias'), 'icon' => 'globe-alt'],
             'renovaciones' => ['label' => __('Renovaciones'), 'icon' => 'arrow-path'],
             'campanas' => ['label' => __('Campañas'), 'icon' => 'megaphone'],
@@ -440,7 +441,9 @@ new class extends Component {
 
                 @if ($staffCanSeePanels)
                     <livewire:services-panel :client="$client" :key="'services-panel-client-'.$client->id" />
-
+                @endif
+            @elseif ($this->activeTab === 'cobros')
+                @if ($staffCanSeePanels)
                     <livewire:charges-panel :client="$client" :key="'charges-panel-client-'.$client->id" />
                 @endif
             @elseif ($this->activeTab === 'dominios')
