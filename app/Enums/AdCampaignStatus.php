@@ -16,4 +16,13 @@ enum AdCampaignStatus: string
             self::Finalizada => 'Finalizada',
         };
     }
+
+    public function color(): string
+    {
+        return match ($this) {
+            self::Activa => 'green',
+            self::Pausada => 'amber',
+            self::Finalizada => 'zinc',
+        };
+    }
 }

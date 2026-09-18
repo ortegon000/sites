@@ -18,4 +18,14 @@ enum ServiceStatus: string
             self::Terminado => 'Terminado',
         };
     }
+
+    public function color(): string
+    {
+        return match ($this) {
+            self::Pendiente => 'amber',
+            self::Activo => 'green',
+            self::Cancelado => 'zinc',
+            self::Terminado => 'blue',
+        };
+    }
 }

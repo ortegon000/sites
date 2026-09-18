@@ -18,4 +18,14 @@ enum ProjectStatus: string
             self::Cancelado => 'Cancelado',
         };
     }
+
+    public function color(): string
+    {
+        return match ($this) {
+            self::Activo => 'green',
+            self::Pausado => 'amber',
+            self::Completado => 'blue',
+            self::Cancelado => 'zinc',
+        };
+    }
 }

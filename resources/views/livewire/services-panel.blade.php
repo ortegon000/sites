@@ -1,9 +1,14 @@
-<flux:card class="flex flex-col gap-4">
+<flux:card class="flex flex-col gap-5">
     <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex flex-col">
-            <flux:heading size="lg">{{ $project ? __('Servicios del proyecto') : __('Líneas cobrables') }}</flux:heading>
+        <div class="flex flex-col gap-1">
+            <div class="flex items-center gap-2">
+                <flux:heading size="lg">{{ $project ? __('Servicios del proyecto') : __('Líneas cobrables') }}</flux:heading>
+                @if ($this->services->isNotEmpty())
+                    <flux:badge size="sm" color="zinc">{{ $this->services->count() }}</flux:badge>
+                @endif
+            </div>
             @unless ($project)
-                <flux:text class="text-xs text-zinc-400">{{ __('Trabajos y servicios que no pasan por un proyecto.') }}</flux:text>
+                <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('Trabajos y servicios que no pasan por un proyecto.') }}</flux:text>
             @endunless
         </div>
 
@@ -15,7 +20,7 @@
     </div>
 
     @can('update', $client)
-        <form wire:submit="quickCapture" class="flex flex-wrap items-end gap-2">
+        <form wire:submit="quickCapture" class="flex flex-wrap items-end gap-2 rounded-lg bg-zinc-50 p-3 dark:bg-white/5">
             <flux:input wire:model="quickStartsOn" type="date" size="sm" :label="__('Fecha')" class="w-40" />
 
             <flux:input wire:model="quickName" size="sm" :label="__('Concepto')" :placeholder="__('Renovación anual, mejora continua...')" class="min-w-56 flex-1" />
@@ -52,8 +57,8 @@
                 <flux:table.row wire:key="service-{{ $service->id }}">
                     <flux:table.cell>
                         <div class="flex flex-col">
-                            <span>{{ $service->name }}</span>
-                            <span class="text-xs text-zinc-400">
+                            <span class="font-medium">{{ $service->name }}</span>
+                            <span class="text-xs text-zinc-500 dark:text-zinc-400">
                                 {{ $service->category->label() }}
                                 @if ($service->domain)
                                     · {{ $service->domain->name }}
@@ -63,7 +68,7 @@
                         </div>
                     </flux:table.cell>
                     <flux:table.cell>{{ $service->billing_frequency->label() }}</flux:table.cell>
-                    <flux:table.cell>{{ number_format((float) $service->amount, 2) }} {{ $service->currency }}</flux:table.cell>
+                    <flux:table.cell class="font-medium tabular-nums whitespace-nowrap">{{ number_format((float) $service->amount, 2) }} {{ $service->currency }}</flux:table.cell>
                     <flux:table.cell>
                         @if ($service->items_count > 0)
                             <flux:badge size="sm" :color="$service->pending_items_count > 0 ? 'amber' : 'green'">
@@ -76,7 +81,9 @@
                     <flux:table.cell>
                         @can('update', $client)
                             <flux:dropdown>
-                                <flux:button size="xs" variant="ghost">{{ $service->status->label() }}</flux:button>
+                                <flux:button size="xs" variant="ghost" icon-trailing="chevron-down">
+                                    <flux:badge size="sm" :color="$service->status->color()" inset="top bottom">{{ $service->status->label() }}</flux:badge>
+                                </flux:button>
 
                                 <flux:menu>
                                     @foreach ($this->serviceStatusOptions as $option)
@@ -98,7 +105,7 @@
                                 </flux:menu>
                             </flux:dropdown>
                         @else
-                            <flux:badge size="sm">{{ $service->status->label() }}</flux:badge>
+                            <flux:badge size="sm" :color="$service->status->color()">{{ $service->status->label() }}</flux:badge>
                         @endcan
                     </flux:table.cell>
                     <flux:table.cell>
@@ -118,7 +125,7 @@
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="6" class="text-center text-zinc-400">
+                    <flux:table.cell colspan="6" class="py-8 text-center text-zinc-400">
                         {{ $project ? __('Sin servicios todavía.') : __('Sin líneas sueltas. Captura una arriba: fecha, concepto y monto.') }}
                     </flux:table.cell>
                 </flux:table.row>
