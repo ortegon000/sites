@@ -1,14 +1,13 @@
 <flux:card class="flex flex-col gap-5">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex flex-col gap-1">
-            <flux:heading size="lg">{{ __('Cotizaciones') }}</flux:heading>
-            <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('Trabajo ofrecido y todavía sin aceptar. Aceptarla genera, por cada renglón, su línea cobrable.') }}</flux:text>
-        </div>
-
-        @can('update', $client)
-            <flux:button size="sm" icon="plus" wire:click="openQuoteModal">{{ __('Nueva cotización') }}</flux:button>
-        @endcan
-    </div>
+    <x-panel-header
+        :title="__('Cotizaciones')"
+        :description="__('Trabajo ofrecido y todavía sin aceptar. Aceptarla genera, por cada renglón, su línea cobrable.')">
+        <x-slot:actions>
+            @can('update', $client)
+                <flux:button size="sm" icon="plus" wire:click="openQuoteModal">{{ __('Agregar cotización') }}</flux:button>
+            @endcan
+        </x-slot:actions>
+    </x-panel-header>
 
     <flux:radio.group wire:model.live="quotesTab" variant="segmented" size="sm" class="self-start">
         <flux:radio value="pendientes">{{ __('Pendientes (:count)', ['count' => $this->quoteCounts['pendientes']]) }}</flux:radio>
@@ -18,8 +17,8 @@
     <flux:table>
         <flux:table.columns>
             <flux:table.column>{{ __('Concepto') }}</flux:table.column>
-            <flux:table.column>{{ __('Monto') }}</flux:table.column>
-            <flux:table.column>{{ __('Vigencia') }}</flux:table.column>
+            <flux:table.column class="hidden md:table-cell">{{ __('Monto') }}</flux:table.column>
+            <flux:table.column class="hidden md:table-cell">{{ __('Vigencia') }}</flux:table.column>
             <flux:table.column>{{ __('Estatus') }}</flux:table.column>
             <flux:table.column></flux:table.column>
         </flux:table.columns>
@@ -41,10 +40,13 @@
                             @if ($quote->notes)
                                 <span class="text-xs text-zinc-400">{{ $quote->notes }}</span>
                             @endif
+                            <span class="text-xs text-zinc-500 md:hidden dark:text-zinc-400">
+                                {{ number_format((float) $quote->amount_total, 2) }} {{ $quote->currency }}@if ($quote->valid_until) · {{ __('vigencia') }} {{ $quote->valid_until->format('d/m/Y') }}@endif
+                            </span>
                         </div>
                     </flux:table.cell>
-                    <flux:table.cell class="font-medium tabular-nums">{{ number_format((float) $quote->amount_total, 2) }} {{ $quote->currency }}</flux:table.cell>
-                    <flux:table.cell>
+                    <flux:table.cell class="hidden font-medium tabular-nums md:table-cell">{{ number_format((float) $quote->amount_total, 2) }} {{ $quote->currency }}</flux:table.cell>
+                    <flux:table.cell class="hidden md:table-cell">
                         <div class="flex flex-col">
                             <span>{{ $quote->valid_until?->format('d/m/Y') ?? '—' }}</span>
                             @if ($quote->sent_at)
@@ -66,12 +68,12 @@
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="5" class="py-8 text-center text-zinc-400">
-                        @if ($quotesTab === 'archivadas')
-                            {{ __('Nada archivado todavía: aquí caen las aceptadas, las rechazadas y las que expiraron.') }}
-                        @else
-                            {{ __('Sin cotizaciones pendientes. Aquí vive lo que ya ofreciste y todavía no te contestan.') }}
-                        @endif
+                    <flux:table.cell colspan="5">
+                        <x-empty-state>@if ($quotesTab === 'archivadas')
+                                {{ __('Nada archivado todavía: aquí caen las aceptadas, las rechazadas y las que expiraron.') }}
+                            @else
+                                {{ __('Sin cotizaciones pendientes. Aquí vive lo que ya ofreciste y todavía no te contestan.') }}
+                            @endif</x-empty-state>
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse

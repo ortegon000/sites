@@ -1,14 +1,9 @@
 <flux:card class="flex flex-col gap-5">
-    <div class="flex items-center justify-between gap-4">
-        <div class="flex items-center gap-2">
-            <flux:heading size="lg">{{ __('Campañas de ads') }}</flux:heading>
-            @if ($this->campaigns->isNotEmpty())
-                <flux:badge size="sm" color="zinc">{{ $this->campaigns->count() }}</flux:badge>
-            @endif
-        </div>
-
-        <flux:button size="sm" icon="plus" wire:click="openCampaignModal">{{ __('Agregar campaña') }}</flux:button>
-    </div>
+    <x-panel-header :title="__('Campañas de ads')" :count="$this->campaigns->count()">
+        <x-slot:actions>
+            <flux:button size="sm" icon="plus" wire:click="openCampaignModal">{{ __('Agregar campaña') }}</flux:button>
+        </x-slot:actions>
+    </x-panel-header>
 
     <div class="flex flex-col gap-3">
         @forelse ($this->campaigns as $campaign)
@@ -39,8 +34,8 @@
                     </div>
 
                     <div class="flex shrink-0 items-center gap-1">
-                        <flux:button size="xs" variant="ghost" icon="pencil-square" :tooltip="__('Editar campaña')" wire:click="openCampaignModal({{ $campaign->id }})" />
-                        <flux:button size="xs" variant="ghost" icon="trash" :tooltip="__('Eliminar campaña')" wire:click="deleteCampaign({{ $campaign->id }})" wire:confirm="{{ __('¿Eliminar esta campaña?') }}" />
+                        <flux:button size="xs" variant="ghost" icon="pencil-square" :tooltip="__('Editar campaña')" wire:click="openCampaignModal({{ $campaign->id }})" :aria-label="__('Editar campaña')" />
+                        <flux:button size="xs" variant="ghost" icon="trash" :tooltip="__('Eliminar campaña')" wire:click="deleteCampaign({{ $campaign->id }})" wire:confirm="{{ __('¿Eliminar esta campaña?') }}" :aria-label="__('Eliminar campaña')" />
                     </div>
                 </div>
 
@@ -70,10 +65,7 @@
                 </div>
             </div>
         @empty
-            <div class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-zinc-300 py-8 text-center dark:border-white/15">
-                <flux:icon name="megaphone" variant="outline" class="size-8 text-zinc-300 dark:text-zinc-600" />
-                <flux:text class="text-zinc-400">{{ __('Sin campañas todavía.') }}</flux:text>
-            </div>
+            <x-empty-state icon="megaphone" bordered>{{ __('Sin campañas todavía.') }}</x-empty-state>
         @endforelse
     </div>
 

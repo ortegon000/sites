@@ -1,23 +1,16 @@
 <flux:card class="flex flex-col gap-5">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex flex-col gap-1">
-            <div class="flex items-center gap-2">
-                <flux:heading size="lg">{{ $project ? __('Servicios del proyecto') : __('Líneas cobrables') }}</flux:heading>
-                @if ($this->services->isNotEmpty())
-                    <flux:badge size="sm" color="zinc">{{ $this->services->count() }}</flux:badge>
-                @endif
-            </div>
-            @unless ($project)
-                <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('Trabajos y servicios que no pasan por un proyecto.') }}</flux:text>
-            @endunless
-        </div>
-
-        @can('update', $client)
-            <flux:button size="sm" variant="ghost" icon="plus" wire:click="openServiceModal">
-                {{ __('Con más detalle') }}
-            </flux:button>
-        @endcan
-    </div>
+    <x-panel-header
+        :title="$project ? __('Servicios del proyecto') : __('Líneas cobrables')"
+        :count="$this->services->count()"
+        :description="$project ? null : __('Trabajos y servicios que no pasan por un proyecto.')">
+        <x-slot:actions>
+            @can('update', $client)
+                <flux:button size="sm" icon="plus" wire:click="openServiceModal">
+                    {{ __('Agregar con detalle') }}
+                </flux:button>
+            @endcan
+        </x-slot:actions>
+    </x-panel-header>
 
     @can('update', $client)
         <form wire:submit="quickCapture" class="flex flex-wrap items-end gap-2 rounded-lg bg-zinc-50 p-3 dark:bg-white/5">
@@ -112,21 +105,23 @@
                         <div class="flex justify-end gap-2">
                             <flux:button size="xs" variant="ghost" icon="list-bullet"
                                 :tooltip="__('Qué incluye')"
-                                wire:click="openItemsModal({{ $service->id }})" />
+                                wire:click="openItemsModal({{ $service->id }})"
+                                :aria-label="__('Qué incluye')" />
 
                             @can('update', $client)
                                 <flux:button size="xs" variant="ghost" icon="trash"
                                     :tooltip="__('Eliminar servicio')"
                                     wire:click="deleteService({{ $service->id }})"
-                                    wire:confirm="{{ __('¿Eliminar este servicio? Se borrarán también sus cobros pendientes y sus cuotas.') }}" />
+                                    wire:confirm="{{ __('¿Eliminar este servicio? Se borrarán también sus cobros pendientes y sus cuotas.') }}"
+                                    :aria-label="__('Eliminar servicio')" />
                             @endcan
                         </div>
                     </flux:table.cell>
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="6" class="py-8 text-center text-zinc-400">
-                        {{ $project ? __('Sin servicios todavía.') : __('Sin líneas sueltas. Captura una arriba: fecha, concepto y monto.') }}
+                    <flux:table.cell colspan="6">
+                        <x-empty-state>{{ $project ? __('Sin servicios todavía.') : __('Sin líneas sueltas. Captura una arriba: fecha, concepto y monto.') }}</x-empty-state>
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse
@@ -154,6 +149,7 @@
                                     <flux:button size="xs" variant="ghost"
                                         :icon="$item->isDone() ? 'check-circle' : 'minus-circle'"
                                         :tooltip="$item->isDone() ? __('Marcar pendiente') : __('Marcar hecha')"
+                                        :aria-label="$item->isDone() ? __('Marcar pendiente') : __('Marcar hecha')"
                                         wire:click="toggleItem({{ $item->id }})" />
                                 @endcan
 
@@ -171,7 +167,8 @@
                             @can('update', $client)
                                 <flux:button size="xs" variant="ghost" icon="trash"
                                     wire:click="deleteItem({{ $item->id }})"
-                                    wire:confirm="{{ __('¿Quitar esto del alcance de la línea?') }}" />
+                                    wire:confirm="{{ __('¿Quitar esto del alcance de la línea?') }}"
+                                    :aria-label="__('Eliminar')" />
                             @endcan
                         </div>
                     @empty

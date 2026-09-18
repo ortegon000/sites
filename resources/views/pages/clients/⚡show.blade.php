@@ -325,7 +325,7 @@ new class extends Component {
         @endcan
     </div>
 
-    <div class="grid gap-6 md:grid-cols-3">
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div class="flex flex-col gap-6 md:col-span-1">
             <flux:card class="flex flex-col gap-4">
                 <div class="flex items-center justify-between gap-2">
@@ -433,12 +433,14 @@ new class extends Component {
                                     @unless ($contact->pivot->is_primary)
                                         <flux:button size="xs" variant="ghost" icon="star"
                                             :tooltip="__('Hacer contacto principal')"
-                                            wire:click="makeContactPrimary({{ $contact->id }})" />
+                                            wire:click="makeContactPrimary({{ $contact->id }})"
+                                            :aria-label="__('Hacer contacto principal')" />
                                     @endunless
                                     <flux:button size="xs" variant="ghost" icon="x-mark"
                                         :tooltip="__('Desvincular de esta empresa')"
                                         wire:click="detachContact({{ $contact->id }})"
-                                        wire:confirm="{{ __('¿Desvincular este contacto de esta empresa? La persona se conserva y sigue ligada a sus demás empresas.') }}" />
+                                        wire:confirm="{{ __('¿Desvincular este contacto de esta empresa? La persona se conserva y sigue ligada a sus demás empresas.') }}"
+                                        :aria-label="__('Desvincular de esta empresa')" />
                                 </div>
                             @endcan
                         </div>

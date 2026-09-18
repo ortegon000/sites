@@ -58,14 +58,17 @@
                         <div class="flex shrink-0 gap-1">
                             <flux:button size="xs" variant="ghost" icon="plus"
                                 :tooltip="__('Agregar subtarea')"
-                                wire:click="startSubtask({{ $task->id }})" />
+                                wire:click="startSubtask({{ $task->id }})"
+                                :aria-label="__('Agregar subtarea')" />
                             <flux:button size="xs" variant="ghost" icon="pencil"
                                 :tooltip="__('Editar')"
-                                wire:click="openTaskModal({{ $task->id }})" />
+                                wire:click="openTaskModal({{ $task->id }})"
+                                :aria-label="__('Editar')" />
                             <flux:button size="xs" variant="ghost" icon="trash"
                                 :tooltip="__('Eliminar')"
                                 wire:click="deleteTask({{ $task->id }})"
-                                wire:confirm="{{ __('¿Eliminar esta tarea? Se van también sus subtareas.') }}" />
+                                wire:confirm="{{ __('¿Eliminar esta tarea? Se van también sus subtareas.') }}"
+                                :aria-label="__('Eliminar')" />
                         </div>
                     @endif
                 </div>
@@ -85,7 +88,8 @@
                                 @if ($this->canManageTasks)
                                     <flux:button size="xs" variant="ghost" icon="trash"
                                         :tooltip="__('Eliminar')"
-                                        wire:click="deleteTask({{ $subtask->id }})" />
+                                        wire:click="deleteTask({{ $subtask->id }})"
+                                        :aria-label="__('Eliminar')" />
                                 @endif
                             </div>
                         @endforeach

@@ -1,21 +1,21 @@
 <flux:card class="flex flex-col gap-5">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex flex-col gap-1">
-            <flux:heading size="lg">{{ __('Contratos') }}</flux:heading>
-            <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('Se generan con los servicios y montos que ya están capturados.') }}</flux:text>
-        </div>
-
-        @can('update', $client)
-            <flux:button size="sm" icon="plus" wire:click="openDraftModal">{{ __('Generar contrato') }}</flux:button>
-        @endcan
-    </div>
+    <x-panel-header
+        :title="__('Contratos')"
+        :count="$this->contracts->count()"
+        :description="__('Se generan con los servicios y montos que ya están capturados.')">
+        <x-slot:actions>
+            @can('update', $client)
+                <flux:button size="sm" icon="plus" wire:click="openDraftModal">{{ __('Generar contrato') }}</flux:button>
+            @endcan
+        </x-slot:actions>
+    </x-panel-header>
 
     <flux:table>
         <flux:table.columns>
             <flux:table.column>{{ __('Folio') }}</flux:table.column>
             <flux:table.column>{{ __('Título') }}</flux:table.column>
-            <flux:table.column>{{ __('Vigencia') }}</flux:table.column>
-            <flux:table.column>{{ __('Ampara') }}</flux:table.column>
+            <flux:table.column class="hidden md:table-cell">{{ __('Vigencia') }}</flux:table.column>
+            <flux:table.column class="hidden lg:table-cell">{{ __('Ampara') }}</flux:table.column>
             <flux:table.column>{{ __('Estatus') }}</flux:table.column>
             <flux:table.column></flux:table.column>
         </flux:table.columns>
@@ -30,9 +30,10 @@
                             @if (! $project && $contract->project)
                                 <span class="text-xs text-zinc-400">{{ $contract->project->name }}</span>
                             @endif
+                            <span class="text-xs text-zinc-500 md:hidden dark:text-zinc-400">{{ $contract->starts_on->format('d/m/Y') }} — {{ $contract->ends_on?->format('d/m/Y') ?? __('indefinida') }}</span>
                         </div>
                     </flux:table.cell>
-                    <flux:table.cell>
+                    <flux:table.cell class="hidden md:table-cell">
                         <div class="flex flex-col">
                             <span>{{ $contract->starts_on->format('d/m/Y') }} — {{ $contract->ends_on?->format('d/m/Y') ?? __('indefinida') }}</span>
                             @if ($contract->isExpired())
@@ -40,7 +41,7 @@
                             @endif
                         </div>
                     </flux:table.cell>
-                    <flux:table.cell>
+                    <flux:table.cell class="hidden lg:table-cell">
                         {{ trans_choice('{0}Ningún servicio|{1}1 servicio|[2,*]:count servicios', $contract->services->count(), ['count' => $contract->services->count()]) }}
                     </flux:table.cell>
                     <flux:table.cell>
@@ -54,40 +55,40 @@
                         </div>
                     </flux:table.cell>
                     <flux:table.cell>
-                        <div class="flex justify-end gap-2">
-                            <flux:button size="xs" variant="ghost" icon="document-text"
-                                :tooltip="__('Ver o editar el texto')"
-                                wire:click="openBodyModal({{ $contract->id }})" />
-
-                            <flux:button size="xs" variant="ghost" icon="printer"
-                                :tooltip="__('Versión imprimible')"
-                                :href="route('contracts.print', $contract)" target="_blank" />
-
+                        <div class="flex items-center justify-end gap-1">
                             @can('update', $client)
                                 @if ($contract->status === \App\Enums\ContractStatus::Borrador)
-                                    <flux:button size="xs" variant="ghost" icon="paper-airplane"
-                                        :tooltip="__('Marcar como enviado')"
-                                        wire:click="markSent({{ $contract->id }})" />
-                                @endif
-
-                                @if ($contract->isEditable())
-                                    <flux:button size="xs" variant="ghost" icon="check"
-                                        :tooltip="__('El cliente firmó')"
-                                        wire:click="openSignModal({{ $contract->id }})" />
-
-                                    <flux:button size="xs" variant="ghost" icon="no-symbol"
-                                        :tooltip="__('Cancelar contrato')"
-                                        wire:click="cancel({{ $contract->id }})"
-                                        wire:confirm="{{ __('¿Cancelar este contrato?') }}" />
+                                    <flux:button size="xs" icon="paper-airplane" wire:click="markSent({{ $contract->id }})">{{ __('Enviar') }}</flux:button>
+                                @elseif ($contract->isEditable())
+                                    <flux:button size="xs" icon="check" wire:click="openSignModal({{ $contract->id }})">{{ __('Firmó') }}</flux:button>
                                 @endif
                             @endcan
+
+                            <flux:dropdown align="end">
+                                <flux:button size="xs" variant="ghost" icon="ellipsis-horizontal" :aria-label="__('Más acciones')" />
+
+                                <flux:menu>
+                                    <flux:menu.item icon="document-text" wire:click="openBodyModal({{ $contract->id }})">{{ __('Ver o editar el texto') }}</flux:menu.item>
+                                    <flux:menu.item icon="printer" :href="route('contracts.print', $contract)" target="_blank">{{ __('Versión imprimible') }}</flux:menu.item>
+                                    @can('update', $client)
+                                        @if ($contract->isEditable())
+                                            <flux:menu.separator />
+                                            <flux:menu.item icon="no-symbol" variant="danger"
+                                                wire:click="cancel({{ $contract->id }})"
+                                                wire:confirm="{{ __('¿Cancelar este contrato?') }}">
+                                                {{ __('Cancelar contrato') }}
+                                            </flux:menu.item>
+                                        @endif
+                                    @endcan
+                                </flux:menu>
+                            </flux:dropdown>
                         </div>
                     </flux:table.cell>
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="6" class="py-8 text-center text-zinc-400">
-                        {{ __('Sin contratos. Se generan con los servicios que ya tiene capturados.') }}
+                    <flux:table.cell colspan="6">
+                        <x-empty-state>{{ __('Sin contratos. Se generan con los servicios que ya tiene capturados.') }}</x-empty-state>
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse

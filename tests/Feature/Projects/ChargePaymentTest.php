@@ -199,3 +199,25 @@ test('un colaborador no puede ver ni registrar abonos', function () {
 
     expect($charge->payments()->count())->toBe(0);
 });
+
+test('el panel de cobros pone primero lo vencido y suma lo que falta por cobrar por moneda', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $service = Service::factory()->monthly()->for(Project::factory()->for($client))->create();
+
+    $paid = Charge::factory()->for($service)->create(['amount' => '1000.00', 'status' => ChargeStatus::Pagado, 'due_date' => today()->subDays(40)->toDateString()]);
+    $upcoming = Charge::factory()->for($service)->create(['amount' => '500.00', 'status' => ChargeStatus::Pendiente, 'due_date' => today()->addDays(5)->toDateString()]);
+    $overdue = Charge::factory()->for($service)->create(['amount' => '2000.00', 'status' => ChargeStatus::Vencido, 'due_date' => today()->subDays(3)->toDateString()]);
+    Charge::factory()->for($service)->create(['amount' => '100.00', 'currency' => 'USD', 'status' => ChargeStatus::Pendiente, 'due_date' => today()->addDays(9)->toDateString()]);
+
+    $this->actingAs($staff);
+
+    $panel = Livewire::test(ChargesPanel::class, ['client' => $client]);
+
+    expect($panel->instance()->charges->pluck('id')->take(2)->all())->toBe([$overdue->id, $upcoming->id])
+        ->and($panel->instance()->charges->last()->id)->toBe($paid->id)
+        ->and($panel->instance()->outstandingByCurrency)->toBe([
+            'MXN' => ['open' => 2500.0, 'overdue' => 2000.0],
+            'USD' => ['open' => 100.0, 'overdue' => 0.0],
+        ]);
+});

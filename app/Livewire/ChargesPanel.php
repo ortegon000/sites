@@ -6,6 +6,7 @@ use App\Actions\Charges\DeleteChargePayment;
 use App\Actions\Charges\MarkChargeAsPaid;
 use App\Actions\Charges\RecordChargePayment;
 use App\Actions\Charges\UpdateCharge;
+use App\Enums\ChargeStatus;
 use App\Models\Charge;
 use App\Models\ChargePayment;
 use App\Models\Client;
@@ -72,7 +73,36 @@ class ChargesPanel extends Component
         return $this->chargesQuery()
             ->with(['service.project', 'payments'])
             ->orderBy('due_date')
-            ->get();
+            ->get()
+            ->sortBy(fn (Charge $charge): array => [
+                $charge->status === ChargeStatus::Pagado ? 1 : 0,
+                $charge->status === ChargeStatus::Pagado ? -$charge->due_date->getTimestamp() : $charge->due_date->getTimestamp(),
+            ])
+            ->values();
+    }
+
+    /**
+     * Lo que falta por cobrar, por moneda: un cliente puede tener cobros en
+     * dos monedas y sumarlos juntos no significaría nada. Lo vencido va
+     * aparte porque es lo que hay que perseguir primero.
+     *
+     * @return array<string, array{open: float, overdue: float}>
+     */
+    #[Computed]
+    public function outstandingByCurrency(): array
+    {
+        $totals = [];
+
+        foreach ($this->charges->where('status', '!=', ChargeStatus::Pagado) as $charge) {
+            $totals[$charge->currency] ??= ['open' => 0.0, 'overdue' => 0.0];
+            $totals[$charge->currency]['open'] += $charge->remainingAmount();
+
+            if ($charge->status === ChargeStatus::Vencido) {
+                $totals[$charge->currency]['overdue'] += $charge->remainingAmount();
+            }
+        }
+
+        return $totals;
     }
 
     #[Computed]

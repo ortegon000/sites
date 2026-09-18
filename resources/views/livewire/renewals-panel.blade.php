@@ -1,10 +1,7 @@
 <flux:card class="flex flex-col gap-5">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex flex-col gap-1">
-            <flux:heading size="lg">{{ __('Renovaciones') }}</flux:heading>
-            <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('Dominios, licencias y servicios anuales que caducan, y qué se le dijo al cliente.') }}</flux:text>
-        </div>
-    </div>
+    <x-panel-header
+        :title="__('Renovaciones')"
+        :description="__('Dominios, licencias y servicios anuales que caducan, y qué se le dijo al cliente.')" />
 
     <flux:radio.group wire:model.live="renewalsTab" variant="segmented" size="sm" class="self-start">
         <flux:radio value="abiertas">{{ __('Abiertas (:count)', ['count' => $this->renewalCounts['abiertas']]) }}</flux:radio>
@@ -15,7 +12,7 @@
         <flux:table.columns>
             <flux:table.column>{{ __('Qué caduca') }}</flux:table.column>
             <flux:table.column>{{ __('Vence') }}</flux:table.column>
-            <flux:table.column>{{ __('Costo') }}</flux:table.column>
+            <flux:table.column class="hidden md:table-cell">{{ __('Costo') }}</flux:table.column>
             <flux:table.column>{{ __('Ciclo') }}</flux:table.column>
             <flux:table.column></flux:table.column>
         </flux:table.columns>
@@ -32,6 +29,9 @@
                                     · {{ $renewal->notes }}
                                 @endif
                             </span>
+                            @if ($renewal->amount !== null)
+                                <span class="text-xs font-medium tabular-nums md:hidden">{{ number_format((float) $renewal->amount, 2) }} {{ $renewal->currency }}</span>
+                            @endif
                         </div>
                     </flux:table.cell>
                     <flux:table.cell>
@@ -51,7 +51,7 @@
                             @endif
                         </div>
                     </flux:table.cell>
-                    <flux:table.cell class="font-medium tabular-nums">
+                    <flux:table.cell class="hidden font-medium tabular-nums md:table-cell">
                         {{ $renewal->amount !== null ? number_format((float) $renewal->amount, 2).' '.$renewal->currency : '—' }}
                     </flux:table.cell>
                     <flux:table.cell>
@@ -67,37 +67,47 @@
                     </flux:table.cell>
                     <flux:table.cell>
                         @can('update', $client)
-                            <div class="flex justify-end gap-1">
-                                <flux:button size="xs" variant="ghost" icon="pencil"
-                                    :tooltip="__('Costo y notas')"
-                                    wire:click="openAmountModal({{ $renewal->id }})" />
-
+                            <div class="flex items-center justify-end gap-1">
                                 @if ($renewal->isOpen())
-                                    <flux:button size="xs" variant="ghost" icon="envelope"
-                                        :tooltip="__('Avisar al cliente')"
-                                        wire:click="notifyClient({{ $renewal->id }})"
-                                        wire:confirm="{{ __('¿Mandar el aviso de renovación a los contactos de esta empresa?') }}" />
-
-                                    <flux:button size="xs" variant="ghost" icon="check"
-                                        :tooltip="__('Renovó')"
+                                    <flux:button size="xs" icon="check"
                                         wire:click="markRenewed({{ $renewal->id }})"
-                                        wire:confirm="{{ __('¿Registrar que renovó? Se empuja la fecha un año y se genera la línea cobrable.') }}" />
-
-                                    <flux:button size="xs" variant="ghost" icon="no-symbol"
-                                        :tooltip="__('No renovó')"
-                                        wire:click="markNotRenewed({{ $renewal->id }})"
-                                        wire:confirm="{{ __('¿Registrar que no renovó? Se dará de baja.') }}" />
+                                        wire:confirm="{{ __('¿Registrar que renovó? Se empuja la fecha un año y se genera la línea cobrable.') }}">
+                                        {{ __('Renovó') }}
+                                    </flux:button>
                                 @endif
+
+                                <flux:dropdown align="end">
+                                    <flux:button size="xs" variant="ghost" icon="ellipsis-horizontal" :aria-label="__('Más acciones')" />
+
+                                    <flux:menu>
+                                        @if ($renewal->isOpen())
+                                            <flux:menu.item icon="envelope"
+                                                wire:click="notifyClient({{ $renewal->id }})"
+                                                wire:confirm="{{ __('¿Mandar el aviso de renovación a los contactos de esta empresa?') }}">
+                                                {{ __('Avisar al cliente') }}
+                                            </flux:menu.item>
+                                        @endif
+                                        <flux:menu.item icon="pencil" wire:click="openAmountModal({{ $renewal->id }})">{{ __('Costo y notas') }}</flux:menu.item>
+                                        @if ($renewal->isOpen())
+                                            <flux:menu.separator />
+                                            <flux:menu.item icon="no-symbol" variant="danger"
+                                                wire:click="markNotRenewed({{ $renewal->id }})"
+                                                wire:confirm="{{ __('¿Registrar que no renovó? Se dará de baja.') }}">
+                                                {{ __('No renovó') }}
+                                            </flux:menu.item>
+                                        @endif
+                                    </flux:menu>
+                                </flux:dropdown>
                             </div>
                         @endcan
                     </flux:table.cell>
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="5" class="py-8 text-center text-zinc-400">
-                        {{ $renewalsTab === 'historial'
+                    <flux:table.cell colspan="5">
+                        <x-empty-state>{{ $renewalsTab === 'historial'
                             ? __('Sin ciclos cerrados todavía.')
-                            : __('Nada por renovar. Los ciclos se abren solos dos meses antes: si esperabas algo aquí, revisa que el dominio o la licencia tenga capturada su fecha.') }}
+                            : __('Nada por renovar. Los ciclos se abren solos dos meses antes: si esperabas algo aquí, revisa que el dominio o la licencia tenga capturada su fecha.') }}</x-empty-state>
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse

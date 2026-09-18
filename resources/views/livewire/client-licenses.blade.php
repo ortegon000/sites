@@ -1,21 +1,14 @@
 <flux:card class="flex flex-col gap-5">
-    <div class="flex items-center justify-between gap-4">
-        <div class="flex flex-col gap-1">
-            <div class="flex items-center gap-2">
-                <flux:heading size="lg">{{ __('Licencias y suscripciones') }}</flux:heading>
-                @if ($this->licenses->isNotEmpty())
-                    <flux:badge size="sm" color="zinc">{{ $this->licenses->count() }}</flux:badge>
-                @endif
-            </div>
-            <flux:text class="text-xs text-zinc-500 dark:text-zinc-400">
-                {{ __('Brevo, Elementor, WhatsApp Business… la anual avisa al cliente, igual que un dominio; la mensual solo nos recuerda a nosotros.') }}
-            </flux:text>
-        </div>
-
-        @can('update', $client)
-            <flux:button size="sm" icon="plus" wire:click="openLicenseModal">{{ __('Agregar') }}</flux:button>
-        @endcan
-    </div>
+    <x-panel-header
+        :title="__('Licencias y suscripciones')"
+        :count="$this->licenses->count()"
+        :description="__('Brevo, Elementor, WhatsApp Business… la anual avisa al cliente, igual que un dominio; la mensual solo nos recuerda a nosotros.')">
+        <x-slot:actions>
+            @can('update', $client)
+                <flux:button size="sm" icon="plus" wire:click="openLicenseModal">{{ __('Agregar licencia') }}</flux:button>
+            @endcan
+        </x-slot:actions>
+    </x-panel-header>
 
     <div class="flex flex-col gap-3">
         @forelse ($this->licenses as $license)
@@ -63,10 +56,11 @@
 
                     @can('update', $client)
                         <div class="flex shrink-0 items-center gap-1">
-                            <flux:button size="xs" variant="ghost" icon="pencil-square" :tooltip="__('Editar licencia')" wire:click="openLicenseModal({{ $license->id }})" />
+                            <flux:button size="xs" variant="ghost" icon="pencil-square" :tooltip="__('Editar licencia')" wire:click="openLicenseModal({{ $license->id }})" :aria-label="__('Editar licencia')" />
                             <flux:button size="xs" variant="ghost" icon="trash" :tooltip="__('Eliminar licencia')"
                                 wire:click="deleteLicense({{ $license->id }})"
-                                wire:confirm="{{ __('¿Eliminar esta licencia?') }}" />
+                                wire:confirm="{{ __('¿Eliminar esta licencia?') }}"
+                                :aria-label="__('Eliminar licencia')" />
                         </div>
                     @endcan
                 </div>
@@ -82,10 +76,10 @@
                                 <flux:icon name="lock-closed" variant="micro" />
                                 @if (array_key_exists($license->id, $revealedPasswords))
                                     <span class="font-mono text-zinc-800 dark:text-zinc-100">{{ $revealedPasswords[$license->id] }}</span>
-                                    <flux:button size="xs" variant="ghost" icon="eye-slash" wire:click="hidePassword({{ $license->id }})" />
+                                    <flux:button size="xs" variant="ghost" icon="eye-slash" wire:click="hidePassword({{ $license->id }})" :aria-label="__('Ocultar contraseña')" />
                                 @else
                                     <span>••••••••</span>
-                                    <flux:button size="xs" variant="ghost" icon="eye" wire:click="revealPassword({{ $license->id }})" />
+                                    <flux:button size="xs" variant="ghost" icon="eye" wire:click="revealPassword({{ $license->id }})" :aria-label="__('Mostrar contraseña')" />
                                 @endif
                             </span>
                         @endif
@@ -97,10 +91,7 @@
                 @endif
             </div>
         @empty
-            <div class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-zinc-300 py-8 text-center dark:border-white/15">
-                <flux:icon name="key" variant="outline" class="size-8 text-zinc-300 dark:text-zinc-600" />
-                <flux:text class="text-zinc-400">{{ __('Sin licencias registradas.') }}</flux:text>
-            </div>
+            <x-empty-state icon="key" bordered>{{ __('Sin licencias registradas.') }}</x-empty-state>
         @endforelse
     </div>
 

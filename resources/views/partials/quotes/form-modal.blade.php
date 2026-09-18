@@ -23,7 +23,8 @@
                         @if (count($lineItems) > 1)
                             <flux:button size="sm" variant="ghost" icon="trash" class="mt-6"
                                 :tooltip="__('Quitar renglón')"
-                                wire:click="removeLineItem({{ $index }})" />
+                                wire:click="removeLineItem({{ $index }})"
+                                :aria-label="__('Quitar renglón')" />
                         @endif
                     </div>
 

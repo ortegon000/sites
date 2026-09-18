@@ -1,18 +1,13 @@
 <flux:card class="flex flex-col gap-5">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex items-center gap-2">
-            <flux:heading size="lg">{{ __('Proyectos') }}</flux:heading>
-            @if ($this->projects->isNotEmpty())
-                <flux:badge size="sm" color="zinc">{{ $this->projects->count() }}</flux:badge>
-            @endif
-        </div>
-
-        @can('create', \App\Models\Project::class)
-            <flux:button size="sm" icon="plus" wire:click="openCreateModal">
-                {{ __('Nuevo proyecto') }}
-            </flux:button>
-        @endcan
-    </div>
+    <x-panel-header :title="__('Proyectos')" :count="$this->projects->count()">
+        <x-slot:actions>
+            @can('create', \App\Models\Project::class)
+                <flux:button size="sm" icon="plus" wire:click="openCreateModal">
+                    {{ __('Agregar proyecto') }}
+                </flux:button>
+            @endcan
+        </x-slot:actions>
+    </x-panel-header>
 
     <flux:table>
         <flux:table.columns>
@@ -39,15 +34,16 @@
                             <div class="flex justify-end">
                                 <flux:button size="xs" variant="ghost" icon="pencil"
                                     :tooltip="__('Editar')"
-                                    wire:click="openEditModal({{ $project->id }})" />
+                                    wire:click="openEditModal({{ $project->id }})"
+                                    :aria-label="__('Editar')" />
                             </div>
                         @endcan
                     </flux:table.cell>
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="5" class="py-8 text-center text-zinc-400">
-                        {{ __('Sin proyectos. No todos los clientes necesitan uno: los de puro hosting viven de sus dominios y servicios.') }}
+                    <flux:table.cell colspan="5">
+                        <x-empty-state>{{ __('Sin proyectos. No todos los clientes necesitan uno: los de puro hosting viven de sus dominios y servicios.') }}</x-empty-state>
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse

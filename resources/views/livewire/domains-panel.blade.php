@@ -1,14 +1,9 @@
 <flux:card class="flex flex-col gap-5">
-    <div class="flex items-center justify-between gap-4">
-        <div class="flex items-center gap-2">
-            <flux:heading size="lg">{{ __('Dominios y correo') }}</flux:heading>
-            @if ($this->domains->isNotEmpty())
-                <flux:badge size="sm" color="zinc">{{ $this->domains->count() }}</flux:badge>
-            @endif
-        </div>
-
-        <flux:button size="sm" icon="plus" wire:click="openDomainModal">{{ __('Agregar dominio') }}</flux:button>
-    </div>
+    <x-panel-header :title="__('Dominios y correo')" :count="$this->domains->count()">
+        <x-slot:actions>
+            <flux:button size="sm" icon="plus" wire:click="openDomainModal">{{ __('Agregar dominio') }}</flux:button>
+        </x-slot:actions>
+    </x-panel-header>
 
     <div class="flex flex-col gap-4">
         @forelse ($this->domains as $domain)
@@ -58,8 +53,8 @@
                     </div>
 
                     <div class="flex shrink-0 items-center gap-1">
-                        <flux:button size="xs" variant="ghost" icon="pencil-square" :tooltip="__('Editar dominio')" wire:click="openDomainModal({{ $domain->id }})" />
-                        <flux:button size="xs" variant="ghost" icon="trash" :tooltip="__('Eliminar dominio')" wire:click="deleteDomain({{ $domain->id }})" wire:confirm="{{ __('¿Eliminar este dominio y sus cuentas de correo?') }}" />
+                        <flux:button size="xs" variant="ghost" icon="pencil-square" :tooltip="__('Editar dominio')" wire:click="openDomainModal({{ $domain->id }})" :aria-label="__('Editar dominio')" />
+                        <flux:button size="xs" variant="ghost" icon="trash" :tooltip="__('Eliminar dominio')" wire:click="deleteDomain({{ $domain->id }})" wire:confirm="{{ __('¿Eliminar este dominio y sus cuentas de correo?') }}" :aria-label="__('Eliminar dominio')" />
                     </div>
                 </div>
 
@@ -94,8 +89,9 @@
                                         <flux:badge size="sm" :color="$emailAccount->status->color()">{{ $emailAccount->status->label() }}</flux:badge>
                                         <flux:button size="xs" variant="ghost" icon="key"
                                             :tooltip="$emailAccount->password === null ? __('Registrar contraseña existente') : __('Cambiar contraseña')"
-                                            wire:click="openPasswordModal({{ $emailAccount->id }})" />
-                                        <flux:button size="xs" variant="ghost" icon="trash" wire:click="deleteEmailAccount({{ $emailAccount->id }})" wire:confirm="{{ __('¿Eliminar esta cuenta de correo?') }}" />
+                                            wire:click="openPasswordModal({{ $emailAccount->id }})"
+                                            :aria-label="$emailAccount->password === null ? __('Registrar contraseña existente') : __('Cambiar contraseña')" />
+                                        <flux:button size="xs" variant="ghost" icon="trash" wire:click="deleteEmailAccount({{ $emailAccount->id }})" wire:confirm="{{ __('¿Eliminar esta cuenta de correo?') }}" :aria-label="__('Eliminar')" />
                                     </div>
                                 </div>
                             @empty
@@ -148,7 +144,8 @@
                                                 @else
                                                     <span class="text-zinc-400">••••••••</span>
                                                     <flux:button size="xs" variant="ghost" icon="eye"
-                                                        wire:click="revealCredential({{ $credential->id }})" />
+                                                        wire:click="revealCredential({{ $credential->id }})"
+                                                        :aria-label="__('Mostrar contraseña')" />
                                                 @endif
                                             </span>
                                         @endif
@@ -156,10 +153,12 @@
 
                                     <div class="flex shrink-0 items-center gap-1">
                                         <flux:button size="xs" variant="ghost" icon="pencil-square"
-                                            wire:click="openCredentialModal({{ $domain->id }}, {{ $credential->id }})" />
+                                            wire:click="openCredentialModal({{ $domain->id }}, {{ $credential->id }})"
+                                            :aria-label="__('Editar')" />
                                         <flux:button size="xs" variant="ghost" icon="trash"
                                             wire:click="deleteCredential({{ $credential->id }})"
-                                            wire:confirm="{{ __('¿Eliminar este acceso?') }}" />
+                                            wire:confirm="{{ __('¿Eliminar este acceso?') }}"
+                                            :aria-label="__('Eliminar')" />
                                     </div>
                                 </div>
                             @empty
@@ -170,10 +169,7 @@
                 @endif
             </div>
         @empty
-            <div class="flex flex-col items-center gap-2 rounded-xl border border-dashed border-zinc-300 py-8 text-center dark:border-white/15">
-                <flux:icon name="globe-alt" variant="outline" class="size-8 text-zinc-300 dark:text-zinc-600" />
-                <flux:text class="text-zinc-400">{{ __('Sin dominios todavía.') }}</flux:text>
-            </div>
+            <x-empty-state icon="globe-alt" bordered>{{ __('Sin dominios todavía.') }}</x-empty-state>
         @endforelse
     </div>
 

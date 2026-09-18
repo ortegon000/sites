@@ -11,7 +11,7 @@
     renglón en el menú y se llega a ellas desde la ficha del cliente.
 --}}
 <flux:breadcrumbs {{ $attributes }}>
-    <flux:breadcrumbs.item :href="$home ?? route('dashboard')" icon="home" />
+    <flux:breadcrumbs.item :href="$home ?? route('dashboard')" icon="home" :aria-label="__('Inicio')" />
 
     @foreach ($items as $item)
         <flux:breadcrumbs.item :href="$item['href'] ?? null">{{ $item['label'] }}</flux:breadcrumbs.item>

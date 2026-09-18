@@ -1,6 +1,6 @@
 <div class="relative">
     <flux:dropdown position="bottom" align="end">
-        <flux:button icon="bell" variant="ghost" size="sm" square />
+        <flux:button icon="bell" variant="ghost" size="sm" square :aria-label="__('Notificaciones')" />
 
         @if ($unreadCount > 0)
             <flux:badge size="sm" color="red" class="pointer-events-none absolute -end-1 -top-1">
