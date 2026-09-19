@@ -16,15 +16,15 @@
 
 @endforeach
 
-{{-- Datos clave --}}
-@isset($details)
-<x-mail::details :rows="$details" />
-@endisset
+{{-- Secciones: párrafos y bloques de datos, en su orden --}}
+@foreach ($sections ?? [] as $section)
+@if ($section['type'] === 'details')
+<x-mail::details :rows="$section['rows']" />
+@else
+{{ $section['body'] }}
 
-@isset($footnote)
-{{ $footnote }}
-
-@endisset
+@endif
+@endforeach
 
 {{-- Botón de acción --}}
 @isset($actionText)

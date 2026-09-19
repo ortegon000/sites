@@ -33,7 +33,7 @@ class LicenseRenewalDueNotification extends Notification
                 'Cobra' => $this->license->renewal_date->format('d/m/Y'),
                 'Renovación' => $this->license->auto_renew ? 'Automática' : 'Manual',
             ])
-            ->footnote($this->license->auto_renew
+            ->paragraph($this->license->auto_renew
                 ? 'Tiene renovación automática activada: conviene confirmar que el cobro va a pasar.'
                 : 'No tiene renovación automática: hay que gestionarla a mano con el proveedor.');
     }

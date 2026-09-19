@@ -45,17 +45,56 @@ class RenewalNoticeNotification extends Notification
             $details['Costo de la renovación'] = $this->formatMoney($this->renewal->amount, $this->renewal->currency);
         }
 
-        return (new DetailedMailMessage)
+        $message = (new DetailedMailMessage)
             ->subject("Tu {$kind} {$subject} se renueva pronto")
             ->greeting($this->greeting())
-            ->line("Solo queríamos avisarte con tiempo: tu {$kind} **{$subject}** se renueva el {$dueDate}.")
+            ->line("Queremos informarte que: tu {$kind} **{$subject}** se renueva el {$dueDate}.")
             ->line('Te dejamos los datos aquí abajo para que los tengas a la mano.')
-            ->details($details)
-            ->line('**¿Necesitas hacer algo?** Si todo sigue igual, no tienes que hacer nada: nosotros nos encargamos de la renovación. Y si prefieres no renovarlo o quieres cambiar algo, cuéntanos antes de esa fecha y lo vemos juntos.')
+            ->details($details);
+
+        if ($this->renewal->amount !== null) {
+            $amount = $this->formatMoney($this->renewal->amount, $this->renewal->currency);
+
+            $message
+                ->paragraph("**Si quieres renovarlo**, es muy sencillo: deposita **{$amount}** a esta cuenta antes de esa fecha.")
+                ->details($this->bankDetails($subject))
+                ->paragraph('En cuanto lo hagas, mándanos tu comprobante por WhatsApp o por correo (abajo te dejamos los datos) y nosotros nos encargamos del resto.');
+        }
+
+        return $message
+            ->paragraph('**Y si prefieres no renovarlo**, no pasa nada: solo avísanos antes de esa fecha para dejarlo listo de nuestro lado.')
             // Pendiente: el portal del cliente aún no está listo. Cuando lo esté, descomentar el botón.
             // ->action(__('Ver mis renovaciones'), route('portal.renewals.index'))
-            ->line("**¿Dudas? Escríbenos por donde te quede más cómodo:**\n\n{$this->contactLines()}")
+            ->paragraph("**¿Dudas? Escríbenos por donde te quede más cómodo:**\n\n{$this->contactLines()}")
             ->salutation("¡Un saludo!  \n{$this->companyName()}");
+    }
+
+    /**
+     * La cuenta donde depositar. Como concepto va lo que se renueva, para que
+     * el depósito se identifique sin tener que preguntar de quién es.
+     *
+     * @return array<string, string>
+     */
+    private function bankDetails(string $subject): array
+    {
+        $bank = config('company.bank');
+
+        return [
+            'Banco' => $bank['bank'],
+            'Titular' => $bank['holder'],
+            'CLABE' => $this->formatClabe($bank['clabe']),
+            'Cuenta' => $bank['account'],
+            'Concepto' => $subject,
+        ];
+    }
+
+    /**
+     * "012180001234567891" como "012 180 00123456789 1": banco, plaza, cuenta
+     * y dígito verificador, para poder leerla y copiarla sin equivocarse.
+     */
+    private function formatClabe(string $clabe): string
+    {
+        return preg_replace('/^(\d{3})(\d{3})(\d{11})(\d)$/', '$1 $2 $3 $4', $clabe) ?? $clabe;
     }
 
     /**

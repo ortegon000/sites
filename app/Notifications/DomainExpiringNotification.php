@@ -33,7 +33,7 @@ class DomainExpiringNotification extends Notification
                 'Expira' => $this->domain->expires_at->format('d/m/Y'),
                 'Renovación' => $this->domain->auto_renew ? 'Automática' : 'Manual',
             ])
-            ->footnote($this->domain->auto_renew
+            ->paragraph($this->domain->auto_renew
                 ? 'Tiene renovación automática activada: conviene confirmar que el pago con el registrador va a pasar.'
                 : 'No tiene renovación automática: hay que renovarlo a mano con el registrador.');
     }

@@ -7,26 +7,27 @@ use Illuminate\Notifications\Messages\MailMessage;
 class DetailedMailMessage extends MailMessage
 {
     /**
-     * Los datos clave del aviso (cliente, fecha, monto...) como un bloque
-     * aparte, para que se lean de un vistazo y no enterrados en una frase. Los
-     * pinta la plantilla de resources/views/vendor/notifications/email.blade.php.
+     * Un bloque de datos clave (cliente, fecha, monto, cuenta...) para que se
+     * lean de un vistazo y no enterrados en una frase. Las secciones salen en
+     * el orden en que se agregan, después de las líneas de introducción, y las
+     * pinta resources/views/vendor/notifications/email.blade.php.
      *
      * @param  array<string, string>  $rows
      */
     public function details(array $rows): static
     {
-        $this->viewData['details'] = $rows;
+        $this->viewData['sections'][] = ['type' => 'details', 'rows' => $rows];
 
         return $this;
     }
 
     /**
-     * Una nota que va justo debajo de los datos clave, para lo que el equipo
-     * debe hacer con ellos.
+     * Un párrafo (admite Markdown) que va en su lugar entre los bloques de
+     * datos, para explicar lo que sigue o lo que hay que hacer con ellos.
      */
-    public function footnote(string $text): static
+    public function paragraph(string $body): static
     {
-        $this->viewData['footnote'] = $text;
+        $this->viewData['sections'][] = ['type' => 'text', 'body' => $body];
 
         return $this;
     }

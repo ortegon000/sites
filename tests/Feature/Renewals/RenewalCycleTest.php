@@ -121,6 +121,10 @@ test('el correo al cliente lleva los datos de la renovación y de contacto, y ni
         ->and($rendered)->toContain('wa.me/')
         ->and($rendered)->toContain('mailto:'.config('company.contact.email'))
         ->and($rendered)->toContain('tel:')
+        ->and($rendered)->toContain('deposita')
+        ->and($rendered)->toContain('012 180 00123456789 1')
+        ->and($rendered)->toContain('comprobante')
+        ->and($rendered)->toContain('prefieres no renovarlo')
         ->and($rendered)->not->toContain('contraseña');
 });
 
