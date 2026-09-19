@@ -14,6 +14,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard.index')->name('dashboard');
 });
 
+if (app()->isLocal()) {
+    require __DIR__.'/mail-preview.php'; // TEMPORAL: vista previa de correos.
+}
+
 require __DIR__.'/settings.php';
 require __DIR__.'/crm.php';
 require __DIR__.'/portal.php';
