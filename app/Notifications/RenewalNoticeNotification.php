@@ -7,6 +7,7 @@ use App\Models\Renewal;
 use App\Notifications\Messages\DetailedMailMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Str;
 
 /**
  * El aviso de renovación que va al cliente, no al equipo.
@@ -46,7 +47,7 @@ class RenewalNoticeNotification extends Notification
 
         return (new DetailedMailMessage)
             ->subject("Tu {$kind} {$subject} se renueva pronto")
-            ->greeting('¡Hola!')
+            ->greeting($this->greeting())
             ->line("Solo queríamos avisarte con tiempo: tu {$kind} **{$subject}** se renueva el {$dueDate}.")
             ->line('Te dejamos los datos aquí abajo para que los tengas a la mano.')
             ->details($details)
@@ -55,6 +56,18 @@ class RenewalNoticeNotification extends Notification
             // ->action(__('Ver mis renovaciones'), route('portal.renewals.index'))
             ->line("**¿Dudas? Escríbenos por donde te quede más cómodo:**\n\n{$this->contactLines()}")
             ->salutation("¡Un saludo!  \n{$this->companyName()}");
+    }
+
+    /**
+     * Saluda por su nombre de pila al contacto principal de la empresa. El
+     * correo también llega a los demás contactos con correo, pero es a esa
+     * persona a quien va dirigido; sin contactos, el saludo queda genérico.
+     */
+    private function greeting(): string
+    {
+        $name = $this->renewal->client->primaryContact()?->name;
+
+        return $name ? '¡Hola, '.Str::of($name)->trim()->before(' ').'!' : '¡Hola!';
     }
 
     /**

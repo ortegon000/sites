@@ -292,3 +292,16 @@ test('el portal muestra las renovaciones abiertas del cliente y no las de otro',
         ->assertSee('mi-dominio.test')
         ->assertDontSee('ajeno.test');
 });
+
+test('el correo al cliente saluda por su nombre de pila al contacto principal', function () {
+    $client = Client::factory()->client()->create();
+    $client->contacts()->attach(Contact::factory()->create(['name' => 'Ana María Gómez', 'email' => 'ana@cliente.test']), ['is_primary' => true]);
+    $client->contacts()->attach(Contact::factory()->create(['name' => 'Luis Pérez', 'email' => 'luis@cliente.test']));
+
+    $renewal = Renewal::factory()->create(['client_id' => $client->id]);
+
+    $rendered = (string) (new RenewalNoticeNotification($renewal))->toMail(new stdClass)->render();
+
+    expect($rendered)->toContain('¡Hola, Ana!')
+        ->and($rendered)->not->toContain('Luis');
+});
