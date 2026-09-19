@@ -308,3 +308,44 @@ test('el modal de abonos de un cobro pagado muestra la fecha de pago en el resum
         ->assertSee('Pagado el')
         ->assertSee('10/09/2026');
 });
+
+test('la tabla de cobros suma monto, abonado y restante por moneda, pagados incluidos', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $service = Service::factory()->monthly()->for(Project::factory()->for($client))->create();
+
+    Charge::factory()->for($service)->create(['amount' => '1000.00', 'status' => ChargeStatus::Pagado, 'due_date' => today()->subDays(20)->toDateString()])
+        ->payments()->create(['amount' => '1000.00', 'paid_on' => today()->toDateString()]);
+    $partial = Charge::factory()->for($service)->create(['amount' => '2000.00', 'status' => ChargeStatus::Parcial, 'due_date' => today()->addDays(5)->toDateString()]);
+    $partial->payments()->create(['amount' => '500.00', 'paid_on' => today()->toDateString()]);
+    Charge::factory()->for($service)->create(['amount' => '100.00', 'currency' => 'USD', 'status' => ChargeStatus::Pendiente, 'due_date' => today()->addDays(9)->toDateString()]);
+
+    $this->actingAs($staff);
+
+    $panel = Livewire::test(ChargesPanel::class, ['client' => $client]);
+
+    expect($panel->instance()->totalsByCurrency)->toBe([
+        'MXN' => ['amount' => 3000.0, 'paid' => 1500.0, 'remaining' => 1500.0],
+        'USD' => ['amount' => 100.0, 'paid' => 0.0, 'remaining' => 100.0],
+    ]);
+
+    $panel->assertSee('Total MXN')->assertSee('Total USD')->assertSee('3,000.00');
+});
+
+test('con una sola moneda la tabla de cobros la pone en el encabezado y con varias no', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $service = Service::factory()->monthly()->for(Project::factory()->for($client))->create();
+
+    Charge::factory()->for($service)->create(['amount' => '1000.00', 'currency' => 'MXN']);
+
+    $this->actingAs($staff);
+
+    $panel = Livewire::test(ChargesPanel::class, ['client' => $client]);
+
+    expect($panel->instance()->singleCurrency)->toBe('MXN');
+
+    Charge::factory()->for($service)->create(['amount' => '100.00', 'currency' => 'USD']);
+
+    expect(Livewire::test(ChargesPanel::class, ['client' => $client])->instance()->singleCurrency)->toBeNull();
+});

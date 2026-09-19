@@ -25,8 +25,22 @@
         <flux:table.columns>
             <flux:table.column>{{ __('Concepto') }}</flux:table.column>
             <flux:table.column class="hidden md:table-cell">{{ __('Vencimiento') }}</flux:table.column>
-            <flux:table.column class="hidden md:table-cell">{{ __('Monto') }}</flux:table.column>
-            <flux:table.column class="hidden md:table-cell">{{ __('Restante') }}</flux:table.column>
+            <flux:table.column class="hidden md:table-cell">
+                <span class="flex items-baseline gap-1">
+                    {{ __('Monto') }}
+                    @if ($this->singleCurrency)
+                        <span class="text-[0.65rem] font-normal">{{ $this->singleCurrency }}</span>
+                    @endif
+                </span>
+            </flux:table.column>
+            <flux:table.column class="hidden md:table-cell">
+                <span class="flex items-baseline gap-1">
+                    {{ __('Restante') }}
+                    @if ($this->singleCurrency)
+                        <span class="text-[0.65rem] font-normal">{{ $this->singleCurrency }}</span>
+                    @endif
+                </span>
+            </flux:table.column>
             <flux:table.column>{{ __('Estatus') }}</flux:table.column>
             <flux:table.column></flux:table.column>
         </flux:table.columns>
@@ -58,10 +72,10 @@
                         </div>
                     </flux:table.cell>
                     <flux:table.cell class="hidden md:table-cell">{{ $charge->due_date->format('d/m/Y') }}</flux:table.cell>
-                    <flux:table.cell class="hidden tabular-nums md:table-cell">{{ number_format((float) $charge->amount, 2) }} {{ $charge->currency }}</flux:table.cell>
+                    <flux:table.cell class="hidden tabular-nums md:table-cell">{{ number_format((float) $charge->amount, 2) }}@unless ($this->singleCurrency) {{ $charge->currency }}@endunless</flux:table.cell>
                     <flux:table.cell class="hidden tabular-nums md:table-cell">
                         <div class="flex flex-col">
-                            <span @class(['font-semibold' => $charge->remainingAmount() > 0, 'text-zinc-400' => $charge->remainingAmount() <= 0])>{{ number_format($charge->remainingAmount(), 2) }}</span>
+                            <span @class(['font-semibold' => $charge->remainingAmount() > 0, 'text-zinc-400' => $charge->remainingAmount() <= 0])>{{ number_format($charge->remainingAmount(), 2) }}@unless ($this->singleCurrency) {{ $charge->currency }}@endunless</span>
                             @if ($charge->payments->isNotEmpty())
                                 <span class="text-xs text-zinc-400">
                                     {{ __('abonado :amount', ['amount' => number_format($charge->paidAmount(), 2)]) }}
@@ -120,6 +134,29 @@
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse
+
+            @foreach ($this->totalsByCurrency as $currency => $totals)
+                <flux:table.row wire:key="charges-total-{{ $currency }}" class="bg-zinc-50 dark:bg-white/5">
+                    <flux:table.cell class="font-semibold">
+                        <div class="flex flex-col">
+                            <span>{{ __('Total') }} {{ $currency }}</span>
+                            <span class="text-xs font-normal text-zinc-500 tabular-nums md:hidden dark:text-zinc-400">
+                                {{ number_format($totals['amount'], 2) }} · {{ __('Restan') }} {{ number_format($totals['remaining'], 2) }}
+                            </span>
+                        </div>
+                    </flux:table.cell>
+                    <flux:table.cell class="hidden md:table-cell"></flux:table.cell>
+                    <flux:table.cell class="hidden font-semibold tabular-nums md:table-cell">{{ number_format($totals['amount'], 2) }}@unless ($this->singleCurrency) {{ $currency }}@endunless</flux:table.cell>
+                    <flux:table.cell class="hidden tabular-nums md:table-cell">
+                        <div class="flex flex-col">
+                            <span class="font-semibold">{{ number_format($totals['remaining'], 2) }}</span>
+                            <span class="text-xs text-zinc-400">{{ __('abonado :amount', ['amount' => number_format($totals['paid'], 2)]) }}</span>
+                        </div>
+                    </flux:table.cell>
+                    <flux:table.cell></flux:table.cell>
+                    <flux:table.cell></flux:table.cell>
+                </flux:table.row>
+            @endforeach
         </flux:table.rows>
     </flux:table>
 

@@ -30,6 +30,8 @@ use Livewire\Component;
  * cuelgan de ningún proyecto y son la mayoría.
  *
  * @property-read Collection<int, Charge> $charges Computed de Livewire: se lee como propiedad.
+ * @property-read array<string, array{amount: float, paid: float, remaining: float}> $totalsByCurrency
+ * @property-read string|null $singleCurrency
  */
 class ChargesPanel extends Component
 {
@@ -103,6 +105,40 @@ class ChargesPanel extends Component
             if ($charge->status === ChargeStatus::Vencido) {
                 $totals[$charge->currency]['overdue'] += $charge->remainingAmount();
             }
+        }
+
+        return $totals;
+    }
+
+    /**
+     * La moneda de la tabla cuando todos los cobros comparten una: entonces va
+     * una sola vez en el encabezado y no en cada valor. Con dos o más monedas
+     * no hay una del encabezado y cada valor lleva la suya.
+     */
+    #[Computed]
+    public function singleCurrency(): ?string
+    {
+        $currencies = $this->charges->pluck('currency')->unique();
+
+        return $currencies->count() === 1 ? $currencies->first() : null;
+    }
+
+    /**
+     * Los totales de la tabla, por moneda: sumar pesos con dólares no
+     * significaría nada. Cuenta todos los cobros, pagados incluidos.
+     *
+     * @return array<string, array{amount: float, paid: float, remaining: float}>
+     */
+    #[Computed]
+    public function totalsByCurrency(): array
+    {
+        $totals = [];
+
+        foreach ($this->charges as $charge) {
+            $totals[$charge->currency] ??= ['amount' => 0.0, 'paid' => 0.0, 'remaining' => 0.0];
+            $totals[$charge->currency]['amount'] += (float) $charge->amount;
+            $totals[$charge->currency]['paid'] += $charge->paidAmount();
+            $totals[$charge->currency]['remaining'] += $charge->remainingAmount();
         }
 
         return $totals;
