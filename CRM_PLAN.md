@@ -4,7 +4,7 @@
 
 ## Para retomar en otra conversación
 
-**Dónde estamos.** Fases 0 a 14 implementadas (la 5 sigue a medias: falta un driver de correo real). El modelo cubre clientes y contactos, dominios con buzones y accesos, licencias, campañas, líneas cobrables con o sin proyecto, cobros con abonos, agencias, portal y notificaciones. El libro de hosting del dueño ya está importado: 19 clientes, 19 dominios, 59 buzones, 23 accesos.
+**Dónde estamos.** Fases 0 a 15 implementadas (la 5 sigue a medias: falta un driver de correo real). El modelo cubre clientes y contactos, dominios con buzones y accesos, licencias, campañas, líneas cobrables con o sin proyecto, cobros con abonos, agencias, portal y notificaciones. El libro de hosting del dueño ya está importado: 19 clientes, 19 dominios, 59 buzones, 23 accesos.
 
 **Qué sigue.** La hoja de ruta original está terminada. Lo que queda son dos cosas: **cerrar la Fase 5** conectando un driver de correo real (MXroute primero) cuando haya credenciales de su API, y los **pendientes del dueño**, que no son de código. El más importante: sin fechas de renovación capturadas, el tablero de la Fase 12 no tiene nada que avisar.
 
@@ -12,7 +12,7 @@
 
 **Pendientes del dueño, no de código**: renombrar los 19 clientes importados (quedaron derivados del dominio, como "Geeaguasresiduales"), capturar las fechas de renovación que su hoja no traía en ninguna fila, y rotar las contraseñas que estuvieron en texto plano en el archivo.
 
-**Verificación en cada fase**: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`, y revisión en `https://sites.test`. Al cierre de la Fase 14: 233 tests, 231 pasan, 2 se saltan.
+**Verificación en cada fase**: `vendor/bin/pint --dirty --format agent`, `vendor/bin/phpstan analyse --no-progress --memory-limit=512M` (nivel 7), `php artisan test --compact`, y revisión en `https://sites.test`. Al cierre de la Fase 14: 233 tests, 231 pasan, 2 se saltan. Al cierre de la Fase 15: 331 tests, 329 pasan, 2 se saltan; phpstan (nivel 7) queda limpio: la fase también cerró los 5 avisos que ya existían en `ManagesQuoteActions`, `Quote`, `MxrouteEmailProviderDriver` y `ProjectSeeder`.
 
 ## Estado actual
 
@@ -27,9 +27,10 @@
 - ✅ **Fase 8 — Contactos como entidad propia**: completa. Separa a la persona de la empresa: `contacts` con pivot `client_contact`, para que un dueño de varias empresas se escriba una sola vez y entre al portal con un solo acceso.
 - ✅ **Fase 10 — Abonos, cobros editables y agencias**: completa. El cobro deja de ser binario (abonos, estatus derivado y restante), se pueden editar monto, fecha y concepto, y la agencia pasa a declarar a quién se le factura, con filtros y reporte de cobrado/por cobrar.
 - ✅ **Fase 11 — Líneas sueltas, subtareas y campañas del cliente**: completa. El proyecto deja de ser obligatorio para cobrar, la ficha del cliente gana captura rápida, los servicios llevan subtareas, aparece la frecuencia quincenal y el menú de Proyectos cede el paso a "Trabajos y cobros".
-- ✅ **Fase 12 — Renovaciones**: completa. Tablero unificado de caducidades, ciclo explícito con su historial por vencimiento, y aviso automático al cliente con enlace al portal.
+- ✅ **Fase 12 — Renovaciones**: completa. Tablero unificado de caducidades, ciclo explícito con su historial por vencimiento y aviso al cliente (hoy manual; el automático existe pero está apagado).
 - ✅ **Fase 13 — Cotizaciones**: completa. El trabajo ofrecido tiene entidad y estatus propios, no genera cobros mientras nadie lo acepta, y al aceptarse genera su línea cobrable y gana al prospecto.
 - ✅ **Fase 14 — Contratos**: completa. El contrato se genera con lo que ya está capturado, se edita mientras es borrador, se congela al firmarse y se imprime.
+- ✅ **Fase 15 — Pulido de la ficha del cliente, reglas de cobro y correos**: completa. Rediseño tarjeta por tarjeta de la ficha, cobros pagados protegidos con estatus editable, correos propios en español con la marca de Control+, y aviso de renovación al cliente manual. Ver su sección más abajo.
 - ✅ **Fases 9–14 — Centralizar los tres Excel**: completas. Ver "Modelo objetivo y hoja de ruta" más abajo: activos (credenciales y licencias), abonos y pagos parciales, líneas cobrables sin proyecto con subtareas, renovaciones con aviso al cliente, cotizaciones y contratos.
 
 Verificación al cierre de Fase 0+1: `php artisan test --compact` → 40 tests (38 pasan, 2 se saltan por el registro deshabilitado), `vendor/bin/phpstan analyse` nivel 7 limpio, `vendor/bin/pint` sin hallazgos, y flujo probado manualmente en `https://sites.test`.
@@ -609,6 +610,41 @@ Con activos, servicios, montos, vigencias y entregas ya en el sistema, el contra
 - **Listado `/contratos`** con lo vigente, lo que espera firma y lo que termina en 60 días.
 
 **Dos decisiones que se tomaron por defecto**, por si el dueño las quiere distintas: se eligió **página imprimible en vez de PDF generado en el servidor**, porque un PDF de verdad exige una dependencia nueva (`dompdf` o similar) y el proyecto no cambia dependencias sin aprobación; y la **plantilla es editable por contrato, no globalmente**: se genera una vez y se ajusta ahí. Una plantilla configurable desde la interfaz sería lo siguiente si acaba escribiendo lo mismo cada vez.
+
+### Fase 15 — Pulido de la ficha, reglas de cobro y correos ✅
+
+No agrega entidades: es la pasada de diseño y de reglas sobre lo que ya existía, hecha con una crítica de diseño de por medio (27/40 al empezar). **Implementada.**
+
+**La ficha del cliente**
+
+- **Tarjetas laterales**: datos generales en filas con icono y **responsable editable** (solo administradores y equipo interno, validado en el servidor); contactos con enlaces `mailto:` y `tel:` y alta en modal; bitácora como línea de tiempo con un icono por tipo.
+- **Pestañas**: dominios y licencias, renovaciones, trabajo y cobros comparten un lenguaje: estatus con color (`color()` en los enums), avisos de días para vencimientos y renovaciones (rojo vencido, ámbar a 30 días o menos), y **una acción principal por fila con el resto en un menú "⋯"**. Los componentes `panel-header` y `empty-state` unifican encabezados y estados vacíos.
+- **Accesibilidad y móvil**: todos los botones de solo icono tienen `aria-label` (el tooltip de Flux no lo da), la rejilla de la ficha ya no se estira con las tablas y las columnas secundarias pasan a la línea del concepto en pantallas pequeñas.
+
+**Cobros**
+
+- **Un cobro pagado no se edita ni pierde sus abonos.** Para corregirlo se regresa a pendiente, y eso **elimina todos sus abonos** (`ReopenCharge`); decisión del dueño, aunque se pierde el registro de lo cobrado. A mano solo se admiten *pagado* y *pendiente*; parcial y vencido siguen saliendo de los abonos y de la fecha, así que la regla de no escribir `charges.status` a mano se mantiene.
+- La interfaz del estatus es la insignia con menú de Servicios; el botón "Cobrar" se quitó por redundante.
+- Lo vencido va primero, lo pagado al final, y sobre la tabla aparece lo **por cobrar por moneda** (sumar monedas distintas no significa nada).
+- En el modal de abonos, la fecha de pago de un cobro pagado sube al resumen y un abono único no repite su importe ni su fecha.
+
+**Correos**
+
+- Plantillas de Laravel publicadas en `resources/views/vendor/` y traducidas, con el logo en una banda oscura, una tarjeta más cuidada y un bloque de **datos clave** por aviso. El mensaje propio `DetailedMailMessage` ordena párrafos (`paragraph()`, que **no existe en Laravel**) y bloques de datos (`details()`); un párrafo pegado a un bloque HTML necesita una línea en blanco o sus `**` no se interpretan.
+- Los montos salen como en la app (`12,000.00 MXN`) con el trait `FormatsMoney`.
+- **Aviso de renovación al cliente**: tono cercano, saluda por el nombre de pila del contacto principal, pide depositar el monto a una cuenta y mandar el comprobante por WhatsApp o correo, conserva el aviso de que si no se renueva avisen antes de la fecha y cierra con los medios de contacto. El botón al portal está **comentado** hasta que el portal esté listo.
+- **El aviso al cliente es manual por ahora.** `charges:process` abre los ciclos pero solo manda el aviso si `RENEWAL_NOTICES_AUTOMATIC` está encendido (apagado por defecto); los correos internos no dependen de eso. El inventario completo de correos está en el README.
+
+**Marca**: logo de Control+ (PNG azul para tema claro, blanco para oscuro; el SVG queda como fuente), ícono en el login y el favicon, y `APP_NAME=Sites`, un subproducto de Control+.
+
+**Pendientes de esta fase**
+
+- **Datos provisionales**: el contacto y la **cuenta bancaria** del aviso son inventados (`config/company.php`). El correo le pide al cliente depositar ahí, así que hay que reemplazarlos en el `.env` **antes** de mandar un solo aviso real. Igual el remitente de prueba `avisos@sites.test`.
+- **Vista previa temporal** de los correos en `/vista-previa/correos` (`routes/mail-preview.php`, solo en local): se borra junto con su `require` cuando termine el diseño.
+- **Botón al portal** del aviso, comentado hasta que el portal esté listo; al reactivarlo, devolver a la prueba del correo la aserción del enlace.
+- **Correos de cuenta** (restablecer contraseña, verificar correo) siguen con el texto estándar de Laravel, sin traducir.
+- **Zona horaria**: la app usa UTC, así que después de las 6 p. m. hora de México "hoy" ya es mañana y el formulario de abonos propone la fecha del día siguiente. Sin resolver.
+- El logo de los correos se carga por URL (`APP_URL`); en producción debe apuntar al dominio real.
 
 ### Fuera de alcance por ahora
 

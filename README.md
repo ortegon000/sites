@@ -26,7 +26,7 @@ El **contrato** se genera, no se captura: sale de los servicios, montos, vigenci
 
 Lo **cotizado** existe antes que el cobro: una `Quote` es trabajo ofrecido y sin aceptar, no genera ningún cargo, y al aceptarse nace su línea cobrable —y, si quien aceptó era un prospecto, se marca como ganado—. Una cotización enviada expira sola al pasar su vigencia.
 
-Lo que **caduca** —dominios, licencias y servicios anuales— abre un ciclo de renovación con estado propio: por avisar → avisado → renovó (que genera la línea cobrable y empuja la fecha un año) → no renovó (que da de baja). El aviso sale al cliente por correo con enlace a su portal, nunca con credenciales en el cuerpo.
+Lo que **caduca** —dominios, licencias y servicios anuales— abre un ciclo de renovación con estado propio: por avisar → avisado → renovó (que genera la línea cobrable y empuja la fecha un año) → no renovó (que da de baja). El aviso al cliente sale por correo —por ahora solo cuando alguien lo manda a mano— con la cuenta donde depositar y sus datos de contacto, nunca con credenciales en el cuerpo. Ver [Correos del sistema](#correos-del-sistema).
 
 El razonamiento completo detrás de estas decisiones está en **[CRM_PLAN.md](CRM_PLAN.md)**.
 
@@ -44,9 +44,19 @@ El razonamiento completo detrás de estas decisiones está en **[CRM_PLAN.md](CR
 - ✅ Fase 9 — Accesos de servidor, licencias e importación del libro de hosting
 - ✅ Fase 10 — Abonos y pagos parciales, cobros editables y agencias reorientadas
 - ✅ Fase 11 — Líneas cobrables sin proyecto, subtareas, cobro quincenal y vista de trabajos y cobros
-- ✅ Fase 12 — Renovaciones: tablero de caducidades, ciclo explícito y aviso automático al cliente
+- ✅ Fase 12 — Renovaciones: tablero de caducidades, ciclo explícito y aviso al cliente (manual por ahora; el automático está apagado)
 - ✅ Fase 13 — Cotizaciones: el trabajo ofrecido existe antes del cobro y se vuelve línea cobrable al aceptarse
 - ✅ Fase 14 — Contratos: se generan con los servicios y montos ya capturados, se editan y se imprimen
+- ✅ Fase 15 — Pulido de la ficha del cliente, reglas de cobro y correos: cada tarjeta y pestaña de la ficha rediseñada, cobros pagados protegidos con estatus editable, y todos los correos en español con la marca de Control+
+
+### Qué trae la Fase 15
+
+- **Ficha del cliente**: datos generales con responsable editable, contactos con enlaces de correo, teléfono y alta en modal, bitácora en línea de tiempo, y las cuatro pestañas (dominios y licencias, renovaciones, trabajo, cobros) con estatus de color, avisos de días para los vencimientos, una acción principal por fila y el resto en un menú "⋯". Todos los botones de solo icono tienen nombre accesible y la ficha no se desborda en móvil.
+- **Cobros**: un cobro **pagado** ya no se edita ni pierde sus abonos; para corregirlo se regresa a pendiente desde su insignia de estatus, lo que elimina sus abonos. A mano solo se admiten *pagado* y *pendiente*; parcial y vencido siguen derivándose de los abonos y la fecha. Lo vencido se lista primero y sobre la tabla aparece lo *por cobrar* por moneda.
+- **Correos**: plantillas propias en español, con el logo, un bloque de datos clave y montos con formato. El aviso de renovación al cliente es manual, más cercano y trae la cuenta para depositar y los datos de contacto.
+- **Marca**: el logo de Control+ (azul en tema claro, blanco en oscuro) y el nombre de la aplicación, **Sites**, un subproducto de Control+.
+
+> **Provisional.** Los datos de contacto y la cuenta bancaria del aviso al cliente son inventados. Deben reemplazarse en el `.env` antes de mandar correos de verdad (ver [Correos del sistema](#correos-del-sistema)).
 
 ## Desarrollo local
 
@@ -107,6 +117,46 @@ pnpm run dev
 pnpm run build
 ```
 
+## Correos del sistema
+
+Estos son todos los correos que existen. Solo uno le llega al cliente; el resto es para el equipo.
+
+### Al cliente
+
+| Correo | Cuándo sale | A quién | Cómo se activa |
+|---|---|---|---|
+| **Aviso de renovación** — "Tu dominio *x* se renueva pronto" | Cuando un dominio, licencia anual o servicio anual está por vencer (ventana de 30 días). | A todos los contactos de la empresa con correo; el saludo nombra al contacto principal. | **Manual**: botón *Avisar al cliente* en Renovaciones. El envío automático diario existe pero está **apagado** (`RENEWAL_NOTICES_AUTOMATIC=false`). |
+| **Correos de cuenta** — restablecer contraseña y verificar correo | Cuando el cliente los pide desde el acceso al portal. | Al usuario del portal. | Automático, de Fortify. Usan el texto estándar de Laravel, todavía sin traducir ni personalizar. |
+
+El aviso de renovación explica qué se renueva y cuándo, el costo, la cuenta para depositar (banco, titular, CLABE, cuenta y concepto), que mande su comprobante por WhatsApp o por correo, y que avise si prefiere no renovar. Cierra con los datos de contacto. Un ciclo de renovación sin contacto con correo no se envía ni se marca como avisado: se queda "por avisar", a la vista. **El botón al portal del cliente está comentado** hasta que el portal esté listo.
+
+Las **cotizaciones no se mandan por correo**: se comparte su enlace público a mano con *Copiar enlace*. Los cobros, abonos, contratos y cambios de estatus tampoco generan correo al cliente.
+
+### Internos (al equipo)
+
+Van a todos los administradores y, cuando el registro pertenece a un proyecto, también al personal asignado a él. Los que no cuelgan de un proyecto (dominios y licencias) llegan solo a los administradores. Cada uno también aparece en la campana de notificaciones de la app.
+
+| Correo | Cuándo sale | Frecuencia |
+|---|---|---|
+| **Cobro por vencer** | Un cobro pendiente o parcial vence en 3 días o menos. | Una vez por cobro. |
+| **Cobro vencido** | Un cobro pasó su fecha con saldo. | Una vez por cobro. |
+| **Dominio por expirar** | Un dominio que administramos expira en 30 días o menos. | Una vez por vencimiento. |
+| **Licencia mensual por renovar** | Una licencia mensual cobra en 3 días o menos. | Una vez por mes; la fecha avanza sola. |
+
+Salen en la corrida diaria (`php artisan charges:process`, 7:00 con el scheduler activo) y no dependen de `RENEWAL_NOTICES_AUTOMATIC`.
+
+### Configuración de los correos
+
+| Variable (`.env`) | Para qué sirve | Valor de prueba |
+|---|---|---|
+| `APP_NAME` | Nombre que firma los correos y el pie. | `Sites` |
+| `MAIL_FROM_ADDRESS` | Remitente. | `avisos@sites.test` |
+| `COMPANY_EMAIL`, `COMPANY_WHATSAPP`, `COMPANY_PHONE` | Datos de contacto del aviso al cliente. | Inventados |
+| `COMPANY_BANK_NAME`, `COMPANY_BANK_HOLDER`, `COMPANY_BANK_CLABE`, `COMPANY_BANK_ACCOUNT` | Cuenta donde depositar la renovación. | Inventados, no existe |
+| `RENEWAL_NOTICES_AUTOMATIC` | Enviar el aviso de renovación solos, cada día. | `false` |
+
+En local, los correos llegan a Mailpit y no salen a nadie. Sus plantillas están en `resources/views/vendor/` (`mail` y `notifications`) y el texto de cada aviso en `app/Notifications/`. Para revisar cómo se ven sin enviar nada, con la sesión iniciada en local: `/vista-previa/correos`. **Esa ruta es temporal** (`routes/mail-preview.php`, solo en local) y se borra junto con su `require` en `routes/web.php` cuando termine el diseño de los correos.
+
 ## Roles y accesos
 
 | Rol | Alcance |
@@ -123,7 +173,7 @@ El sistema custodia credenciales de clientes, así que el criterio es explícito
 - **Todo se guarda cifrado** con el cast `encrypted`: contraseñas de buzón, de servidor y de licencia, y las credenciales de proveedor.
 - **Los accesos de servidor son solo de admin** y **nunca aparecen en el portal**. Un cPanel o una base de datos abren la infraestructura del cliente; su buzón, en cambio, sí es suyo y puede verlo.
 - **La contraseña de un buzón solo se guarda si el proveedor no tiene API.** Un driver real puede resetearla cuando sea; uno manual no, y perderla ahí es perderla para siempre.
-- **Los correos al cliente llevan enlace al portal, nunca las contraseñas en el cuerpo.**
+- **Los correos al cliente nunca llevan contraseñas en el cuerpo.** Un correo se queda en la bandeja, se reenvía y se filtra.
 
 ## Comandos útiles
 
@@ -139,7 +189,7 @@ vendor/bin/phpstan analyse --no-progress --memory-limit=512M
 vendor/bin/pint --dirty --format agent
 ```
 
-Corrida diaria vía scheduler: genera los cobros programados, marca los vencidos, abre los ciclos de renovación de lo que caduca en los próximos 60 días, expira las cotizaciones vencidas y envía los recordatorios internos y los avisos de renovación al cliente.
+Corrida diaria vía scheduler (7:00): genera los cobros programados, marca los vencidos, abre los ciclos de renovación de lo que caduca en los próximos 60 días, expira las cotizaciones vencidas y envía los recordatorios internos al equipo. **No** manda el aviso de renovación al cliente mientras `RENEWAL_NOTICES_AUTOMATIC` esté apagado (por defecto).
 
 ```bash
 php artisan charges:process
