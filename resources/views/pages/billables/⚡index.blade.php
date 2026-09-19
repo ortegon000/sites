@@ -109,6 +109,50 @@ new class extends Component {
     }
 
     /**
+     * Los totales del pie de la tabla, por moneda, de todo lo filtrado: sumar
+     * pesos con dólares no significaría nada. Trae el monto de las líneas, lo
+     * facturado (sus cobros) y lo cobrado (sus abonos).
+     *
+     * @return array<string, array{count: int, amount: float, billed: float, collected: float}>
+     */
+    #[Computed]
+    public function totalsByCurrency(): array
+    {
+        $totals = [];
+
+        $lines = $this->filteredQuery()
+            ->selectRaw('services.currency as currency, count(*) as line_count, sum(services.amount) as amount')
+            ->groupBy('services.currency')
+            ->get();
+
+        foreach ($lines as $row) {
+            $totals[$row->currency] = ['count' => (int) $row->line_count, 'amount' => (float) $row->amount, 'billed' => 0.0, 'collected' => 0.0];
+        }
+
+        $billed = $this->filteredQuery()
+            ->join('charges', 'charges.service_id', '=', 'services.id')
+            ->selectRaw('services.currency as currency, sum(charges.amount) as total')
+            ->groupBy('services.currency')
+            ->pluck('total', 'currency');
+
+        $collected = $this->filteredQuery()
+            ->join('charges', 'charges.service_id', '=', 'services.id')
+            ->join('charge_payments', 'charge_payments.charge_id', '=', 'charges.id')
+            ->selectRaw('services.currency as currency, sum(charge_payments.amount) as total')
+            ->groupBy('services.currency')
+            ->pluck('total', 'currency');
+
+        foreach ($totals as $currency => $row) {
+            $totals[$currency]['billed'] = (float) ($billed[$currency] ?? 0);
+            $totals[$currency]['collected'] = (float) ($collected[$currency] ?? 0);
+        }
+
+        ksort($totals);
+
+        return $totals;
+    }
+
+    /**
      * @return \Illuminate\Database\Eloquent\Builder<Service>
      */
     private function filteredQuery(): \Illuminate\Database\Eloquent\Builder
@@ -246,6 +290,36 @@ new class extends Component {
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse
+
+            @foreach ($this->totalsByCurrency as $currency => $totals)
+                @php ($pendingTotal = max(0, $totals['billed'] - $totals['collected']))
+                <flux:table.row wire:key="billables-total-{{ $currency }}" class="bg-zinc-50 dark:bg-white/5">
+                    <flux:table.cell class="font-semibold">
+                        <div class="flex flex-col">
+                            <span>{{ __('Total') }} {{ $currency }}</span>
+                            <span class="text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                                {{ trans_choice('{1}1 línea|[2,*]:count líneas', $totals['count'], ['count' => $totals['count']]) }} · {{ __('todo lo filtrado') }}
+                            </span>
+                        </div>
+                    </flux:table.cell>
+                    <flux:table.cell colspan="3"></flux:table.cell>
+                    <flux:table.cell class="tabular-nums">
+                        <div class="flex flex-col">
+                            <span class="font-semibold">{{ number_format($totals['amount'], 2) }} {{ $currency }}</span>
+                            <span class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('facturado :amount', ['amount' => number_format($totals['billed'], 2)]) }}</span>
+                        </div>
+                    </flux:table.cell>
+                    <flux:table.cell class="tabular-nums">
+                        <div class="flex flex-col">
+                            <span class="font-semibold">{{ number_format($totals['collected'], 2) }}</span>
+                            <span class="text-xs {{ $pendingTotal > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-zinc-400' }}">
+                                {{ __('por cobrar :amount', ['amount' => number_format($pendingTotal, 2)]) }}
+                            </span>
+                        </div>
+                    </flux:table.cell>
+                    <flux:table.cell></flux:table.cell>
+                </flux:table.row>
+            @endforeach
         </flux:table.rows>
     </flux:table>
 </div>

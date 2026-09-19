@@ -4,6 +4,7 @@ use App\Enums\ChargeStatus;
 use App\Enums\ServiceBillingFrequency;
 use App\Livewire\ChargesPanel;
 use App\Livewire\ServicesPanel;
+use App\Models\Charge;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\Service;
@@ -189,4 +190,30 @@ test('un colaborador no entra a trabajos y cobros', function () {
     $this->actingAs($collaborator);
 
     $this->get(route('billables.index'))->assertForbidden();
+});
+
+test('la tabla de trabajos y cobros suma por moneda todo lo filtrado, no solo la página', function () {
+    $staff = User::factory()->staff()->create();
+    $client = Client::factory()->client()->create();
+    $other = Client::factory()->client()->create();
+
+    $mxn = Service::factory()->standalone()->for($client)->oneTime()->create(['amount' => '1000.00', 'currency' => 'MXN']);
+    $paid = Charge::factory()->for($mxn)->create(['amount' => '1000.00', 'currency' => 'MXN']);
+    $paid->payments()->create(['amount' => '400.00', 'paid_on' => today()->toDateString()]);
+
+    $usd = Service::factory()->standalone()->for($client)->oneTime()->create(['amount' => '200.00', 'currency' => 'USD']);
+    Charge::factory()->for($usd)->create(['amount' => '200.00', 'currency' => 'USD']);
+
+    Service::factory()->standalone()->for($other)->oneTime()->create(['amount' => '9999.00', 'currency' => 'MXN']);
+
+    $this->actingAs($staff);
+
+    $page = Livewire::test('pages::billables.index')->set('clientFilter', $client->id);
+
+    expect($page->instance()->totalsByCurrency)->toBe([
+        'MXN' => ['count' => 1, 'amount' => 1000.0, 'billed' => 1000.0, 'collected' => 400.0],
+        'USD' => ['count' => 1, 'amount' => 200.0, 'billed' => 200.0, 'collected' => 0.0],
+    ]);
+
+    $page->assertSee('Total MXN')->assertSee('Total USD');
 });
