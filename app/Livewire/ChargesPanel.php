@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Actions\Charges\DeleteChargePayment;
 use App\Actions\Charges\MarkChargeAsPaid;
 use App\Actions\Charges\RecordChargePayment;
+use App\Actions\Charges\ReopenCharge;
 use App\Actions\Charges\UpdateCharge;
 use App\Enums\ChargeStatus;
 use App\Models\Charge;
@@ -129,15 +130,44 @@ class ChargesPanel extends Component
         unset($this->charges);
     }
 
-    public function markChargeAsPaid(int $chargeId, MarkChargeAsPaid $action): void
+    /**
+     * El estatus de un cobro se deriva de sus abonos y de su fecha, así que a
+     * mano solo hay dos movimientos: marcarlo pagado (registra el restante
+     * como abono) y regresarlo a pendiente (le quita los abonos). Parcial y
+     * vencido no se eligen: salen de los abonos y de la fecha.
+     */
+    public function updateChargeStatus(int $chargeId, string $status, MarkChargeAsPaid $markAsPaid, ReopenCharge $reopen): void
     {
         Gate::authorize('update', $this->client);
 
-        $action->handle($this->findCharge($chargeId));
+        $charge = $this->findCharge($chargeId);
+        $newStatus = ChargeStatus::tryFrom($status);
 
-        unset($this->charges);
+        if ($newStatus === ChargeStatus::Pagado && $charge->status !== ChargeStatus::Pagado) {
+            $markAsPaid->handle($charge);
+        } elseif ($newStatus === ChargeStatus::Pendiente && $charge->status === ChargeStatus::Pagado) {
+            $reopen->handle($charge);
+        } else {
+            return;
+        }
 
-        Flux::toast(variant: 'success', text: __('Cobro marcado como pagado.'));
+        unset($this->charges, $this->payingCharge);
+
+        Flux::toast(variant: 'success', text: __('Estatus actualizado.'));
+    }
+
+    /**
+     * Un cobro pagado no se edita: primero hay que regresarlo a pendiente.
+     */
+    private function rejectIfPaid(Charge $charge): bool
+    {
+        if ($charge->status !== ChargeStatus::Pagado) {
+            return false;
+        }
+
+        Flux::toast(variant: 'danger', text: __('Un cobro pagado no se puede editar. Regrésalo a pendiente primero.'));
+
+        return true;
     }
 
     public function openChargeModal(int $chargeId): void
@@ -145,6 +175,10 @@ class ChargesPanel extends Component
         Gate::authorize('update', $this->client);
 
         $charge = $this->findCharge($chargeId);
+
+        if ($this->rejectIfPaid($charge)) {
+            return;
+        }
 
         $this->editingChargeId = $charge->id;
         $this->chargeConcept = $charge->concept;
@@ -160,6 +194,10 @@ class ChargesPanel extends Component
         Gate::authorize('update', $this->client);
 
         $charge = $this->findCharge($this->editingChargeId ?? 0);
+
+        if ($this->rejectIfPaid($charge)) {
+            return;
+        }
 
         $validated = $this->validate([
             'chargeConcept' => ['nullable', 'string', 'max:255'],
@@ -234,6 +272,12 @@ class ChargesPanel extends Component
         Gate::authorize('update', $this->client);
 
         $charge = $this->findCharge($this->payingChargeId ?? 0);
+
+        if ($charge->status === ChargeStatus::Pagado) {
+            Flux::toast(variant: 'danger', text: __('Un cobro pagado no puede quedarse sin sus abonos.'));
+
+            return;
+        }
 
         $action->handle(ChargePayment::where('charge_id', $charge->id)->findOrFail($paymentId));
 

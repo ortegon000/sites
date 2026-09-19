@@ -165,7 +165,7 @@ test('staff can mark a charge as paid from the project charges panel', function 
     $this->actingAs($staff);
 
     Livewire::test(ChargesPanel::class, ['client' => $client, 'project' => $project])
-        ->call('markChargeAsPaid', $charge->id);
+        ->call('updateChargeStatus', $charge->id, ChargeStatus::Pagado->value);
 
     expect($charge->fresh()->status)->toBe(ChargeStatus::Pagado)
         ->and($charge->fresh()->paid_at)->not->toBeNull();

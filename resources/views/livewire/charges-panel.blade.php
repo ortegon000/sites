@@ -70,27 +70,43 @@
                         </div>
                     </flux:table.cell>
                     <flux:table.cell>
-                        <flux:badge size="sm" :color="$charge->status->color()">
-                            {{ $charge->status->label() }}
-                        </flux:badge>
+                        @can('update', $client)
+                            <flux:dropdown>
+                                <flux:button size="xs" variant="ghost" icon-trailing="chevron-down">
+                                    <flux:badge size="sm" :color="$charge->status->color()" inset="top bottom">{{ $charge->status->label() }}</flux:badge>
+                                </flux:button>
+
+                                <flux:menu>
+                                    @if ($charge->status === \App\Enums\ChargeStatus::Pagado)
+                                        <flux:menu.item
+                                            wire:click="updateChargeStatus({{ $charge->id }}, '{{ \App\Enums\ChargeStatus::Pendiente->value }}')"
+                                            wire:confirm="{{ __('¿Regresar este cobro a pendiente? Se eliminarán todos sus abonos.') }}">
+                                            {{ \App\Enums\ChargeStatus::Pendiente->label() }}
+                                        </flux:menu.item>
+                                    @else
+                                        <flux:menu.item
+                                            wire:click="updateChargeStatus({{ $charge->id }}, '{{ \App\Enums\ChargeStatus::Pagado->value }}')"
+                                            wire:confirm="{{ __('¿Registrar el saldo restante como abono y marcar este cobro como pagado?') }}">
+                                            {{ \App\Enums\ChargeStatus::Pagado->label() }}
+                                        </flux:menu.item>
+                                    @endif
+                                </flux:menu>
+                            </flux:dropdown>
+                        @else
+                            <flux:badge size="sm" :color="$charge->status->color()">{{ $charge->status->label() }}</flux:badge>
+                        @endcan
                     </flux:table.cell>
                     <flux:table.cell>
                         @can('update', $client)
                             <div class="flex items-center justify-end gap-1">
-                                @if ($charge->status !== \App\Enums\ChargeStatus::Pagado)
-                                    <flux:button size="xs" icon="check"
-                                        wire:click="markChargeAsPaid({{ $charge->id }})"
-                                        wire:confirm="{{ __('¿Registrar el saldo restante como abono y marcar este cobro como pagado?') }}">
-                                        {{ __('Cobrar') }}
-                                    </flux:button>
-                                @endif
-
                                 <flux:dropdown align="end">
                                     <flux:button size="xs" variant="ghost" icon="ellipsis-horizontal" :aria-label="__('Más acciones')" />
 
                                     <flux:menu>
                                         <flux:menu.item icon="banknotes" wire:click="openPaymentsModal({{ $charge->id }})">{{ __('Abonos') }}</flux:menu.item>
-                                        <flux:menu.item icon="pencil" wire:click="openChargeModal({{ $charge->id }})">{{ __('Editar cobro') }}</flux:menu.item>
+                                        @unless ($charge->status === \App\Enums\ChargeStatus::Pagado)
+                                            <flux:menu.item icon="pencil" wire:click="openChargeModal({{ $charge->id }})">{{ __('Editar cobro') }}</flux:menu.item>
+                                        @endunless
                                     </flux:menu>
                                 </flux:dropdown>
                             </div>
@@ -128,13 +144,23 @@
 
     <flux:modal name="charge-payments" class="md:w-[36rem]" wire:close="closePaymentsModal">
         @if ($this->payingCharge)
+            @php
+                $payingCharge = $this->payingCharge;
+                $isPaid = $payingCharge->status === \App\Enums\ChargeStatus::Pagado;
+                $singlePayment = $payingCharge->payments->count() === 1 ? $payingCharge->payments->first() : null;
+                /** Con un solo abono en un cobro pagado, su fecha ya sube al resumen y su importe es el "Abonado": la lista solo aporta si trae detalle. */
+                $summarizesPayment = $isPaid && $singlePayment !== null;
+                $singlePaymentDetails = $singlePayment ? collect([$singlePayment->method, $singlePayment->account, $singlePayment->reference, $singlePayment->invoice_reference ? __('Folio :folio', ['folio' => $singlePayment->invoice_reference]) : null])->filter()->join(' · ') : '';
+                $showPaymentList = ! $summarizesPayment || $singlePaymentDetails !== '';
+            @endphp
+
             <div class="flex flex-col gap-6">
                 <div class="flex flex-col gap-1">
                     <flux:heading size="lg">{{ __('Abonos') }}</flux:heading>
                     <flux:text class="text-zinc-400">{{ $this->payingCharge->conceptLabel() }}</flux:text>
                 </div>
 
-                <div class="grid grid-cols-3 gap-4 text-sm">
+                <div @class(['grid grid-cols-2 gap-4 text-sm', 'sm:grid-cols-4' => $isPaid, 'sm:grid-cols-3' => ! $isPaid])>
                     <div class="flex flex-col">
                         <span class="text-zinc-400">{{ __('Monto') }}</span>
                         <span>{{ number_format((float) $this->payingCharge->amount, 2) }} {{ $this->payingCharge->currency }}</span>
@@ -147,27 +173,48 @@
                         <span class="text-zinc-400">{{ __('Restante') }}</span>
                         <span>{{ number_format($this->payingCharge->remainingAmount(), 2) }}</span>
                     </div>
+                    @if ($isPaid && $payingCharge->paid_at)
+                        <div class="flex flex-col">
+                            <span class="text-zinc-400">{{ __('Pagado el') }}</span>
+                            <span>{{ $payingCharge->paid_at->format('d/m/Y') }}</span>
+                        </div>
+                    @endif
                 </div>
 
+                @if ($showPaymentList)
                 <div class="flex flex-col gap-2">
                     @forelse ($this->payingCharge->payments as $payment)
                         <div wire:key="payment-{{ $payment->id }}" class="flex items-start justify-between gap-4 border-b border-zinc-100 pb-2 text-sm last:border-0 dark:border-zinc-700">
-                            <div class="flex flex-col">
-                                <span>{{ number_format((float) $payment->amount, 2) }} · {{ $payment->paid_on->format('d/m/Y') }}</span>
-                                <span class="text-xs text-zinc-400">
-                                    {{ collect([$payment->method, $payment->account, $payment->reference, $payment->invoice_reference ? __('Folio :folio', ['folio' => $payment->invoice_reference]) : null])->filter()->join(' · ') ?: '—' }}
-                                </span>
+                            @php
+                                $paymentDetails = collect([$payment->method, $payment->account, $payment->reference, $payment->invoice_reference ? __('Folio :folio', ['folio' => $payment->invoice_reference]) : null])->filter()->join(' · ');
+                            @endphp
+                            <div class="grid min-w-0 flex-1 grid-cols-2 gap-x-4 sm:flex sm:items-baseline sm:gap-3">
+                                @unless ($summarizesPayment)
+                                    <span class="font-medium whitespace-nowrap">
+                                        @if ($this->payingCharge->payments->count() > 1)
+                                            {{ number_format((float) $payment->amount, 2) }} ·
+                                        @endif
+                                        {{ $payment->paid_on->format('d/m/Y') }}
+                                    </span>
+                                @endunless
+                                @if ($paymentDetails !== '')
+                                    <span class="min-w-0 text-xs text-zinc-500 sm:truncate dark:text-zinc-400" title="{{ $paymentDetails }}">{{ $paymentDetails }}</span>
+                                @endif
                             </div>
                             @can('update', $client)
-                                <flux:button size="xs" variant="ghost" icon="trash"
-                                    wire:click="deletePayment({{ $payment->id }})"
-                                    wire:confirm="{{ __('¿Eliminar este abono?') }}" />
+                                @if ($this->payingCharge->status !== \App\Enums\ChargeStatus::Pagado)
+                                    <flux:button size="xs" variant="ghost" icon="trash"
+                                        :aria-label="__('Eliminar abono')"
+                                        wire:click="deletePayment({{ $payment->id }})"
+                                        wire:confirm="{{ __('¿Eliminar este abono?') }}" />
+                                @endif
                             @endcan
                         </div>
                     @empty
                         <flux:text class="text-zinc-400">{{ __('Sin abonos todavía.') }}</flux:text>
                     @endforelse
                 </div>
+                @endif
 
                 @can('update', $client)
                     <flux:separator />
@@ -179,17 +226,11 @@
                         </div>
                     @else
                     <form wire:submit="savePayment" class="flex flex-col gap-4">
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
                             <flux:input wire:model="paymentAmount" type="number" step="0.01" :label="__('Monto del abono')" required />
                             <flux:input wire:model="paymentPaidOn" type="date" :label="__('Fecha de pago')" required />
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <flux:input wire:model="paymentMethod" :label="__('Método')" :placeholder="__('Transferencia, efectivo...')" />
-                            <flux:input wire:model="paymentAccount" :label="__('Cuenta')" :placeholder="__('Banco o cuenta que recibió')" />
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
+                            <flux:input wire:model="paymentMethod" :label="__('Método')" :placeholder="__('Transferencia')" />
+                            <flux:input wire:model="paymentAccount" :label="__('Cuenta')" :placeholder="__('Banco')" />
                             <flux:input wire:model="paymentReference" :label="__('Comprobante')" />
                             <flux:input wire:model="paymentInvoiceReference" :label="__('Folio de factura')" />
                         </div>

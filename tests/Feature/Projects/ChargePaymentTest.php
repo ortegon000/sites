@@ -78,7 +78,7 @@ test('eliminar un abono devuelve el cobro a pendiente', function () {
 
     Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])
         ->call('openPaymentsModal', $charge->id)
-        ->set('paymentAmount', '5000.00')
+        ->set('paymentAmount', '2000.00')
         ->set('paymentPaidOn', today()->toDateString())
         ->call('savePayment')
         ->call('deletePayment', $charge->payments()->firstOrFail()->id)
@@ -91,6 +91,26 @@ test('eliminar un abono devuelve el cobro a pendiente', function () {
         ->and($charge->payments()->count())->toBe(0);
 });
 
+test('un cobro pagado no puede quedarse sin sus abonos', function () {
+    $staff = User::factory()->staff()->create();
+    $project = Project::factory()->for(Client::factory()->client())->create();
+    $charge = chargeFor($project, '5000.00');
+
+    $this->actingAs($staff);
+
+    Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])
+        ->call('openPaymentsModal', $charge->id)
+        ->set('paymentAmount', '5000.00')
+        ->set('paymentPaidOn', today()->toDateString())
+        ->call('savePayment')
+        ->call('deletePayment', $charge->payments()->firstOrFail()->id);
+
+    $charge->refresh();
+
+    expect($charge->status)->toBe(ChargeStatus::Pagado)
+        ->and($charge->payments()->count())->toBe(1);
+});
+
 test('marcar pagado registra el restante como un abono', function () {
     $staff = User::factory()->staff()->create();
     $project = Project::factory()->for(Client::factory()->client())->create();
@@ -101,7 +121,7 @@ test('marcar pagado registra el restante como un abono', function () {
     $this->actingAs($staff);
 
     Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])
-        ->call('markChargeAsPaid', $charge->id)
+        ->call('updateChargeStatus', $charge->id, ChargeStatus::Pagado->value)
         ->assertHasNoErrors();
 
     $charge->refresh();
@@ -220,4 +240,71 @@ test('el panel de cobros pone primero lo vencido y suma lo que falta por cobrar 
             'MXN' => ['open' => 2500.0, 'overdue' => 2000.0],
             'USD' => ['open' => 100.0, 'overdue' => 0.0],
         ]);
+});
+
+test('un cobro pagado no se edita hasta regresarlo a pendiente', function () {
+    $staff = User::factory()->staff()->create();
+    $project = Project::factory()->for(Client::factory()->client())->create();
+    $charge = chargeFor($project, '5000.00');
+
+    $this->actingAs($staff);
+
+    $panel = Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])
+        ->call('updateChargeStatus', $charge->id, ChargeStatus::Pagado->value);
+
+    expect($charge->refresh()->status)->toBe(ChargeStatus::Pagado);
+
+    $panel->call('openChargeModal', $charge->id)
+        ->assertSet('editingChargeId', null)
+        ->set('editingChargeId', $charge->id)
+        ->set('chargeAmount', '9999.00')
+        ->set('chargeDueDate', today()->addDays(3)->toDateString())
+        ->call('saveCharge');
+
+    expect((float) $charge->refresh()->amount)->toBe(5000.0);
+
+    $panel->call('updateChargeStatus', $charge->id, ChargeStatus::Pendiente->value);
+
+    $charge->refresh();
+
+    expect($charge->status)->toBe(ChargeStatus::Pendiente)
+        ->and($charge->paid_at)->toBeNull()
+        ->and($charge->payments()->count())->toBe(0);
+
+    $panel->call('openChargeModal', $charge->id)
+        ->assertSet('editingChargeId', $charge->id);
+});
+
+test('el estatus a mano solo admite pagado o pendiente y no cambia un cobro que no lo necesita', function () {
+    $staff = User::factory()->staff()->create();
+    $project = Project::factory()->for(Client::factory()->client())->create();
+    $charge = chargeFor($project, '5000.00');
+
+    $this->actingAs($staff);
+
+    Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])
+        ->call('updateChargeStatus', $charge->id, ChargeStatus::Vencido->value)
+        ->call('updateChargeStatus', $charge->id, 'inventado')
+        ->call('updateChargeStatus', $charge->id, ChargeStatus::Pendiente->value);
+
+    expect($charge->refresh()->status)->toBe(ChargeStatus::Pendiente)
+        ->and($charge->payments()->count())->toBe(0);
+});
+
+test('el modal de abonos de un cobro pagado muestra la fecha de pago en el resumen', function () {
+    $staff = User::factory()->staff()->create();
+    $project = Project::factory()->for(Client::factory()->client())->create();
+    $charge = chargeFor($project, '5000.00');
+
+    $this->actingAs($staff);
+
+    $panel = Livewire::test(ChargesPanel::class, ['client' => $project->client, 'project' => $project])
+        ->call('openPaymentsModal', $charge->id)
+        ->assertDontSee('Pagado el');
+
+    $panel->set('paymentAmount', '5000.00')
+        ->set('paymentPaidOn', '2026-09-10')
+        ->call('savePayment')
+        ->assertSee('Pagado el')
+        ->assertSee('10/09/2026');
 });
