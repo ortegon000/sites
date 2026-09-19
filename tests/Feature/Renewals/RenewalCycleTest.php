@@ -17,11 +17,13 @@ use App\Models\Renewal;
 use App\Models\Service;
 use App\Models\User;
 use App\Notifications\RenewalNoticeNotification;
+use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 
 test('la corrida diaria abre un ciclo por dominio, licencia y servicio anual que caduca, y no los duplica', function () {
     Notification::fake();
+    config(['company.renewal_notices_automatic' => true]);
 
     $client = Client::factory()->client()->create();
     $client->contacts()->attach(Contact::factory()->create(['email' => 'dueno@cliente.test']), ['is_primary' => true]);
@@ -67,6 +69,29 @@ test('la corrida diaria abre un ciclo por dominio, licencia y servicio anual que
         ->and((float) $service->renewals()->first()->amount)->toBe(4000.0);
 
     Notification::assertSentOnDemandTimes(RenewalNoticeNotification::class, 1);
+});
+
+test('con el aviso automático apagado la corrida diaria abre el ciclo pero no le escribe al cliente', function () {
+    Notification::fake();
+
+    $client = Client::factory()->client()->create();
+    $client->contacts()->attach(Contact::factory()->create(['email' => 'dueno@cliente.test']), ['is_primary' => true]);
+
+    $domain = Domain::factory()->for($client)->create([
+        'management' => DomainManagement::Managed,
+        'status' => DomainStatus::Activo,
+        'expires_at' => today()->addDays(25)->toDateString(),
+    ]);
+
+    expect(config('company.renewal_notices_automatic'))->toBeFalse();
+
+    $this->artisan('charges:process')->assertSuccessful();
+
+    expect($domain->renewals()->first()->status)->toBe(RenewalStatus::PorAvisar)
+        ->and($domain->renewals()->first()->notified_at)->toBeNull();
+
+    Notification::assertNothingSentTo(new AnonymousNotifiable);
+    Notification::assertNotSentTo(new AnonymousNotifiable, RenewalNoticeNotification::class);
 });
 
 test('el aviso va a los contactos del cliente con correo y deja constancia', function () {
@@ -125,6 +150,7 @@ test('el correo al cliente lleva los datos de la renovación y de contacto, y ni
         ->and($rendered)->toContain('012 180 00123456789 1')
         ->and($rendered)->toContain('comprobante')
         ->and($rendered)->toContain('prefieres no renovarlo')
+        ->and($rendered)->not->toContain('**')
         ->and($rendered)->not->toContain('contraseña');
 });
 

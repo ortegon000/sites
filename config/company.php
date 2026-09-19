@@ -37,4 +37,18 @@ return [
         'account' => env('COMPANY_BANK_ACCOUNT', '0123456789'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Avisos de renovación automáticos al cliente
+    |--------------------------------------------------------------------------
+    |
+    | Apagado por ahora: el aviso al cliente sale solo cuando alguien lo manda
+    | con "Avisar al cliente" en Renovaciones. Los correos internos al equipo
+    | no dependen de esto. Para volver al envío automático diario,
+    | RENEWAL_NOTICES_AUTOMATIC=true en el .env.
+    |
+    */
+
+    'renewal_notices_automatic' => (bool) env('RENEWAL_NOTICES_AUTOMATIC', false),
+
 ];

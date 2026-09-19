@@ -20,6 +20,7 @@
 @foreach ($sections ?? [] as $section)
 @if ($section['type'] === 'details')
 <x-mail::details :rows="$section['rows']" />
+
 @else
 {{ $section['body'] }}
 

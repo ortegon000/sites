@@ -26,7 +26,7 @@ class ProcessScheduledCharges extends Command
      *
      * @var string
      */
-    protected $description = 'Genera los cobros programados, marca los vencidos, abre los ciclos de renovación, expira las cotizaciones vencidas y envía los recordatorios internos y los avisos de renovación al cliente.';
+    protected $description = 'Genera los cobros programados, marca los vencidos, abre los ciclos de renovación, expira las cotizaciones vencidas y envía los recordatorios internos (y los avisos de renovación al cliente, si están activados).';
 
     public function handle(
         GenerateScheduledCharges $generateScheduledCharges,
@@ -50,7 +50,8 @@ class ProcessScheduledCharges extends Command
 
         $openedCycles = $openRenewalCycles->handle();
 
-        $noticesSent = $sendRenewalNotices->handle();
+        /** Por ahora el aviso al cliente es manual; ver config/company.php. */
+        $noticesSent = config('company.renewal_notices_automatic') ? $sendRenewalNotices->handle() : 0;
 
         $expiredQuotes = $expireStaleQuotes->handle();
 
