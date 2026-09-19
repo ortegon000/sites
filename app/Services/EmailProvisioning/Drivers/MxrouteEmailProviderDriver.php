@@ -96,6 +96,8 @@ class MxrouteEmailProviderDriver implements EmailProviderDriver
      */
     private function split(string $emailAddress): array
     {
-        return explode('@', $emailAddress, 2);
+        [$user, $domain] = array_pad(explode('@', $emailAddress, 2), 2, '');
+
+        return [$user, $domain];
     }
 }

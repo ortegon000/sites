@@ -28,6 +28,8 @@ use Livewire\Component;
  * tarjeta de cobros de ese trabajo, y sin él es el estado de cuenta del
  * cliente, que es donde aparecen los cobros de las líneas sueltas —las que no
  * cuelgan de ningún proyecto y son la mayoría.
+ *
+ * @property-read Collection<int, Charge> $charges Computed de Livewire: se lee como propiedad.
  */
 class ChargesPanel extends Component
 {

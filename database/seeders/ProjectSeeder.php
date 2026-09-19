@@ -94,7 +94,7 @@ class ProjectSeeder extends Seeder
 
         $maquetacion = $project->tasks()->create([
             'title' => 'Maquetar las secciones internas',
-            'assigned_to_user_id' => $this->collaborator?->id ?? $this->staff->id,
+            'assigned_to_user_id' => $this->collaborator->id ?? $this->staff->id,
             'due_date' => now()->addDays(6)->toDateString(),
         ]);
         $maquetacion->subtasks()->createMany([

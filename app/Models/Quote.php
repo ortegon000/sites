@@ -27,7 +27,7 @@ use Illuminate\Support\Str;
  * @property int $client_id
  * @property int|null $project_id
  * @property bool $is_project
- * @property string $public_token
+ * @property string|null $public_token El constructor lo genera si no viene dado; por eso se comprueba contra nulo.
  * @property string $name
  * @property string|null $description
  * @property string $currency

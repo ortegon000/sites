@@ -184,7 +184,7 @@ trait ManagesQuoteActions
     {
         $quote = $this->editingQuoteId !== null ? $this->findQuoteForAction($this->editingQuoteId) : null;
 
-        Gate::authorize('update', $quote?->client ?? $this->newQuoteClient());
+        Gate::authorize('update', $quote->client ?? $this->newQuoteClient());
 
         $validated = $this->validate([
             'quoteName' => ['required', 'string', 'max:255'],
