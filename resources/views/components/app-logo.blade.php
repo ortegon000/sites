@@ -2,16 +2,11 @@
     'sidebar' => false,
 ])
 
-@if($sidebar)
-    <flux:sidebar.brand :name="config('app.name', 'Laravel')" {{ $attributes }}>
-        <x-slot name="logo" class="flex aspect-square size-8 items-center justify-center rounded-md bg-accent-content text-accent-foreground">
-            <x-app-logo-icon class="size-5 fill-current text-white dark:text-black" />
-        </x-slot>
-    </flux:sidebar.brand>
-@else
-    <flux:brand :name="config('app.name', 'Laravel')" {{ $attributes }}>
-        <x-slot name="logo" class="flex aspect-square size-8 items-center justify-center rounded-md bg-accent-content text-accent-foreground">
-            <x-app-logo-icon class="size-5 fill-current text-white dark:text-black" />
-        </x-slot>
-    </flux:brand>
-@endif
+{{--
+    El logo con su nombre: azul sobre tema claro y blanco sobre tema oscuro,
+    cada uno un PNG propio en public/images.
+--}}
+<a {{ $attributes->class(['flex items-center', 'px-2 py-1' => $sidebar]) }}>
+    <img src="{{ asset('images/logo-blue.png') }}" alt="{{ config('app.name') }}" class="h-7 w-auto dark:hidden">
+    <img src="{{ asset('images/logo-white.png') }}" alt="{{ config('app.name') }}" class="hidden h-7 w-auto dark:block">
+</a>
