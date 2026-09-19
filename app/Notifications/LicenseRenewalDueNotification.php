@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\License;
+use App\Notifications\Messages\DetailedMailMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -21,13 +22,18 @@ class LicenseRenewalDueNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $client = $this->license->client;
-        $renewsOn = $this->license->renewal_date->format('d/m/Y');
 
-        return (new MailMessage)
+        return (new DetailedMailMessage)
             ->subject("Cobro mensual próximo: {$this->license->name}")
             ->greeting('Recordatorio interno')
-            ->line("\"{$this->license->name}\" de {$client->name} cobra el {$renewsOn}.")
-            ->line($this->license->auto_renew
+            ->line("Se acerca el cobro mensual de una licencia de {$client->name}.")
+            ->details([
+                'Cliente' => $client->name,
+                'Licencia' => $this->license->name,
+                'Cobra' => $this->license->renewal_date->format('d/m/Y'),
+                'Renovación' => $this->license->auto_renew ? 'Automática' : 'Manual',
+            ])
+            ->footnote($this->license->auto_renew
                 ? 'Tiene renovación automática activada: conviene confirmar que el cobro va a pasar.'
                 : 'No tiene renovación automática: hay que gestionarla a mano con el proveedor.');
     }

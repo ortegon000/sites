@@ -100,7 +100,7 @@ test('sin contacto con correo el ciclo se queda por avisar, en vez de darse por 
     Notification::assertNothingSent();
 });
 
-test('el correo al cliente lleva enlace al portal y ninguna credencial', function () {
+test('el correo al cliente lleva los datos de la renovación y de contacto, y ninguna credencial', function () {
     $client = Client::factory()->client()->create();
     $domain = Domain::factory()->for($client)->create(['name' => 'clinica-sur.test']);
 
@@ -114,8 +114,13 @@ test('el correo al cliente lleva enlace al portal y ninguna credencial', functio
     $mail = (new RenewalNoticeNotification($renewal))->toMail(new stdClass);
     $rendered = (string) $mail->render();
 
-    expect($mail->actionUrl)->toBe(route('portal.renewals.index'))
+    /** El botón al portal está comentado hasta que el portal esté listo: por ahora el correo no lleva enlace, pero sí cómo escribirnos. */
+    expect($mail->actionUrl)->toBeNull()
         ->and($rendered)->toContain('clinica-sur.test')
+        ->and($rendered)->toContain('4,000.00 MXN')
+        ->and($rendered)->toContain('wa.me/')
+        ->and($rendered)->toContain('mailto:'.config('company.contact.email'))
+        ->and($rendered)->toContain('tel:')
         ->and($rendered)->not->toContain('contraseña');
 });
 

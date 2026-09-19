@@ -2,12 +2,16 @@
 
 namespace App\Notifications;
 
+use App\Concerns\FormatsMoney;
 use App\Models\Charge;
+use App\Notifications\Messages\DetailedMailMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class ChargeDueSoonNotification extends Notification
 {
+    use FormatsMoney;
+
     public function __construct(public Charge $charge) {}
 
     /**
@@ -25,11 +29,16 @@ class ChargeDueSoonNotification extends Notification
         /** El proyecto es opcional: una línea suelta se cobra igual sin él. */
         $where = $service->project ? "{$client->name} ({$service->project->name})" : $client->name;
 
-        return (new MailMessage)
+        return (new DetailedMailMessage)
             ->subject("Cobro próximo a vencer: {$this->charge->conceptLabel()}")
             ->greeting('Recordatorio de cobro')
-            ->line("El cobro de \"{$this->charge->conceptLabel()}\" para {$where} vence el {$this->charge->due_date->format('d/m/Y')}.")
-            ->line("Monto: {$this->charge->amount} {$this->charge->currency}");
+            ->line("Se acerca la fecha de un cobro de {$where}.")
+            ->details([
+                'Cliente' => $where,
+                'Concepto' => $this->charge->conceptLabel(),
+                'Vence' => $this->charge->due_date->format('d/m/Y'),
+                'Monto' => $this->formatMoney($this->charge->amount, $this->charge->currency),
+            ]);
     }
 
     /**

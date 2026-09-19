@@ -2,12 +2,16 @@
 
 namespace App\Notifications;
 
+use App\Concerns\FormatsMoney;
 use App\Models\Charge;
+use App\Notifications\Messages\DetailedMailMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class ChargeOverdueNotification extends Notification
 {
+    use FormatsMoney;
+
     public function __construct(public Charge $charge) {}
 
     /**
@@ -25,11 +29,17 @@ class ChargeOverdueNotification extends Notification
         /** El proyecto es opcional: una línea suelta se cobra igual sin él. */
         $where = $service->project ? "{$client->name} ({$service->project->name})" : $client->name;
 
-        return (new MailMessage)
+        return (new DetailedMailMessage)
             ->subject("Cobro vencido: {$this->charge->conceptLabel()}")
             ->greeting('Cobro vencido')
-            ->line("El cobro de \"{$this->charge->conceptLabel()}\" para {$where} venció el {$this->charge->due_date->format('d/m/Y')} y sigue sin registrarse como pagado.")
-            ->line("Monto: {$this->charge->amount} {$this->charge->currency}");
+            ->error()
+            ->line("Un cobro de {$where} ya venció y sigue sin registrarse como pagado.")
+            ->details([
+                'Cliente' => $where,
+                'Concepto' => $this->charge->conceptLabel(),
+                'Venció' => $this->charge->due_date->format('d/m/Y'),
+                'Monto' => $this->formatMoney($this->charge->amount, $this->charge->currency),
+            ]);
     }
 
     /**
